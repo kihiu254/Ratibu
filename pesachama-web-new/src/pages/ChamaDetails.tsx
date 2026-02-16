@@ -398,7 +398,7 @@ export default function ChamaDetails() {
                 ) : (
                     <div className="space-y-4">
                         {prompts.map((prompt) => (
-                            <PromptCard key={prompt.id} prompt={prompt} onPay={handlePayClick} loading={paymentLoading === prompt.id} isAdmin={isAdmin} />
+                            <PromptCard key={prompt.id} prompt={prompt} onPay={handlePayClick} loading={paymentLoading === prompt.id} />
                         ))}
                     </div>
                 )}
@@ -420,7 +420,7 @@ export default function ChamaDetails() {
   )
 }
 
-function PromptCard({ prompt, onPay, loading, isAdmin }: { prompt: any, onPay: (p: any) => void, loading: boolean, isAdmin: boolean }) {
+function PromptCard({ prompt, onPay, loading }: { prompt: any, onPay: (p: any) => void, loading: boolean }) {
     const [showContributors, setShowContributors] = useState(false)
     const [contributors, setContributors] = useState<any[]>([])
     const [loadingContributors, setLoadingContributors] = useState(false)
