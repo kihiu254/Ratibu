@@ -70,7 +70,7 @@ export default function Navbar() {
             </Link>
           )}
           <Link to="/" className="flex items-center group">
-            <RatibuLogo className="h-10 w-auto text-white group-hover:scale-105 transition-transform" />
+            <RatibuLogo className="h-16 w-auto text-white group-hover:scale-105 transition-transform" />
             <div className="ml-4 h-8 w-px bg-white/10 hidden lg:block" />
             <div className="ml-4 hidden lg:flex flex-col">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00C853]">Ratibu</span>
