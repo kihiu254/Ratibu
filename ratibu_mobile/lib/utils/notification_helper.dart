@@ -27,14 +27,23 @@ class NotificationHelper {
 
       // 2. Show Local OS Notification (Alert Banner)
       const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'ratibu_alerts',
-        'Ratibu Alerts',
-        channelDescription: 'Notifications for Ratibu actions',
+        'ratibu_alerts_v5', // New ID to force update channel settings
+        'Ratibu Alerts & Pop-ups',
+        channelDescription: 'Main notification channel for all alerts',
         importance: Importance.max,
         priority: Priority.high,
-        ticker: 'ticker',
+        showWhen: true,
+        fullScreenIntent: true, // Helps with showing as pop-up
+        category: AndroidNotificationCategory.status,
       );
-      const NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
+      const NotificationDetails platformDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      );
       
       await _localNotifications.show(
         DateTime.now().millisecond, // Unique ID

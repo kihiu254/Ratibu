@@ -17,6 +17,7 @@ import 'screens/join_chama_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/referrals_screen.dart';
+import 'screens/updates_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -39,6 +40,18 @@ void main() async {
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
       ?.requestNotificationsPermission();
+
+  // Pre-create High Importance Channel for Android
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'ratibu_alerts_v5',
+    'Ratibu Alerts & Pop-ups',
+    description: 'Main notification channel for all alerts',
+    importance: Importance.max,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
 
   final prefs = await SharedPreferences.getInstance();
   final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
@@ -123,6 +136,10 @@ GoRouter _createRouter(String initialLocation) => GoRouter(
     GoRoute(
       path: '/referrals',
       builder: (context, state) => const ReferralsScreen(),
+    ),
+    GoRoute(
+      path: '/updates',
+      builder: (context, state) => const UpdatesScreen(),
     ),
   ],
 );

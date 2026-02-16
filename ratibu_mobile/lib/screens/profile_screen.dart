@@ -288,6 +288,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // Achievements Section
               _buildAchievementsSection(),
               
+              const SizedBox(height: 32),
+
+              // App Updates Section
+              _buildUpdatesCard(),
+              
               const SizedBox(height: 40),
               
               // Sign Out Button
