@@ -50,30 +50,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     state = AuthStateLoading();
     try {
+      // Pass metadata so the backend trigger can populate the profile correctly
       final AuthResponse res = await _supabase.auth.signUp(
         email: email,
         password: password,
-      );
-
-      if (res.user != null) {
-        // Create user profile in 'users' table
-        await _supabase.from('users').insert({
-          'id': res.user!.id,
-          'email': email,
-          'phone': phone,
+        data: {
           'first_name': firstName,
           'last_name': lastName,
-        });
-      }
+          'full_name': '$firstName $lastName',
+          'phone': phone,
+        },
+      );
+
+      // The backend trigger handle_new_user now handles profile creation in public.users
+      // We do NOT need to manually insert here, as it would cause a duplicate key error.
       
       state = AuthStateUnauthenticated(); // Require login after signup
 
-      NotificationHelper.sendNotification(
-        title: 'Welcome to Ratibu!',
-        message: 'Your account has been created successfully. Please log in to continue.',
-        type: 'success',
-        userId: res.user!.id,
-      );
+      if (res.user != null) {
+         NotificationHelper.sendNotification(
+          title: 'Welcome to Ratibu!',
+          message: 'Your account has been created successfully. Please log in to continue.',
+          type: 'success',
+          userId: res.user!.id,
+        );
+      }
     } on AuthException catch (e) {
       state = AuthStateError(e.message);
     } catch (e) {
