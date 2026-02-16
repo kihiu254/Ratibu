@@ -48,18 +48,26 @@ const Footer = () => {
                         <h3 className="text-slate-900 dark:text-white font-black uppercase tracking-[0.2em] text-xs mb-8 transition-colors">Contact</h3>
                         <div className="glass rounded-2xl p-5 border border-slate-200 dark:border-white/5 space-y-3 bg-white/50 dark:bg-white/5 backdrop-blur-md">
                             <p className="text-[10px] text-accent font-black uppercase tracking-widest">Global Support</p>
-                            <p className="text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors">support@ratibu.app</p>
-                            <p className="text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors">+254 700 000 000</p>
-                            <Link to="/contact" className="inline-block text-xs text-[#00C853] hover:text-green-600 transition-colors font-black uppercase tracking-widest pt-2">
-                                Connect with us →
-                            </Link>
+                            <a href="mailto:ratibumail@gmail.com" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">ratibumail@gmail.com</a>
+                            <a href="tel:+254112081866" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">+254 112 081 866</a>
+                            
+                            <div className="pt-4 border-t border-slate-200 dark:border-white/10 mt-4">
+                                <p className="text-[10px] text-accent font-black uppercase tracking-widest">Developer Contact</p>
+                                <a href="mailto:1kihiupaul@gmail.com" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853] mt-1">1kihiupaul@gmail.com</a>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Bottom Bar */}
                 <div className="border-t border-slate-200 dark:border-white/5 mt-24 pt-10 flex flex-col md:flex-row justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                    <p>© 2026 RATIBU ECOSYSTEMS. ALL RIGHTS RESERVED.</p>
+                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                        <p>© 2026 RATIBU ECOSYSTEMS. ALL RIGHTS RESERVED.</p>
+                        <span className="hidden md:inline">|</span>
+                        <a href="https://gurucrafts.agency/" target="_blank" rel="noopener noreferrer" className="hover:text-[#00C853] transition-colors">
+                            Developed by GuruCrafts Agency
+                        </a>
+                    </div>
                     <div className="flex gap-8 mt-6 md:mt-0">
                         <Link to="/legal/privacy" className="hover:text-[#00C853] transition-colors">Privacy</Link>
                         <Link to="/legal/terms" className="hover:text-[#00C853] transition-colors">Terms</Link>
