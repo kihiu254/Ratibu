@@ -1,0 +1,42 @@
+# Ratibu Monorepo .gitignore
+
+# Dependencies
+node_modules
+.npmrc
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.DS_Store
+
+# Build Output
+dist/
+dist-ssr/
+*.tsbuildinfo
+.output/
+
+# Editor
+.vscode/
+.idea/
+
+# Flutter (Mobile Project)
+/ratibu_mobile/build/
+/ratibu_mobile/.dart_tool/
+/ratibu_mobile/.flutter-plugins
+/ratibu_mobile/.flutter-plugins-dependencies
+/ratibu_mobile/.pub-cache/
+/ratibu_mobile/.pub/
+/ratibu_mobile/pubspec.lock
+
+# Supabase Local
+supabase/.temp/
+.supabase/
+supabase/functions/*/deno.lock
