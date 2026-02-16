@@ -13,7 +13,7 @@ const Footer = () => {
                     {/* Brand Column */}
                     <div className="space-y-6">
                         <Link to="/" className="flex items-center space-x-3 group">
-                             <RatibuLogo className="h-12 w-auto text-slate-900 dark:text-white group-hover:scale-105 transition-transform" />
+                             <RatibuLogo className="h-16 w-auto text-slate-900 dark:text-white group-hover:scale-105 transition-transform" />
                         </Link>
                         <p className="text-sm leading-relaxed text-slate-500 max-w-xs font-medium">
                             Empowering informal investment groups with modern digital tools for transparency, 
