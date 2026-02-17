@@ -129,6 +129,7 @@ class ChamaService {
     required String title,
     required double amount,
     DateTime? dueDate,
+    List<String>? targetMemberIds, // New: support targeted members
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('Not authenticated');
@@ -139,6 +140,51 @@ class ChamaService {
       'title': title,
       'amount': amount,
       'due_date': dueDate?.toIso8601String(),
+      'target_member_ids': targetMemberIds,
     });
+  }
+
+  /// Updates a member's role (Admin only).
+  Future<void> updateMemberRole({
+    required String memberId,
+    required String role,
+  }) async {
+    await _supabase.from('chama_members').update({
+      'role': role,
+    }).eq('id', memberId);
+  }
+
+  /// Creates a new standing order (Ratiba) via Edge Function.
+  Future<Map<String, dynamic>> createStandingOrder({
+    required String chamaId,
+    required String name,
+    required double amount,
+    required String startDate,
+    required String endDate,
+    required String frequency,
+    required String phoneNumber,
+  }) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+
+    final response = await _supabase.functions.invoke(
+      'create-standing-order',
+      body: {
+        'amount': amount,
+        'phoneNumber': phoneNumber,
+        'userId': user.id,
+        'chamaId': chamaId,
+        'standingOrderName': name,
+        'startDate': startDate,
+        'endDate': endDate,
+        'frequency': frequency,
+      },
+    );
+
+    if (response.status != 200) {
+      throw Exception(response.data['error'] ?? 'Failed to create standing order');
+    }
+
+    return Map<String, dynamic>.from(response.data);
   }
 }

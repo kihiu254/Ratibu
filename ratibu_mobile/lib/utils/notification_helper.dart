@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/material.dart';
+import '../widgets/ratibu_toast.dart';
 
 class NotificationHelper {
   static final _supabase = Supabase.instance.client;
@@ -25,15 +27,15 @@ class NotificationHelper {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      // 2. Show Local OS Notification (Alert Banner)
+      // 2. Show Local OS Notification (Alert Banner) - Keep this for background/system level
       const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'ratibu_alerts_v5', // New ID to force update channel settings
+        'ratibu_alerts_v5', 
         'Ratibu Alerts & Pop-ups',
         channelDescription: 'Main notification channel for all alerts',
         importance: Importance.max,
         priority: Priority.high,
         showWhen: true,
-        fullScreenIntent: true, // Helps with showing as pop-up
+        fullScreenIntent: true,
         category: AndroidNotificationCategory.status,
       );
       const NotificationDetails platformDetails = NotificationDetails(
@@ -50,10 +52,15 @@ class NotificationHelper {
         title,
         message,
         platformDetails,
+        payload: 'notifications',
       );
     } catch (e) {
-      // Silent error for notifications to avoid blocking UI
       print('Error sending notification: $e');
     }
+  }
+
+  // New method for in-app toasts
+  static void showToast(BuildContext context, {required String title, required String message, String type = 'success'}) {
+    RatibuToast.show(context, title: title, message: message, type: type);
   }
 }

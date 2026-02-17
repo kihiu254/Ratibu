@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../services/mpesa_service.dart';
 import '../providers/auth_provider.dart';
 import '../utils/notification_helper.dart';
+import '../widgets/qr_code_display.dart';
 
 class DepositScreen extends ConsumerStatefulWidget {
   final String? chamaId; // Made optional to support generic "Deposit" later, but enforcing for now
@@ -19,7 +20,10 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   final _amountController = TextEditingController();
   final _phoneController = TextEditingController();
   final _mpesaService = MpesaService();
+  DateTime? _dueDate;
   bool _isLoading = false;
+  bool _isQrLoading = false;
+  bool _isSuccess = false;
   String _phoneOption = 'mine'; // 'mine' or 'other'
   String? _myNumber;
 
@@ -50,8 +54,32 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        final amount = double.parse(_amountController.text);
-        final phone = _phoneController.text; // Ensure format 254...
+        final amount = double.tryParse(_amountController.text.trim());
+        if (amount == null) throw 'Invalid amount format';
+        String phone;
+        
+        // DEBUG: Print user details to console
+        final user = ref.read(authProvider).mapState(
+            authenticated: (state) => state.user,
+        );
+        print('DEBUG - User Phone: ${user?.phone}');
+        print('DEBUG - User Metadata: ${user?.userMetadata}');
+        
+        if (_phoneOption == 'mine') {
+            var userPhone = user?.phone;
+            
+            // Fallback to metadata if top-level phone is empty
+            if (userPhone == null || userPhone.isEmpty) {
+               userPhone = user?.userMetadata?['phone'] as String?;
+            }
+
+            if (userPhone == null || userPhone.isEmpty) {
+               throw 'Profile missing phone number. Please select "Other Number".';
+            }
+            phone = userPhone.replaceFirst('+', '');
+        } else {
+             phone = _phoneController.text.trim();
+        }
         
         // Use user ID 
         final userId = ref.read(authProvider).mapState(
@@ -73,32 +101,81 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
         );
 
         if (mounted) {
-          NotificationHelper.sendNotification(
-            title: 'Deposit Successful!',
-            message: 'Your deposit of KES ${_amountController.text} has been processed.',
+          setState(() {
+            _isSuccess = true;
+          });
+
+          NotificationHelper.showToast(
+            context,
+            title: 'STK Push Sent!',
+            message: 'Follow the prompt on your phone to complete payment.',
             type: 'success',
           );
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('STK Push sent! Check your phone to complete payment.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          context.pop(); // Return to dashboard
+          
+          // Wait a bit then pop
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) context.pop();
+          });
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString()),
-              backgroundColor: Colors.red,
-            ),
+          NotificationHelper.showToast(
+            context,
+            title: 'Deposit Failed',
+            message: e.toString(),
+            type: 'error',
           );
         }
       } finally {
         if (mounted) {
           setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  Future<void> _handleQrGeneration() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isQrLoading = true);
+      try {
+        final amount = double.tryParse(_amountController.text.trim());
+        if (amount == null) throw 'Invalid amount format';
+        
+        // For now, require chamaId. 
+        if (widget.chamaId == null) {
+          throw 'Please select a Chama to generate QR (Feature coming soon: Wallet Deposit)';
+        }
+
+        final qrData = await _mpesaService.generateQrCode(
+          amount: amount,
+          merchantName: 'Ratibu Chama', // In real app, fetch from chama details
+          refNo: 'Deposit-${DateTime.now().millisecond}',
+        );
+
+        if (mounted && qrData['QRCode'] != null) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => QrCodeDisplay(
+              qrCodeBase64: qrData['QRCode'],
+              amount: amount,
+              chamaName: 'the Chama', // In real app, fetch from chama details
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          NotificationHelper.showToast(
+            context,
+            title: 'QR Generation Failed',
+            message: e.toString(),
+            type: 'error',
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isQrLoading = false);
         }
       }
     }
@@ -150,6 +227,40 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+              
+              // Amount Input
+              const Text(
+                'Enter Amount (KES)',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _amountController,
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  prefixText: 'KES ',
+                  prefixStyle: const TextStyle(color: Color(0xFF00C853), fontWeight: FontWeight.bold),
+                  filled: true,
+                  fillColor: const Color(0xFF1e293b),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Colors.white24),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Color(0xFF00C853)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Please enter an amount';
+                  if (double.tryParse(value) == null) return 'Invalid number format';
+                  if (double.parse(value) <= 0) return 'Amount must be greater than 0';
+                  return null;
+                },
+              ),
+              
+              const SizedBox(height: 24),
               // Phone Number Selection
               const SizedBox(height: 16),
               const Text(
@@ -250,11 +361,45 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                           strokeWidth: 2,
                         ),
                       )
+                    : Text(
+                        _isSuccess ? 'Request Sent ✅' : 'Pay via STK Push',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: _isQrLoading ? null : _handleQrGeneration,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF00C853)),
+                  foregroundColor: const Color(0xFF00C853),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isQrLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF00C853),
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Text(
-                        'Pay Now',
+                        'Generate QR Code',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
               ),
+              if (_isSuccess)
+                const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: Text(
+                    'Follow the prompt on your M-Pesa phone to complete transaction.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.greenAccent, fontSize: 13),
+                  ),
+                ),
             ],
           ),
         ),

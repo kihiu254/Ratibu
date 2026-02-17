@@ -1,4 +1,4 @@
-package com.example.ratibu_mobile
+package com.ratibu.app
 
 import io.flutter.embedding.android.FlutterActivity
 

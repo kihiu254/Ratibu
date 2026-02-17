@@ -14,9 +14,11 @@ import { supabase } from '../lib/supabase'
 import { RatibuLogo } from '../components/RatibuLogo'
 import { RatibuInsignia } from '../components/RatibuInsignia'
 import NotificationCenter from '../components/NotificationCenter'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const location = useLocation()
@@ -164,7 +166,12 @@ export default function DashboardLayout() {
           </button>
           
           <div className="flex items-center gap-2 md:hidden">
-              <Link to="/" className="w-8 h-8 rounded-lg bg-[#00C853] flex items-center justify-center text-white font-bold">R</Link>
+              <button 
+                onClick={() => setMobileMenuOpen(true)}
+                className="w-8 h-8 rounded-lg bg-[#00C853] flex items-center justify-center text-white font-bold"
+              >
+                R
+              </button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -173,10 +180,92 @@ export default function DashboardLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth pb-24 md:pb-8">
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile Drawer Overlay */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 z-40 md:hidden flex flex-col border-r border-slate-200 dark:border-slate-800"
+            >
+              <div className="h-20 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800">
+                <RatibuLogo className="h-8 w-auto" />
+                <button onClick={() => setMobileMenuOpen(false)} className="p-2 -mr-2 text-slate-500">
+                  <Menu className="w-6 h-6 rotate-90" />
+                </button>
+              </div>
+              <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
+                {menuItems.map((item) => {
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                        isActive 
+                          ? 'bg-[#00C853] text-white shadow-lg shadow-green-500/20' 
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="font-bold">{item.name}</span>
+                    </Link>
+                  )
+                })}
+              </nav>
+              <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                <button 
+                  onClick={handleSignOut}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-500 bg-red-50 dark:bg-red-900/10 rounded-xl font-bold transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 flex items-center justify-around px-2 z-20 md:hidden">
+        {menuItems.filter(item => ['Home', 'My Chamas', 'Profile'].includes(item.name)).map(item => {
+          const isActive = location.pathname === item.path
+          return (
+            <Link 
+              key={item.path}
+              to={item.path} 
+              className={`flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-[#00C853]' : 'text-slate-500'}`}
+            >
+              <item.icon className={`w-5 h-5 ${isActive ? 'fill-current' : ''}`} />
+              <span className="text-[10px] font-bold">{item.name}</span>
+            </Link>
+          )
+        })}
+        <button 
+          onClick={() => setMobileMenuOpen(true)}
+          className="flex flex-col items-center gap-1 text-slate-500"
+        >
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] font-bold">More</span>
+        </button>
+      </nav>
 
     </div>
   )

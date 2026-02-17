@@ -70,9 +70,9 @@ export default function Navbar() {
             </Link>
           )}
           <Link to="/" className="flex items-center group">
-            <RatibuLogo className="h-16 w-auto text-white group-hover:scale-105 transition-transform" />
-            <div className="ml-4 h-8 w-px bg-white/10 hidden lg:block" />
-            <div className="ml-4 hidden lg:flex flex-col">
+            <RatibuLogo className="h-10 md:h-16 w-auto text-white group-hover:scale-105 transition-transform" />
+            <div className="ml-2 md:ml-4 h-6 md:h-8 w-px bg-white/10 hidden sm:block" />
+            <div className="ml-2 md:ml-4 hidden sm:flex flex-col">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00C853]">Ratibu</span>
               <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Digital Banking</span>
             </div>

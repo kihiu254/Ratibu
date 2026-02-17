@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,52 +19,14 @@ import 'screens/leaderboard_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/referrals_screen.dart';
 import 'screens/updates_screen.dart';
+import 'screens/standing_order_setup_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    anonKey: SupabaseConfig.supabaseAnonKey,
-  );
-
-  // Initialize Local Notifications
-  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
-  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-  // Request Permissions (Android 13+)
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-      ?.requestNotificationsPermission();
-
-  // Pre-create High Importance Channel for Android
-  const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'ratibu_alerts_v5',
-    'Ratibu Alerts & Pop-ups',
-    description: 'Main notification channel for all alerts',
-    importance: Importance.max,
-  );
-
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(channel);
-
-  final prefs = await SharedPreferences.getInstance();
-  final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
-
-  runApp(ProviderScope(
-    child: MyApp(initialLocation: onboardingComplete ? '/login' : '/onboarding'),
-  ));
-}
-
-// GoRouter configuration
-GoRouter _createRouter(String initialLocation) => GoRouter(
-  initialLocation: initialLocation,
+final GoRouter _router = GoRouter(
+  initialLocation: '/login', // Default, will be updated in main
   routes: [
     GoRoute(
       path: '/onboarding',
@@ -111,6 +74,13 @@ GoRouter _createRouter(String initialLocation) => GoRouter(
       },
     ),
     GoRoute(
+      path: '/chama/:id/automate',
+      builder: (context, state) {
+        final id = state.pathParameters['id']!;
+        return StandingOrderSetupScreen(chamaId: id);
+      },
+    ),
+    GoRoute(
       path: '/chama/:id/deposit',
       builder: (context, state) {
         final id = state.pathParameters['id']!;
@@ -144,15 +114,76 @@ GoRouter _createRouter(String initialLocation) => GoRouter(
   ],
 );
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.supabaseUrl,
+    anonKey: SupabaseConfig.supabaseAnonKey,
+  );
+
+  // Initialize Local Notifications
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
+  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      _router.push('/notifications');
+    },
+  );
+
+  // Request Permissions (Android 13+)
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
+
+  // Pre-create High Importance Channel for Android
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'ratibu_alerts_v5',
+    'Ratibu Alerts & Pop-ups',
+    description: 'Main notification channel for all alerts',
+    importance: Importance.max,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  final prefs = await SharedPreferences.getInstance();
+  final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
+  
+  // Set initial location for the router
+  final initialLocation = onboardingComplete ? '/login' : '/onboarding';
+  _router.go(initialLocation);
+
+  // Set up global error handling
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('FLUTTER ERROR: ${details.exception}');
+    debugPrint('STACK TRACE: ${details.stack}');
+  };
+
+  runZonedGuarded(() {
+    runApp(ProviderScope(
+      child: MyApp(),
+    ));
+  }, (error, stack) {
+    debugPrint('ZONED ERROR: $error');
+    debugPrint('STACK TRACE: $stack');
+  });
+}
+
+// GoRouter configuration is now handled globally as _router
+
 class MyApp extends StatelessWidget {
-  final String initialLocation;
-  const MyApp({super.key, required this.initialLocation});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Ratibu Mobile',
-      routerConfig: _createRouter(initialLocation),
+      routerConfig: _router,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF00C853), // Ratibu Green

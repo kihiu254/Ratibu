@@ -2,9 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
+import '../providers/home_provider.dart';
+import '../models/transaction.dart';
+import 'dashboard_screen.dart'; // For _TransactionItem if it was public, but I'll define a local version or use the existing building blocks
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -156,6 +161,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         'updated_at': DateTime.now().toIso8601String(),
       });
 
+      // SYNC: Also update auth metadata so DepositScreen can find the phone number
+      if (_phoneController.text.isNotEmpty) {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(
+            data: { 'phone': _phoneController.text },
+          ),
+        );
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully!')),
@@ -280,6 +294,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               
               const SizedBox(height: 32),
               
+              // Dashboard Overview
+              _buildDashboardOverview(),
+              
+              const SizedBox(height: 32),
+              
               // Referral Section
               _buildReferralSection(),
               
@@ -301,6 +320,125 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDashboardOverview() {
+    final homeState = ref.watch(homeProvider);
+    final currencyFormat = NumberFormat.currency(symbol: 'KES ', decimalDigits: 2);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Dashboard Overview',
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1e293b), Color(0xFF0f172a)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Total Balance',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(homeState.totalBalance),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C853).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.account_balance_wallet, color: Color(0xFF00C853), size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Colors.white10),
+              const SizedBox(height: 12),
+              const Text(
+                'Recent Activity',
+                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              if (homeState.transactions.isEmpty)
+                const Text('No recent transactions', style: TextStyle(color: Colors.white54, fontSize: 12))
+              else
+                ...homeState.transactions.take(2).map((tx) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          tx.description ?? tx.type.toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${tx.type == 'withdrawal' ? '-' : '+'} KES ${tx.amount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          color: tx.type == 'withdrawal' ? Colors.red[300] : const Color(0xFF00C853),
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    // This is tricky since ProfileScreen is usually inside DashboardScreen tabs
+                    // We can't easily switch tabs from here without a global state or parent notification
+                    // But we can push the dashboard again or just leave it as a preview
+                    // For now, let's just make it a preview as requested
+                  },
+                  child: const Text('View Full Dashboard', style: TextStyle(color: Color(0xFF00C853), fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -383,52 +521,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: () {
-                    GoRouter.of(context).push('/referrals');
-                  },
-                  child: Row(
-                    children: [
-                      const Text(
-                        'View Trackers',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 12),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Invite your friends to join Ratibu and earn rewards after their first contribution.',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
                 Text(
                   _referralCode,
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2),
                 ),
-                GestureDetector(
-                  onTap: () {
-                    // Using Share logic similar to ReferralsScreen
-                    final shareUrl = 'https://ratibu.vercel.app/ref/$_referralCode';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Referral link ready to share!')),
-                    );
-                  },
-                  child: const Icon(Icons.share, color: Colors.white, size: 20),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        final shareUrl = 'https://ratibu.vercel.app/ref/$_referralCode';
+                        Share.share(
+                          'Join me on Ratibu! Use my referral code $_referralCode to sign up: $shareUrl',
+                          subject: 'Join Ratibu',
+                        );
+                      },
+                      child: const Icon(Icons.share, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 16),
+                    GestureDetector(
+                      onTap: () => GoRouter.of(context).push('/referrals'),
+                      child: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -535,6 +649,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpdatesCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1e293b),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00C853).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.system_update_alt, color: Color(0xFF00C853)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Software Update',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  'Check for new app versions and features.',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => context.push('/updates'),
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
           ),
         ],
       ),

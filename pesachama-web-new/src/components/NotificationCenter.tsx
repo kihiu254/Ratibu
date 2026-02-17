@@ -33,8 +33,20 @@ export default function NotificationCenter() {
           schema: 'public',
           table: 'notifications',
         },
-        (payload) => {
+      (payload) => {
           setNotifications(prev => [payload.new as Notification, ...prev])
+          
+          // Play notification sound
+          try {
+            // Simple 'pop' sound base64
+            const audioData = 'data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU' + 'A'.repeat(100)
+            // Ideally use a real file, but for now lets try a simple beep concept or rely on a standard URL if internet is available.
+            // Using a hosted sound file is better.
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
+            audio.play().catch(e => console.log('Audio play blocked:', e))
+          } catch (e) {
+            console.error('Error playing sound:', e)
+          }
         }
       )
       .subscribe()

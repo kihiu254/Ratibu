@@ -4,9 +4,16 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
 @layer base {
   body {
-    @apply font-sans antialiased selection:bg-primary/30;
+    @apply font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv05", "cv08", "cv09", "cv10", "cv11";
   }
 }

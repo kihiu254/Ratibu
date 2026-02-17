@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/chama_provider.dart';
 
 class ChamaDetailsScreen extends ConsumerWidget {
@@ -111,6 +112,38 @@ class _OverviewTab extends ConsumerWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => context.push('/chama/${chama['id']}/automate'),
+                          icon: const Icon(Icons.timer, size: 18),
+                          label: const Text('Automate'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => context.push('/chama/${chama['id']}/deposit'),
+                          icon: const Icon(Icons.account_balance_wallet, size: 18),
+                          label: const Text('Deposit'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF00C853),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -127,7 +160,14 @@ class _OverviewTab extends ConsumerWidget {
             const SizedBox(height: 24),
             _InfoRow(icon: Icons.repeat, label: 'Frequency', value: chama['contribution_frequency'] ?? 'N/A'),
             const SizedBox(height: 12),
-            _InfoRow(icon: Icons.monetization_on, label: 'Amount', value: '${chama['contribution_amount']}'),
+            _InfoRow(icon: Icons.monetization_on, label: 'Amount', value: currencyFormat.format(chama['contribution_amount'] ?? 0)),
+            const SizedBox(height: 12),
+            _InfoRow(
+              icon: Icons.card_giftcard, 
+              label: 'Join Reward', 
+              value: '${chama['join_points'] ?? 500} Points',
+              valueColor: const Color(0xFF00C853),
+            ),
           ],
         ),
       ),
@@ -139,8 +179,14 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon, 
+    required this.label, 
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +198,14 @@ class _InfoRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 16)),
+            Text(
+              value, 
+              style: TextStyle(
+                color: valueColor ?? Colors.white, 
+                fontSize: 16,
+                fontWeight: valueColor != null ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
           ],
         ),
       ],
@@ -183,6 +236,10 @@ class _MembersTab extends ConsumerWidget {
           final user = member['users'] ?? {};
           final name = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
           final role = member['role'] ?? 'Member';
+          final currentUser = Supabase.instance.client.auth.currentUser;
+          
+          // Check if current user is admin of this chama
+          final isAdmin = members.any((m) => m['user_id'] == currentUser?.id && m['role'] == 'admin');
 
           return Card(
             color: const Color(0xFF1e293b),
@@ -195,9 +252,53 @@ class _MembersTab extends ConsumerWidget {
               ),
               title: Text(name.isNotEmpty ? name : 'Unknown User', style: const TextStyle(color: Colors.white)),
               subtitle: Text(role.toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              trailing: isAdmin && member['user_id'] != currentUser?.id 
+                ? IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                    onPressed: () => _showRoleDialog(context, ref, member),
+                  )
+                : null,
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showRoleDialog(BuildContext context, WidgetRef ref, dynamic member) {
+    final roles = ['admin', 'treasurer', 'secretary', 'member'];
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Change Role', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: roles.map((role) => ListTile(
+            title: Text(role.toUpperCase(), style: const TextStyle(color: Colors.white)),
+            onTap: () async {
+              try {
+                await ref.read(chamaServiceProvider).updateMemberRole(
+                  memberId: member['id'],
+                  role: role,
+                );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ref.refresh(chamaDetailsProvider(member['chama_id']));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Role updated to ${role.toUpperCase()}')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+          )).toList(),
+        ),
       ),
     );
   }

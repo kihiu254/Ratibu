@@ -49,21 +49,21 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
       ref.invalidate(myChamasProvider);
 
       if (mounted) {
-        NotificationHelper.sendNotification(
+        NotificationHelper.showToast(
+          context,
           title: 'Chama Created!',
           message: 'Your new Chama "${_nameController.text}" has been created successfully.',
           type: 'success',
-        );
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chama created successfully!')),
         );
         context.pop(); // Return to dashboard
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        NotificationHelper.showToast(
+          context,
+          title: 'Error',
+          message: e.toString(),
+          type: 'error',
         );
       }
     } finally {

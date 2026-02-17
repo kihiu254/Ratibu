@@ -12,10 +12,12 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 -- Enable RLS on notifications
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
 CREATE POLICY "Users can view their own notifications"
     ON public.notifications FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
 CREATE POLICY "Users can update their own notifications"
     ON public.notifications FOR UPDATE
     USING (auth.uid() = user_id);
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.app_updates (
 -- Public read access for updates
 ALTER TABLE public.app_updates ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can check for updates" ON public.app_updates;
 CREATE POLICY "Anyone can check for updates"
     ON public.app_updates FOR SELECT
     USING (true);

@@ -84,7 +84,10 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined successfully!')),
+          const SnackBar(
+            content: Text('Joined successfully! Reward points added to your profile.'),
+            backgroundColor: Color(0xFF00C853),
+          ),
         );
       }
     } catch (e) {

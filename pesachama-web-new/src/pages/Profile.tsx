@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { toast } from '../utils/toast'
 import { supabase } from '../lib/supabase'
 import { 
   User, 
@@ -203,7 +204,7 @@ export default function Profile() {
                      <button 
                         onClick={() => {
                            navigator.clipboard.writeText(profile.referral_code)
-                           alert('Code copied!')
+                           toast.success('Code copied!')
                         }}
                         className="p-2 hover:bg-[#00C853]/10 rounded-lg transition-colors"
                      >

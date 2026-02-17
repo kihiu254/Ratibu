@@ -19,8 +19,14 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Debug: Log headers to check for Authorization
+  const authHeader = req.headers.get("Authorization");
+  console.log("Request Headers:", Object.fromEntries(req.headers.entries()));
+  console.log("Has Auth Header:", !!authHeader);
+
   try {
-    const { amount, phoneNumber, userId, chamaId } = await req.json();
+    const { amount, phoneNumber, userId, chamaId, requestId, type } = await req
+      .json();
 
     if (!amount || !phoneNumber || !userId || !chamaId) {
       return new Response(
@@ -42,10 +48,13 @@ Deno.serve(async (req) => {
           amount,
           user_id: userId,
           chama_id: chamaId,
-          type: "deposit",
+          type: type || "deposit",
           status: "pending",
           payment_method: "mpesa",
-          description: "M-Pesa Deposit",
+          description: type === "contribution"
+            ? "Contribution Payment"
+            : "M-Pesa Deposit",
+          metadata: requestId ? { payment_request_id: requestId } : {},
         },
       ])
       .select()
@@ -67,7 +76,12 @@ Deno.serve(async (req) => {
     const mpesaEnv = Deno.env.get("MPESA_ENV") || "sandbox";
 
     if (!consumerKey || !consumerSecret || !passkey || !shortcode) {
-      console.error("Missing M-Pesa Env Vars");
+      console.error("Missing M-Pesa Env Vars:", {
+        hasConsumerKey: !!consumerKey,
+        hasConsumerSecret: !!consumerSecret,
+        hasPasskey: !!passkey,
+        hasShortcode: !!shortcode,
+      });
       throw new Error("Missing M-Pesa environment variables");
     }
 
@@ -148,14 +162,20 @@ Deno.serve(async (req) => {
       stkData = await stkResp.json();
     } else {
       const text = await stkResp.text();
+      console.error("M-Pesa Raw Response:", text); // Log raw text for debugging
       throw new Error(`M-Pesa Non-JSON Response: ${text}`);
     }
 
-    console.log("STK Push Response:", stkData);
+    console.log("STK Push Response:", JSON.stringify(stkData)); // Log full JSON
 
-    if (stkData.ResponseCode !== "0") {
+    // Safaricom Sandbox sometimes returns ResponseCode 0 even if it fails later,
+    // but usually non-zero is an immediate error.
+    if (stkData.ResponseCode && stkData.ResponseCode !== "0") {
       throw new Error(
-        stkData.errorMessage || `STK Push Failed: ${stkData.ResponseCode}`,
+        stkData.errorMessage ||
+          `STK Push Failed: ${stkData.ResponseCode} - ${
+            stkData.ResponseDescription || ""
+          }`,
       );
     }
 
@@ -164,6 +184,7 @@ Deno.serve(async (req) => {
       .from("transactions")
       .update({
         metadata: {
+          ...(transaction.metadata || {}),
           checkout_request_id: stkData.CheckoutRequestID,
           merchant_request_id: stkData.MerchantRequestID,
         },
@@ -188,10 +209,10 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: err.message || "Unknown Error",
-        details: err.stack,
+        details: err.toString(), // Send full error string
       }),
       {
-        status: 500,
+        status: 400, // Return 400 so client knows it's a logic/upstream error, not server crash
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

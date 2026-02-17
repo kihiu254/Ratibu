@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Toaster } from 'sonner';
 import { BrowserRouter, Routes, Route, Outlet, useParams, useNavigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Navbar from './components/Navbar';
@@ -16,6 +17,12 @@ import ChamaDetails from './pages/ChamaDetails';
 import Profile from './pages/Profile';
 import ExploreChamas from './pages/ExploreChamas';
 import Rewards from './pages/Rewards';
+import Admin from './pages/Admin';
+import AdminLayout from './layouts/AdminLayout';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminChamas from './pages/admin/AdminChamas';
+import AdminTransactions from './pages/admin/AdminTransactions';
+import AdminChamaDetails from './pages/admin/AdminChamaDetails';
 
 // Layout for public pages that need Navbar and Footer
 const PublicLayout = () => (
@@ -31,6 +38,7 @@ const PublicLayout = () => (
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <Toaster richColors position="top-right" closeButton />
       <BrowserRouter>
         <Routes>
           {/* Public Routes with Navbar & Footer */}
@@ -59,6 +67,15 @@ function App() {
             <Route path="/chama/:id" element={<ChamaDetails />} />
             <Route path="/activity" element={<div className="p-8 text-slate-900 dark:text-white">Activity Log (Coming Soon)</div>} />
             <Route path="/profile" element={<Profile />} />
+          </Route>
+
+
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Admin />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="chamas" element={<AdminChamas />} />
+            <Route path="chamas/:id" element={<AdminChamaDetails />} />
+            <Route path="transactions" element={<AdminTransactions />} />
           </Route>
 
           {/* Referral Redirect */}

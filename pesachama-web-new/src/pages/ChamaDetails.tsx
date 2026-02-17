@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { toast } from '../utils/toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { mpesaService } from '../services/mpesaService'
 import { 
   Users, 
   Wallet, 
@@ -14,7 +16,10 @@ import {
   Clock,
   Video,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  Star,
+  Info,
+  RefreshCcw
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
@@ -23,6 +28,7 @@ type TabType = 'overview' | 'members' | 'meetings' | 'prompts'
 
 export default function ChamaDetails() {
   const { id } = useParams<{ id: string }>()
+  console.log('Mounting ChamaDetails with ID:', id) // Debug log
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
@@ -31,6 +37,16 @@ export default function ChamaDetails() {
   const [prompts, setPrompts] = useState<any[]>([])
   const [userRole, setUserRole] = useState<string>('member')
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [standingOrderModalOpen, setStandingOrderModalOpen] = useState(false)
+  const [selectedPrompt, setSelectedPrompt] = useState<any>(null)
+  const [promptModalOpen, setPromptModalOpen] = useState(false)
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false)
+  const [realTimeBalance, setRealTimeBalance] = useState<any>(null)
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [qrLoading, setQrLoading] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -66,6 +82,7 @@ export default function ChamaDetails() {
       setUserRole(currentUserMember?.role || 'member')
 
       setData({ ...chama, members })
+      if (id) fetchRealTimeBalance(id)
     } catch (err) {
       console.error('Error:', err)
     } finally {
@@ -92,9 +109,6 @@ export default function ChamaDetails() {
     setPrompts(data || [])
   }
 
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-  const [selectedPrompt, setSelectedPrompt] = useState<any>(null)
-
   const handlePayClick = (prompt: any) => {
       setSelectedPrompt(prompt)
       setPaymentModalOpen(true)
@@ -115,17 +129,121 @@ export default function ChamaDetails() {
           amount: selectedPrompt.amount,
           phoneNumber: phoneNumber,
           userId: user.id,
-          chamaId: id
+          chamaId: id,
+          requestId: selectedPrompt.id,
+          type: 'contribution'
         }
       })
 
       if (error) throw error
-      alert('STK Push mapping initiated! Please check your phone.')
+      toast.success('STK Push Sent!', 'Please check your phone to complete the contribution.')
+      fetchPrompts() // Refresh active prompts
     } catch (err: any) {
-      alert('Payment failed: ' + err.message)
+      console.error('Payment error:', err)
+      toast.error('Payment Failed', err.message || 'Check your connection or phone number format.')
     } finally {
       setPaymentLoading(null)
       setSelectedPrompt(null)
+    }
+  }
+
+  const handleGenerateQR = async (amount: number) => {
+    try {
+      setQrLoading(true)
+      setQrModalOpen(true)
+      const data = await mpesaService.generateQrCode(
+        amount,
+        'Ratibu Chama',
+        `Chama-${id?.slice(0, 8)}`
+      )
+      if (data.QRCode) {
+        setQrCodeData(data.QRCode)
+      }
+    } catch (err: any) {
+      alert('Failed to generate QR code: ' + err.message)
+      setQrModalOpen(false)
+    } finally {
+      setQrLoading(false)
+    }
+  }
+
+  const handleUpdateRole = async (memberId: string, newRole: string) => {
+      try {
+          const { error } = await supabase
+              .from('chama_members')
+              .update({ role: newRole })
+              .eq('id', memberId)
+          
+          if (error) throw error
+          fetchChamaDetails() // Refresh
+      } catch (err: any) {
+          toast.error('Failed to update role', err.message)
+      }
+  }
+
+  const fetchRealTimeBalance = async (chamaId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('balance_history')
+        .select('*')
+        .eq('chama_id', chamaId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (data) setRealTimeBalance(data)
+    } catch (err) {
+      console.error('Error fetching balance history:', err)
+    }
+  }
+
+  const handleRefreshBalance = async () => {
+    if (!data?.mpesa_shortcode) {
+        toast.warning('Configuration Missing', 'M-Pesa Shortcode not configured for this Chama.')
+        return
+    }
+    
+    try {
+      setIsRefreshingBalance(true)
+      const { error: balanceError } = await supabase.functions.invoke('get-account-balance', {
+        body: { 
+            shortCode: data.mpesa_shortcode,
+            chamaId: id
+        }
+      })
+      
+      if (balanceError) throw balanceError
+      toast.info('Balance Request Sent', 'Waiting for M-Pesa response...')
+      
+      if (id) setTimeout(() => fetchRealTimeBalance(id), 5000)
+    } catch (err: any) {
+      toast.error('Refresh Failed', err.message)
+    } finally {
+      setIsRefreshingBalance(false)
+    }
+  }
+
+  const handleWithdraw = async (amount: number, phone: string, reason: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase.functions.invoke('payout-b2c', {
+        body: {
+          amount,
+          phoneNumber: phone,
+          userId: user.id,
+          chamaId: id,
+          remarks: reason
+        }
+      })
+
+      if (error) throw error
+      toast.success('Withdrawal Initiated', 'Your request has been processed successfully.')
+      setWithdrawModalOpen(false)
+      fetchChamaDetails()
+    } catch (err: any) {
+      toast.error('Withdrawal Failed', err.message)
     }
   }
 
@@ -142,7 +260,7 @@ export default function ChamaDetails() {
   const isAdmin = userRole === 'admin' || userRole === 'treasurer'
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20">
+    <div className="max-w-6xl mx-auto space-y-6 pb-24 md:pb-20">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-4">
@@ -170,11 +288,25 @@ export default function ChamaDetails() {
 
         <div className="flex items-center gap-3">
             <button 
+                onClick={() => setStandingOrderModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold transition-all border border-slate-200 dark:border-slate-700"
+            >
+                <Clock className="w-4 h-4 text-[#00C853]" />
+                Automate
+            </button>
+            <button 
                 onClick={() => handlePayClick({ amount: data.contribution_amount, id: 'general', title: 'Manual Deposit' })}
                 className="px-6 py-2.5 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/20 flex items-center gap-2"
             >
                 <Wallet className="w-4 h-4" />
                 Deposit
+            </button>
+            <button 
+                onClick={() => handleGenerateQR(data.contribution_amount)}
+                className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-[#00C853] text-[#00C853] rounded-xl font-bold transition-all hover:bg-[#00C853]/5 flex items-center gap-2"
+            >
+                <div className="w-4 h-4 rounded-sm border-2 border-[#00C853] flex items-center justify-center text-[8px]">QR</div>
+                QR Pay
             </button>
             {isAdmin && (
               <button className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
@@ -185,7 +317,7 @@ export default function ChamaDetails() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-hide no-scrollbar">
         {[
           { id: 'overview', label: 'Overview', icon: Wallet },
           { id: 'members', label: 'Members', icon: Users },
@@ -195,7 +327,7 @@ export default function ChamaDetails() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as TabType)}
-            className={`flex items-center gap-2 px-6 py-4 text-sm font-bold transition-all relative ${
+            className={`flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-bold transition-all relative flex-shrink-0 ${
               activeTab === tab.id 
                 ? 'text-[#00C853]' 
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
@@ -229,9 +361,24 @@ export default function ChamaDetails() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                             <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Group Balance</h3>
-                            <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                                KES {data.balance?.toLocaleString()}
+                            <div className="flex items-center gap-3">
+                                <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                                    KES {data.balance?.toLocaleString()}
+                                </div>
+                                <button 
+                                    onClick={handleRefreshBalance}
+                                    disabled={isRefreshingBalance}
+                                    className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all ${isRefreshingBalance ? 'animate-spin text-[#00C853]' : 'text-slate-400'}`}
+                                    title="Refresh Real-time Balance"
+                                >
+                                    <RefreshCcw className="w-5 h-5" />
+                                </button>
                             </div>
+                            {realTimeBalance && (
+                                <p className="text-[10px] text-slate-400 mt-2">
+                                    Live M-Pesa: KES {realTimeBalance.working_balance?.toLocaleString()} (Utility: {realTimeBalance.utility_balance?.toLocaleString()})
+                                </p>
+                            )}
                         </div>
                         <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                             <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Members</h3>
@@ -240,6 +387,25 @@ export default function ChamaDetails() {
                             </div>
                         </div>
                     </div>
+
+                    {isAdmin && (
+                        <div className="p-6 bg-slate-900 dark:bg-slate-800 text-white rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative mb-6">
+                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                <Wallet className="w-24 h-24" />
+                            </div>
+                            <div className="relative z-10">
+                                <h3 className="text-lg font-bold mb-2">Fund Management</h3>
+                                <p className="text-slate-400 text-sm mb-6 max-w-sm">Withdraw funds instantly to any phone number via M-Pesa B2C payout.</p>
+                                <button 
+                                    onClick={() => setWithdrawModalOpen(true)}
+                                    className="flex items-center gap-2 px-6 py-3 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/20"
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                    Withdraw Funds
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Financial Guidelines</h3>
@@ -258,7 +424,22 @@ export default function ChamaDetails() {
 
                 <div className="space-y-6">
                     <div className="p-6 bg-gradient-to-br from-[#00C853]/10 to-green-600/5 rounded-2xl border border-[#00C853]/20">
-                        <h3 className="text-sm font-bold text-[#00C853] uppercase tracking-wider mb-3">Group Admin</h3>
+                        <div className="flex items-center gap-2 mb-4">
+                            <Star className="w-5 h-5 text-[#00C853] fill-[#00C853]" />
+                            <h3 className="text-sm font-bold text-[#00C853] uppercase tracking-wider">Join Reward</h3>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white">
+                                +{data.join_points || 500} Points
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                Get rewarded instantly for participating in this group.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Group Admin</h3>
                         <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-full bg-[#00C853] flex items-center justify-center text-white font-bold text-xl">
                                 {data.members?.find((m:any) => m.role === 'admin')?.users?.first_name?.[0] || 'A'}
@@ -277,7 +458,8 @@ export default function ChamaDetails() {
 
           {activeTab === 'members' && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <table className="w-full text-left">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[600px] sm:min-w-0">
                     <thead>
                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Member</th>
@@ -303,11 +485,24 @@ export default function ChamaDetails() {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                                        member.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-600'
-                                    }`}>
-                                        {member.role}
-                                    </span>
+                                    {isAdmin && member.user_id !== data.created_by ? (
+                                        <select 
+                                            value={member.role}
+                                            onChange={(e) => handleUpdateRole(member.id, e.target.value)}
+                                            className="bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-[10px] font-black px-2 py-1 outline-none ring-1 ring-slate-200 dark:ring-slate-700 focus:ring-[#00C853] transition-all cursor-pointer"
+                                        >
+                                            <option value="member">MEMBER</option>
+                                            <option value="secretary">SECRETARY</option>
+                                            <option value="treasurer">TREASURER</option>
+                                            <option value="admin">ADMIN</option>
+                                        </select>
+                                    ) : (
+                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                                            member.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {member.role}
+                                        </span>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-slate-500">
                                     {format(new Date(member.joined_at), 'MMM d, yyyy')}
@@ -319,6 +514,7 @@ export default function ChamaDetails() {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
           )}
 
@@ -382,8 +578,11 @@ export default function ChamaDetails() {
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white">Active Payment Requests</h2>
                     {isAdmin && (
-                        <button className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg font-bold text-sm hover:opacity-90 transition-opacity">
-                            <Bell className="w-4 h-4" />
+                        <button 
+                            onClick={() => setPromptModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg font-bold text-sm hover:opacity-90 transition-opacity"
+                        >
+                            <Plus className="w-4 h-4" />
                             New Prompt
                         </button>
                     )}
@@ -416,8 +615,339 @@ export default function ChamaDetails() {
             title={selectedPrompt.title}
         />
       )}
+
+      {promptModalOpen && id && (
+          <CreatePromptModal 
+            isOpen={promptModalOpen}
+            onClose={() => setPromptModalOpen(false)}
+            chamaId={id}
+            members={data.members}
+            onSuccess={() => {
+                setPromptModalOpen(false)
+                fetchPrompts()
+            }}
+          />
+      )}
+
+      {standingOrderModalOpen && data && (
+        <StandingOrderModal 
+          isOpen={standingOrderModalOpen}
+          onClose={() => setStandingOrderModalOpen(false)}
+          chama={data}
+        />
+      )}
+
+      {data && (
+        <WithdrawModal 
+            isOpen={withdrawModalOpen}
+            onClose={() => setWithdrawModalOpen(false)}
+            onWithdraw={handleWithdraw}
+            chama={data}
+        />
+      )}
+
+      {qrModalOpen && (
+        <QRModal 
+            isOpen={qrModalOpen}
+            onClose={() => setQrModalOpen(false)}
+            qrCode={qrCodeData}
+            amount={data.contribution_amount}
+            loading={qrLoading}
+        />
+      )}
+
     </div>
   )
+}
+
+function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClose: () => void, chama: any }) {
+  const [amount, setAmount] = useState(chama?.contribution_amount?.toString() || '')
+  const [loading, setLoading] = useState(false)
+  const [frequency, setFrequency] = useState('4') // Default Monthly
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [name, setName] = useState(`${chama?.name} Automation`)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('phone')
+        .eq('id', user.id)
+        .single()
+
+      if (!userData?.phone) throw new Error('Please set your phone number in profile first')
+
+      const response = await supabase.functions.invoke('create-standing-order', {
+        body: {
+          amount: Number(amount),
+          phoneNumber: userData.phone,
+          userId: user.id,
+          chamaId: chama.id,
+          standingOrderName: name,
+          startDate,
+          endDate,
+          frequency
+        }
+      })
+
+      if (response.error) throw response.error
+
+      toast.success('Standing Order Initiated!', 'Please check your phone for the M-Pesa PIN prompt to authorize.')
+      onClose()
+    } catch (err: any) {
+      toast.error('Setup Failed', err.message || 'Check your connection.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+          >
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Automate</h2>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest">M-PESA RATIBA</p>
+                </div>
+                <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <Plus className="w-6 h-6 rotate-45 text-slate-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Purpose</label>
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                    placeholder="e.g. Monthly Contribution"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Amount (KES)</label>
+                    <input 
+                      type="number" 
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Frequency</label>
+                    <div className="relative">
+                      <select 
+                        value={frequency}
+                        onChange={(e) => setFrequency(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all appearance-none"
+                      >
+                        <option value="2">Daily</option>
+                        <option value="3">Weekly</option>
+                        <option value="4">Monthly</option>
+                        <option value="8">Yearly</option>
+                      </select>
+                      <RefreshCcw className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Start Date</label>
+                    <input 
+                      type="date" 
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">End Date</label>
+                    <input 
+                      type="date" 
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                  <div className="flex gap-3">
+                    <Info className="w-5 h-5 text-blue-500 shrink-0" />
+                    <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed font-bold">
+                      You will receive an M-PESA prompt to authorize this standing order. Once approved, payments will be automatically deducted.
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#00C853] hover:bg-green-600 disabled:opacity-50 text-white rounded-2xl py-4 font-black uppercase tracking-widest transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Set Up Automation'}
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, members: any[], onSuccess: () => void }) {
+    const [title, setTitle] = useState('')
+    const [amount, setAmount] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [targetAll, setTargetAll] = useState(true)
+    const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoading(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { error } = await supabase
+                .from('payment_requests')
+                .insert({
+                    chama_id: chamaId,
+                    created_by: user.id,
+                    title,
+                    amount: parseFloat(amount),
+                    target_member_ids: targetAll ? null : selectedUsers
+                })
+            
+            if (error) throw error
+            onSuccess()
+        } catch (err: any) {
+            toast.error('Failed to create prompt', err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg my-auto shadow-2xl overflow-hidden"
+            >
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Create Payment Request</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Request Title</label>
+                            <input 
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="e.g. February Monthly Deposit"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] outline-none"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Amount (KES)</label>
+                            <input 
+                                type="number"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] outline-none"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Target Audience</label>
+                            <div className="flex gap-4 mb-4">
+                                <button 
+                                    type="button"
+                                    onClick={() => setTargetAll(true)}
+                                    className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${targetAll ? 'border-[#00C853] bg-[#00C853]/5 text-[#00C853]' : 'border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                                >
+                                    All Members
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setTargetAll(false)}
+                                    className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${!targetAll ? 'border-[#00C853] bg-[#00C853]/5 text-[#00C853]' : 'border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                                >
+                                    Select Members
+                                </button>
+                            </div>
+
+                            {!targetAll && (
+                                <div className="max-h-48 overflow-y-auto space-y-2 p-2 border border-slate-200 dark:border-slate-800 rounded-xl">
+                                    {members.map((member) => (
+                                        <label key={member.user_id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                            <input 
+                                                type="checkbox"
+                                                checked={selectedUsers.includes(member.user_id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedUsers([...selectedUsers, member.user_id])
+                                                    else setSelectedUsers(selectedUsers.filter(uid => uid !== member.user_id))
+                                                }}
+                                                className="w-4 h-4 rounded text-[#00C853] focus:ring-[#00C853]"
+                                            />
+                                            <div className="text-sm font-medium text-slate-900 dark:text-white">
+                                                {member.users?.first_name} {member.users?.last_name}
+                                                <span className="ml-2 text-[10px] text-slate-500 uppercase">{member.role}</span>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <button 
+                        type="submit"
+                        disabled={loading || (!targetAll && selectedUsers.length === 0)}
+                        className="w-full py-4 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-500/20 transition-all disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Send Requests'}
+                    </button>
+                </form>
+            </motion.div>
+        </div>
+    )
 }
 
 function PromptCard({ prompt, onPay, loading }: { prompt: any, onPay: (p: any) => void, loading: boolean }) {
@@ -608,6 +1138,151 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
                             </button>
                         </div>
                     </form>
+                </div>
+            </motion.div>
+        </div>
+    )
+}
+
+function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean, onClose: () => void, onWithdraw: (amt: number, phone: string, reason: string) => void, chama: any }) {
+  const [amount, setAmount] = useState('')
+  const [phone, setPhone] = useState('')
+  const [reason, setReason] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!amount || !phone) return
+    
+    setLoading(true)
+    await onWithdraw(Number(amount), phone, reason)
+    setLoading(false)
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+      >
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-900 text-white">
+          <h3 className="text-lg font-bold">Withdraw Funds</h3>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <Plus className="w-5 h-5 rotate-45" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="p-4 bg-[#00C853]/5 rounded-xl border border-[#00C853]/10">
+            <p className="text-[10px] text-[#00C853] font-bold uppercase tracking-wider mb-1">Available to Withdraw</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">KES {chama?.balance?.toLocaleString()}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Recipient Phone Number</label>
+            <input
+              type="tel"
+              required
+              placeholder="e.g. 254712345678"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#00C853]/20 focus:border-[#00C853] outline-none transition-all dark:text-white"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <p className="text-[10px] text-slate-400 mt-1">Include country code (e.g., 254...)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount to Withdraw (KES)</label>
+            <input
+              type="number"
+              required
+              min="10"
+              max={chama?.balance || 0}
+              placeholder="0.00"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#00C853]/20 focus:border-[#00C853] outline-none transition-all dark:text-white"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Reason (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Purchase for member"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#00C853]/20 focus:border-[#00C853] outline-none transition-all dark:text-white"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !amount || !phone}
+            className="w-full p-4 bg-[#00C853] text-white rounded-xl font-bold shadow-lg shadow-[#00C853]/20 hover:bg-green-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>Disburse via M-Pesa B2C</>
+            )}
+          </button>
+          
+          <p className="text-center text-[10px] text-slate-500">
+            Funds will be disbursed instantly from the Chama's account.
+          </p>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
+function QRModal({ isOpen, onClose, qrCode, amount, loading }: { isOpen: boolean, onClose: () => void, qrCode: string | null, amount: number, loading: boolean }) {
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-sm overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+            >
+                <div className="p-8 text-center">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="text-left">
+                            <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Scan to Pay</h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">M-PESA QR</p>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                            <Plus className="w-6 h-6 rotate-45 text-slate-400" />
+                        </button>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner mb-6 flex items-center justify-center min-h-[240px]">
+                        {loading ? (
+                            <Loader2 className="w-10 h-10 animate-spin text-[#00C853]" />
+                        ) : qrCode ? (
+                            <img src={`data:image/png;base64,${qrCode}`} alt="M-Pesa QR Code" className="w-full h-auto" />
+                        ) : (
+                            <p className="text-slate-400 text-sm">Waiting for QR code generation...</p>
+                        )}
+                    </div>
+
+                    <div className="space-y-1 mb-8">
+                        <div className="text-sm text-slate-500">Amount to contribute</div>
+                        <div className="text-3xl font-black text-[#00C853]">KES {amount?.toLocaleString()}</div>
+                    </div>
+
+                    <button 
+                        onClick={onClose}
+                        className="w-full bg-[#00C853] hover:bg-green-600 text-white rounded-2xl py-4 font-black uppercase tracking-widest transition-all shadow-lg shadow-green-500/20"
+                    >
+                        DONE
+                    </button>
                 </div>
             </motion.div>
         </div>

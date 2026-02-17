@@ -1,0 +1,989 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { 
+  Users, 
+  Wallet, 
+  Calendar, 
+  Bell, 
+  ArrowLeft, 
+  Loader2, 
+  Plus, 
+  MoreVertical,
+  CheckCircle2,
+  Clock,
+  Video,
+  MapPin,
+  ExternalLink,
+  Star,
+  Info,
+  RefreshCcw
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { format } from 'date-fns'
+
+type TabType = 'overview' | 'members' | 'meetings' | 'prompts'
+
+export default function ChamaDetails() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<TabType>('overview')
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<any>(null)
+  const [meetings, setMeetings] = useState<any[]>([])
+  const [prompts, setPrompts] = useState<any[]>([])
+  const [userRole, setUserRole] = useState<string>('member')
+  const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [standingOrderModalOpen, setStandingOrderModalOpen] = useState(false)
+  const [selectedPrompt, setSelectedPrompt] = useState<any>(null)
+  const [promptModalOpen, setPromptModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (id) {
+      fetchChamaDetails()
+      fetchMeetings()
+      fetchPrompts()
+    }
+  }, [id])
+
+  async function fetchChamaDetails() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Fetch chama details
+      const { data: chama, error } = await supabase
+        .from('chamas')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+
+      // Fetch members & user role
+      const { data: members, error: membersError } = await supabase
+        .from('chama_members')
+        .select('*, users:user_id(first_name, last_name, phone)')
+        .eq('chama_id', id)
+
+      if (membersError) throw membersError
+
+      const currentUserMember = members.find(m => m.user_id === user.id)
+      setUserRole(currentUserMember?.role || 'member')
+
+      setData({ ...chama, members })
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function fetchMeetings() {
+    const { data } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('chama_id', id)
+      .order('date', { ascending: true })
+    setMeetings(data || [])
+  }
+
+  async function fetchPrompts() {
+    const { data } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .eq('chama_id', id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+    setPrompts(data || [])
+  }
+
+  const handlePayClick = (prompt: any) => {
+      setSelectedPrompt(prompt)
+      setPaymentModalOpen(true)
+  }
+
+  const handleProcessPayment = async (phoneNumber: string) => {
+    if (!selectedPrompt) return
+
+    try {
+      setPaymentLoading(selectedPrompt.id)
+      setPaymentModalOpen(false)
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { error } = await supabase.functions.invoke('trigger-stk-push', {
+        body: {
+          amount: selectedPrompt.amount,
+          phoneNumber: phoneNumber,
+          userId: user.id,
+          chamaId: id,
+          requestId: selectedPrompt.id,
+          type: 'contribution'
+        }
+      })
+
+      if (error) throw error
+      alert('✅ STK Push Sent! Please check your phone to complete the contribution.')
+      fetchPrompts() // Refresh active prompts
+    } catch (err: any) {
+      console.error('Payment error:', err)
+      alert('❌ Payment Failed: ' + (err.message || 'Check your connection or phone number format.'))
+    } finally {
+      setPaymentLoading(null)
+      setSelectedPrompt(null)
+    }
+  }
+
+  const handleUpdateRole = async (memberId: string, newRole: string) => {
+      try {
+          const { error } = await supabase
+              .from('chama_members')
+              .update({ role: newRole })
+              .eq('id', memberId)
+          
+          if (error) throw error
+          fetchChamaDetails() // Refresh
+      } catch (err: any) {
+          alert('Failed to update role: ' + err.message)
+      }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#00C853]" />
+      </div>
+    )
+  }
+
+  if (!data) return <div className="p-8 text-center text-slate-500">Chama not found.</div>
+
+  const isAdmin = userRole === 'admin' || userRole === 'treasurer'
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6 pb-24 md:pb-20">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-4">
+          <button 
+            onClick={() => navigate('/chamas')}
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Chamas
+          </button>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{data.name}</h1>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium uppercase border ${
+                isAdmin 
+                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800' 
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+              }`}>
+                {userRole}
+              </span>
+            </div>
+            <p className="text-slate-500 dark:text-slate-400">{data.description || 'No description provided.'}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+            <button 
+                onClick={() => setStandingOrderModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold transition-all border border-slate-200 dark:border-slate-700"
+            >
+                <Clock className="w-4 h-4 text-[#00C853]" />
+                Automate
+            </button>
+            <button 
+                onClick={() => handlePayClick({ amount: data.contribution_amount, id: 'general', title: 'Manual Deposit' })}
+                className="px-6 py-2.5 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/20 flex items-center gap-2"
+            >
+                <Wallet className="w-4 h-4" />
+                Deposit
+            </button>
+            {isAdmin && (
+              <button className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
+                <MoreVertical className="w-5 h-5" />
+              </button>
+            )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-hide no-scrollbar">
+        {[
+          { id: 'overview', label: 'Overview', icon: Wallet },
+          { id: 'members', label: 'Members', icon: Users },
+          { id: 'meetings', label: 'Meetings', icon: Calendar },
+          { id: 'prompts', label: 'Prompts', icon: Bell }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as TabType)}
+            className={`flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-bold transition-all relative flex-shrink-0 ${
+              activeTab === tab.id 
+                ? 'text-[#00C853]' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+            {activeTab === tab.id && (
+              <motion.div 
+                layoutId="activeTab"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#00C853]"
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Group Balance</h3>
+                            <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                                KES {data.balance?.toLocaleString()}
+                            </div>
+                        </div>
+                        <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Members</h3>
+                            <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                                {data.members?.length} / {data.member_limit}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Financial Guidelines</h3>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-500 dark:text-slate-400">Contribution Frequency</span>
+                                <span className="font-bold text-slate-900 dark:text-white capitalize">{data.contribution_frequency}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-500 dark:text-slate-400">Target Amount</span>
+                                <span className="font-bold text-slate-900 dark:text-white font-mono text-green-500">KES {data.contribution_amount?.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="p-6 bg-gradient-to-br from-[#00C853]/10 to-green-600/5 rounded-2xl border border-[#00C853]/20">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Star className="w-5 h-5 text-[#00C853] fill-[#00C853]" />
+                            <h3 className="text-sm font-bold text-[#00C853] uppercase tracking-wider">Join Reward</h3>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="text-2xl font-black text-slate-900 dark:text-white">
+                                +{data.join_points || 500} Points
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                Get rewarded instantly for participating in this group.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Group Admin</h3>
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-[#00C853] flex items-center justify-center text-white font-bold text-xl">
+                                {data.members?.find((m:any) => m.role === 'admin')?.users?.first_name?.[0] || 'A'}
+                            </div>
+                            <div>
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                    {data.members?.find((m:any) => m.role === 'admin')?.users?.first_name || 'Admin'}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">Founder & Chairman</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          )}
+
+          {activeTab === 'members' && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[600px] sm:min-w-0">
+                    <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Member</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Role</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Joined</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Contribution</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {data.members?.map((member: any) => (
+                            <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
+                                            {member.users?.first_name?.[0] || 'U'}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-900 dark:text-white">
+                                                {member.users?.first_name} {member.users?.last_name}
+                                            </div>
+                                            <div className="text-xs text-slate-500">{member.users?.phone}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    {isAdmin && member.user_id !== data.created_by ? (
+                                        <select 
+                                            value={member.role}
+                                            onChange={(e) => handleUpdateRole(member.id, e.target.value)}
+                                            className="bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-[10px] font-black px-2 py-1 outline-none ring-1 ring-slate-200 dark:ring-slate-700 focus:ring-[#00C853] transition-all cursor-pointer"
+                                        >
+                                            <option value="member">MEMBER</option>
+                                            <option value="secretary">SECRETARY</option>
+                                            <option value="treasurer">TREASURER</option>
+                                            <option value="admin">ADMIN</option>
+                                        </select>
+                                    ) : (
+                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                                            member.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {member.role}
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-slate-500">
+                                    {format(new Date(member.joined_at), 'MMM d, yyyy')}
+                                </td>
+                                <td className="px-6 py-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                    KES {member.total_contribution?.toLocaleString()}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+          )}
+
+          {activeTab === 'meetings' && (
+            <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Chama Meetings</h2>
+                    {isAdmin && (
+                        <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-bold text-sm hover:opacity-90 transition-opacity">
+                            <Plus className="w-4 h-4" />
+                            Schedule Meeting
+                        </button>
+                    )}
+                </div>
+
+                {meetings.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                        <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-slate-900 dark:text-white">No meetings scheduled</h3>
+                        <p className="text-slate-500 max-w-xs mx-auto mb-6">Stay tuned for group updates and schedule a voice or physical sync.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {meetings.map((meeting) => (
+                            <div key={meeting.id} className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-green-500/10 rounded-xl text-[#00C853]">
+                                        <Calendar className="w-6 h-6" />
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-bold text-slate-900 dark:text-white">{format(new Date(meeting.date), 'MMM d')}</div>
+                                        <div className="text-xs text-slate-500">{format(new Date(meeting.date), 'p')}</div>
+                                    </div>
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{meeting.title}</h3>
+                                <p className="text-sm text-slate-500 mb-6 line-clamp-2">{meeting.description || 'No agenda provided.'}</p>
+                                
+                                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                        {meeting.video_link ? (
+                                            <><Video className="w-4 h-4" /> Virtual</>
+                                        ) : (
+                                            <><MapPin className="w-4 h-4" /> {meeting.venue || 'Physical'}</>
+                                        )}
+                                    </div>
+                                    {meeting.video_link && (
+                                        <a href={meeting.video_link} target="_blank" className="text-xs font-bold text-[#00C853] flex items-center gap-1 hover:underline">
+                                            Join Now <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+          )}
+
+            {activeTab === 'prompts' && (
+             <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Active Payment Requests</h2>
+                    {isAdmin && (
+                        <button 
+                            onClick={() => setPromptModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg font-bold text-sm hover:opacity-90 transition-opacity"
+                        >
+                            <Plus className="w-4 h-4" />
+                            New Prompt
+                        </button>
+                    )}
+                </div>
+
+                {prompts.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                        <CheckCircle2 className="w-12 h-12 text-[#00C853] mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-slate-900 dark:text-white">All Clear!</h3>
+                        <p className="text-slate-500 max-w-xs mx-auto">There are no pending group-wide payment requests at this time.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {prompts.map((prompt) => (
+                            <PromptCard key={prompt.id} prompt={prompt} onPay={handlePayClick} loading={paymentLoading === prompt.id} />
+                        ))}
+                    </div>
+                )}
+             </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {paymentModalOpen && selectedPrompt && (
+        <PaymentModal 
+            isOpen={paymentModalOpen} 
+            onClose={() => setPaymentModalOpen(false)} 
+            onConfirm={handleProcessPayment} 
+            amount={selectedPrompt.amount}
+            title={selectedPrompt.title}
+        />
+      )}
+
+      {promptModalOpen && id && (
+          <CreatePromptModal 
+            isOpen={promptModalOpen}
+            onClose={() => setPromptModalOpen(false)}
+            chamaId={id}
+            members={data.members}
+            onSuccess={() => {
+                setPromptModalOpen(false)
+                fetchPrompts()
+            }}
+          />
+      )}
+
+      {standingOrderModalOpen && data && (
+        <StandingOrderModal 
+          isOpen={standingOrderModalOpen}
+          onClose={() => setStandingOrderModalOpen(false)}
+          chama={data}
+        />
+      )}
+
+    </div>
+  )
+}
+
+function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClose: () => void, chama: any }) {
+  const [amount, setAmount] = useState(chama?.contribution_amount?.toString() || '')
+  const [loading, setLoading] = useState(false)
+  const [frequency, setFrequency] = useState('4') // Default Monthly
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [name, setName] = useState(`${chama?.name} Automation`)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('phone_number')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.phone_number) throw new Error('Please set your phone number in profile first')
+
+      const response = await supabase.functions.invoke('create-standing-order', {
+        body: {
+          amount: Number(amount),
+          phoneNumber: profile.phone_number,
+          userId: user.id,
+          chamaId: chama.id,
+          standingOrderName: name,
+          startDate,
+          endDate,
+          frequency
+        }
+      })
+
+      if (response.error) throw response.error
+
+      alert('✅ Standing Order Initiated! Please check your phone for the M-Pesa PIN prompt to authorize.')
+      onClose()
+    } catch (err: any) {
+      alert('❌ Failed: ' + (err.message || 'Check your connection.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+          >
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Automate</h2>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest">M-PESA RATIBA</p>
+                </div>
+                <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <Plus className="w-6 h-6 rotate-45 text-slate-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Purpose</label>
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                    placeholder="e.g. Monthly Contribution"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Amount (KES)</label>
+                    <input 
+                      type="number" 
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Frequency</label>
+                    <div className="relative">
+                      <select 
+                        value={frequency}
+                        onChange={(e) => setFrequency(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all appearance-none"
+                      >
+                        <option value="2">Daily</option>
+                        <option value="3">Weekly</option>
+                        <option value="4">Monthly</option>
+                        <option value="8">Yearly</option>
+                      </select>
+                      <RefreshCcw className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Start Date</label>
+                    <input 
+                      type="date" 
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">End Date</label>
+                    <input 
+                      type="date" 
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                  <div className="flex gap-3">
+                    <Info className="w-5 h-5 text-blue-500 shrink-0" />
+                    <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed font-bold">
+                      You will receive an M-PESA prompt to authorize this standing order. Once approved, payments will be automatically deducted.
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#00C853] hover:bg-green-600 disabled:opacity-50 text-white rounded-2xl py-4 font-black uppercase tracking-widest transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Set Up Automation'}
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, members: any[], onSuccess: () => void }) {
+    const [title, setTitle] = useState('')
+    const [amount, setAmount] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [targetAll, setTargetAll] = useState(true)
+    const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoading(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { error } = await supabase
+                .from('payment_requests')
+                .insert({
+                    chama_id: chamaId,
+                    created_by: user.id,
+                    title,
+                    amount: parseFloat(amount),
+                    target_member_ids: targetAll ? null : selectedUsers
+                })
+            
+            if (error) throw error
+            onSuccess()
+        } catch (err: any) {
+            alert('Failed to create prompt: ' + err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg my-auto shadow-2xl overflow-hidden"
+            >
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Create Payment Request</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Request Title</label>
+                            <input 
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="e.g. February Monthly Deposit"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] outline-none"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Amount (KES)</label>
+                            <input 
+                                type="number"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] outline-none"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Target Audience</label>
+                            <div className="flex gap-4 mb-4">
+                                <button 
+                                    type="button"
+                                    onClick={() => setTargetAll(true)}
+                                    className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${targetAll ? 'border-[#00C853] bg-[#00C853]/5 text-[#00C853]' : 'border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                                >
+                                    All Members
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setTargetAll(false)}
+                                    className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${!targetAll ? 'border-[#00C853] bg-[#00C853]/5 text-[#00C853]' : 'border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                                >
+                                    Select Members
+                                </button>
+                            </div>
+
+                            {!targetAll && (
+                                <div className="max-h-48 overflow-y-auto space-y-2 p-2 border border-slate-200 dark:border-slate-800 rounded-xl">
+                                    {members.map((member) => (
+                                        <label key={member.user_id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                            <input 
+                                                type="checkbox"
+                                                checked={selectedUsers.includes(member.user_id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedUsers([...selectedUsers, member.user_id])
+                                                    else setSelectedUsers(selectedUsers.filter(uid => uid !== member.user_id))
+                                                }}
+                                                className="w-4 h-4 rounded text-[#00C853] focus:ring-[#00C853]"
+                                            />
+                                            <div className="text-sm font-medium text-slate-900 dark:text-white">
+                                                {member.users?.first_name} {member.users?.last_name}
+                                                <span className="ml-2 text-[10px] text-slate-500 uppercase">{member.role}</span>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <button 
+                        type="submit"
+                        disabled={loading || (!targetAll && selectedUsers.length === 0)}
+                        className="w-full py-4 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-500/20 transition-all disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Send Requests'}
+                    </button>
+                </form>
+            </motion.div>
+        </div>
+    )
+}
+
+function PromptCard({ prompt, onPay, loading }: { prompt: any, onPay: (p: any) => void, loading: boolean }) {
+    const [showContributors, setShowContributors] = useState(false)
+    const [contributors, setContributors] = useState<any[]>([])
+    const [loadingContributors, setLoadingContributors] = useState(false)
+
+    const fetchContributors = async () => {
+        if (!showContributors && contributors.length === 0) {
+            setLoadingContributors(true)
+            const { data, error } = await supabase.rpc('get_payment_prompt_status', { prompt_id: prompt.id })
+            if (!error && data) {
+                setContributors(data)
+            }
+            setLoadingContributors(false)
+        }
+        setShowContributors(!showContributors)
+    }
+
+    return (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl">
+                        <Bell className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{prompt.title}</h3>
+                        <div className="flex items-center gap-4 mt-1">
+                            <div className="text-sm font-bold text-green-500">KES {prompt.amount?.toLocaleString()}</div>
+                            {prompt.due_date && (
+                                <div className="flex items-center gap-1 text-xs text-slate-500">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    Due {format(new Date(prompt.due_date), 'MMM d, yyyy')}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={fetchContributors}
+                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
+                    >
+                        {showContributors ? 'Hide Status' : 'View Status'}
+                    </button>
+                    <button
+                        onClick={() => onPay(prompt)}
+                        disabled={loading}
+                        className="px-8 py-2.5 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-w-[120px]"
+                    >
+                        {loading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            'Pay Now'
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {showContributors && (
+                <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/20 p-4">
+                    {loadingContributors ? (
+                         <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-slate-400"/></div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                            {contributors.map((c) => (
+                                <div key={c.user_id} className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                                    <div className={`w-2 h-2 rounded-full ${c.status === 'paid' ? 'bg-green-500' : 'bg-red-400'}`} />
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex-1 truncate">
+                                        {c.first_name} {c.last_name}
+                                    </span>
+                                    {c.status === 'paid' && (
+                                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: boolean, onClose: () => void, onConfirm: (phone: string) => void, amount: number, title: string }) {
+    const [phoneNumber, setPhoneNumber] = useState('')
+    const [useMyNumber, setUseMyNumber] = useState(true)
+    const [myNumber, setMyNumber] = useState('')
+
+    useEffect(() => {
+        // Fetch user number
+        const fetchUserNumber = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data } = await supabase.from('users').select('phone').eq('id', user.id).single()
+                if (data?.phone) {
+                    setMyNumber(data.phone.replace('+', ''))
+                    setPhoneNumber(data.phone.replace('+', ''))
+                }
+            }
+        }
+        fetchUserNumber()
+    }, [])
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        onConfirm(phoneNumber)
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+            >
+                <div>
+                     <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Confirm Payment</h3>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                    </div>
+                    
+                    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                            <div className="text-sm text-slate-500 mb-1">Payment for</div>
+                            <div className="font-bold text-slate-900 dark:text-white">{title}</div>
+                            <div className="mt-2 text-2xl font-bold text-green-500">KES {amount?.toLocaleString()}</div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
+                            
+                            <div className="flex flex-col gap-2">
+                                <label className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <input 
+                                        type="radio" 
+                                        checked={useMyNumber} 
+                                        onChange={() => {
+                                            setUseMyNumber(true)
+                                            setPhoneNumber(myNumber)
+                                        }}
+                                        className="w-4 h-4 text-[#00C853] focus:ring-[#00C853]"
+                                    />
+                                    <div>
+                                        <div className="font-medium text-slate-900 dark:text-white">My Number</div>
+                                        <div className="text-xs text-slate-500">{myNumber || 'Not set'}</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <input 
+                                        type="radio" 
+                                        checked={!useMyNumber} 
+                                        onChange={() => {
+                                            setUseMyNumber(false)
+                                            setPhoneNumber('')
+                                        }}
+                                        className="w-4 h-4 text-[#00C853] focus:ring-[#00C853]"
+                                    />
+                                    <div className="font-medium text-slate-900 dark:text-white">Other Number</div>
+                                </label>
+                            </div>
+
+                            {!useMyNumber && (
+                                <input
+                                    type="tel"
+                                    value={phoneNumber}
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    placeholder="2547..."
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] focus:border-transparent outline-none transition-all"
+                                    required
+                                    pattern="^254\d{9}$"
+                                />
+                            )}
+                        </div>
+
+                        <div className="pt-4">
+                            <button 
+                                type="submit"
+                                className="w-full py-3 px-4 bg-[#00C853] hover:bg-green-600 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-500/20"
+                            >
+                                Pay KES {amount?.toLocaleString()}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </motion.div>
+        </div>
+    )
+}

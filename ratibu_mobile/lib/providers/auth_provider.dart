@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../utils/notification_helper.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
@@ -41,6 +42,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   AuthNotifier() : super(AuthStateInitial());
 
+  Future<bool> _isConnected() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      state = AuthStateError('Please connect to the internet.');
+      return false;
+    }
+    return true;
+  }
+
   Future<void> signUp({
     required String email,
     required String password,
@@ -48,6 +58,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String lastName,
     required String phone,
   }) async {
+    if (!await _isConnected()) return;
     state = AuthStateLoading();
     try {
       // Pass metadata so the backend trigger can populate the profile correctly
@@ -61,13 +72,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'phone': phone,
         },
       );
-
-      // The backend trigger handle_new_user now handles profile creation in public.users
-      // We do NOT need to manually insert here, as it would cause a duplicate key error.
+      print('SignUp response: ${res.user?.id}');
       
       state = AuthStateUnauthenticated(); // Require login after signup
 
       if (res.user != null) {
+        print('Sending welcome notification for user: ${res.user!.id}');
          NotificationHelper.sendNotification(
           title: 'Welcome to Ratibu!',
           message: 'Your account has been created successfully. Please log in to continue.',
@@ -76,19 +86,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
     } on AuthException catch (e) {
+      print('AuthException during signUp: ${e.message}');
       state = AuthStateError(e.message);
     } catch (e) {
+      print('Unexpected error during signUp: $e');
       state = AuthStateError('An unexpected error occurred: $e');
     }
   }
 
   Future<void> signIn({required String email, required String password}) async {
+    if (!await _isConnected()) return;
     state = AuthStateLoading();
     try {
       final AuthResponse res = await _supabase.auth.signInWithPassword(
         email: email,
-        password: password,
-      );
+        password: password,      );
+      print('SignIn successful: ${res.user?.id}');
       state = AuthStateAuthenticated(res.user!);
       
       NotificationHelper.sendNotification(
@@ -98,8 +111,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         userId: res.user!.id,
       );
     } on AuthException catch (e) {
+      print('AuthException during signIn: ${e.message}');
       state = AuthStateError(e.message);
     } catch (e) {
+      print('Unexpected error during signIn: $e');
       state = AuthStateError('Login failed: $e');
     }
   }

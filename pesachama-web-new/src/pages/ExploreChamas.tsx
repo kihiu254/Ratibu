@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Search, Users, Loader2, CheckCircle2 } from 'lucide-react'
+import { Search, Users, Loader2, CheckCircle2, Star } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Button from '../components/Button'
 
@@ -74,6 +74,14 @@ export default function ExploreChamas() {
       setChamas(prev => prev.map(c => 
         c.id === chamaId ? { ...c, total_members: (c.total_members || 0) + 1 } : c
       ))
+
+      // Notify about points
+      const joinedChama = chamas.find(c => c.id === chamaId)
+      if (joinedChama?.join_points) {
+        alert(`Successfully joined ${joinedChama.name}! You've earned ${joinedChama.join_points} points.`)
+      } else {
+        alert(`Successfully joined ${joinedChama?.name || 'the group'}!`)
+      }
 
     } catch (err) {
       console.error('Error joining chama:', err)
@@ -151,6 +159,14 @@ export default function ExploreChamas() {
                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00C853] to-[#00E676] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[#00C853]/20 group-hover:scale-110 transition-transform duration-500">
                       {chama.name.substring(0, 2).toUpperCase()}
                     </div>
+                    {chama.join_points && (
+                      <div className="px-3 py-1 bg-[#00C853]/10 rounded-full border border-[#00C853]/20 flex items-center gap-1.5 animate-pulse">
+                        <Star className="w-3.5 h-3.5 text-[#00C853] fill-[#00C853]" />
+                        <span className="text-[10px] font-black text-[#00C853] uppercase letter-spacing-widest">
+                          +{chama.join_points} Join Bonus
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3 group-hover:text-[#00C853] transition-colors line-clamp-1">

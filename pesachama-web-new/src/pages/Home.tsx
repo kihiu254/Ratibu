@@ -32,7 +32,7 @@ const Hero = () => {
                         <span className="inline-block px-4 py-1.5 rounded-full glass-green text-primary text-xs font-black uppercase tracking-[0.2em] mb-6 border border-primary/30">
                             A CHAMA AT YOUR FINGERTIPS
                         </span>
-                        <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-black text-slate-900 dark:text-white leading-[0.9] tracking-tighter mb-8 max-w-4xl mx-auto transition-colors duration-300">
+                         <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-display font-black text-slate-900 dark:text-white leading-[0.9] tracking-tighter mb-8 max-w-4xl mx-auto transition-colors duration-300">
                             RATIBU <br />
                             <span className="text-gradient-green uppercase">Digital Banking.</span>
                         </h1>
@@ -135,8 +135,8 @@ const AccessDevices = () => {
                 <div className="glass rounded-[48px] p-12 md:p-20 border border-slate-200 dark:border-white/5 flex flex-col md:flex-row items-center gap-16">
                     <div className="flex-1 space-y-8">
                         <span className="text-accent text-xs font-black uppercase tracking-[0.3em]">Universal Access</span>
-                        <h2 className="text-4xl md:text-6xl font-display font-black text-slate-900 dark:text-white leading-none tracking-tighter transition-colors duration-300">
-                            USSD & <br />MOBILE APP.
+                        <h2 className="text-3xl sm:text-4xl md:text-6xl font-display font-black text-slate-900 dark:text-white leading-none tracking-tighter transition-colors duration-300 uppercase">
+                            USSD & <br className="hidden sm:block" />MOBILE APP.
                         </h2>
                         <p className="text-slate-600 dark:text-slate-400 text-lg font-medium leading-relaxed transition-colors duration-300">
                             Offering a robust technology platform for the population at the bottom of the economic pyramid. Now operating in Kenya, Tanzania, and Namibia.

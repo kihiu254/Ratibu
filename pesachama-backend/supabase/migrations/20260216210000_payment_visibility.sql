@@ -33,9 +33,15 @@ BEGIN
     LEFT JOIN 
         public.transactions t ON t.chama_id = cm.chama_id 
             AND t.user_id = cm.user_id 
-            AND t.type = 'contribution'
+            AND (t.type = 'contribution' OR t.type = 'deposit') -- Support both for flexibility
             AND t.status = 'completed'
-            AND (t.metadata->>'payment_request_id')::UUID = pr.id
+            AND (
+                -- Try to match by metadata if available
+                (t.metadata->>'payment_request_id' IS NOT NULL AND (t.metadata->>'payment_request_id')::UUID = pr.id)
+                OR
+                -- Fallback to amount matching within same timeframe if metadata missing (legacy)
+                (t.metadata->>'payment_request_id' IS NULL AND t.amount = pr.amount AND t.created_at >= pr.created_at)
+            )
     WHERE 
         pr.id = prompt_id;
 END;

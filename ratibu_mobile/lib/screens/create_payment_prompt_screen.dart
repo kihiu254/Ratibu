@@ -21,6 +21,26 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
   
   DateTime? _dueDate;
   bool _isLoading = false;
+  List<Map<String, dynamic>> _members = [];
+  final Set<String> _selectedMemberIds = {};
+  bool _targetAll = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMembers();
+  }
+
+  Future<void> _fetchMembers() async {
+    try {
+      final details = await ref.read(chamaServiceProvider).getChamaDetails(widget.chamaId);
+      setState(() {
+        _members = List<Map<String, dynamic>>.from(details['members']);
+      });
+    } catch (e) {
+      debugPrint('Error fetching members: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -69,6 +89,7 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
         title: _titleController.text.trim(),
         amount: amount,
         dueDate: _dueDate,
+        targetMemberIds: _targetAll ? null : _selectedMemberIds.toList(),
       );
 
       // Refresh prompts list
@@ -179,6 +200,61 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+
+              // Targeting Section
+              const Text(
+                'Target Members',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              
+              SwitchListTile(
+                title: const Text('All Members', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Send to everyone in the group', style: TextStyle(color: Colors.grey)),
+                value: _targetAll,
+                activeColor: const Color(0xFF00C853),
+                onChanged: (value) => setState(() => _targetAll = value),
+              ),
+
+              if (!_targetAll) ...[
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1e293b),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Column(
+                    children: _members.map((member) {
+                      final user = member['users'] ?? {};
+                      final name = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+                      final memberId = member['user_id'] as String;
+
+                      return CheckboxListTile(
+                        title: Text(name.isNotEmpty ? name : 'Unknown User', style: const TextStyle(color: Colors.white)),
+                        subtitle: Text(member['role']?.toString().toUpperCase() ?? '', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        value: _selectedMemberIds.contains(memberId),
+                        activeColor: const Color(0xFF00C853),
+                        onChanged: (isChecked) {
+                          setState(() {
+                            if (isChecked == true) {
+                              _selectedMemberIds.add(memberId);
+                            } else {
+                              _selectedMemberIds.remove(memberId);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+                if (_selectedMemberIds.isEmpty && !_targetAll)
+                   const Padding(
+                     padding: EdgeInsets.only(top: 8.0, left: 16),
+                     child: Text('Please select at least one member', style: TextStyle(color: Colors.red, fontSize: 12)),
+                   ),
+              ],
               const SizedBox(height: 32),
 
               // Submit Button

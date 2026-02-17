@@ -21,6 +21,7 @@ dependencies:
   share_plus: ^10.1.4
   lucide_icons: ^0.257.0
   package_info_plus: ^8.0.0
+  connectivity_plus: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -31,7 +32,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "web/favicon.png"
+  image_path: "assets/images/logo.png"
   min_sdk_android: 21
 
 flutter:
