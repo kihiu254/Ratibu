@@ -1,0 +1,102 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'dart:async';
+import '../widgets/ratibu_logo.dart';
+
+class ProcessingScreen extends StatefulWidget {
+  const ProcessingScreen({super.key});
+
+  @override
+  State<ProcessingScreen> createState() => _ProcessingScreenState();
+}
+
+class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  String _statusMessage = 'Creating your account...';
+  
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+    _controller.forward();
+
+    // Sequence of messages
+    _startSequence();
+  }
+
+  void _startSequence() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _statusMessage = 'Finalizing profile setup...';
+      });
+    }
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _statusMessage = 'Ready to go!';
+      });
+    }
+    await Future.delayed(const Duration(seconds: 1));
+    if (mounted) {
+      context.go('/login');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0f172a),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Hero(
+                tag: 'app_logo',
+                child: RatibuLogo(height: 80),
+              ),
+              const SizedBox(height: 48),
+              const SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                  color: Color(0xFF00C853),
+                  strokeWidth: 3,
+                ),
+              ),
+              const SizedBox(height: 32),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 500),
+                child: Text(
+                  _statusMessage,
+                  key: ValueKey(_statusMessage),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

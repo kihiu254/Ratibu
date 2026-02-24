@@ -44,6 +44,12 @@ export default function DashboardLayout() {
         .single()
       
       setUser(data || user)
+
+      // KYC Enforcement
+      const onboardingRoutes = ['/onboarding', '/verify-otp', '/membership-kyc']
+      if (data?.kyc_status === 'pending' && !onboardingRoutes.includes(location.pathname)) {
+        navigate('/onboarding')
+      }
     } catch (error) {
       console.error('Error loading user data!', error)
     } finally {

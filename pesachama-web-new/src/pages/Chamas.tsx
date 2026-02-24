@@ -7,7 +7,14 @@ import { motion } from 'framer-motion'
 export default function Chamas() {
   const [chamas, setChamas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const navigate = useNavigate()
+
+  const categories = [
+    'All', 'Bodabodas', 'House-helps', 'Sales-people', 'Grocery Owners', 
+    'Waiters', 'Health Workers', 'Caretakers', 'Drivers', 
+    'Fundis', 'Conductors', 'Others'
+  ]
 
   useEffect(() => {
     fetchChamas()
@@ -80,6 +87,25 @@ export default function Chamas() {
         </Link>
       </div>
 
+      {/* Categories Horizontal Scroll */}
+      <div className="overflow-x-auto pb-6 -mx-4 px-4 scrollbar-hide">
+        <div className="flex items-center gap-3 min-w-max">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-6 py-3 rounded-2xl text-sm font-black transition-all duration-300 border-2 ${
+                selectedCategory === cat
+                  ? 'bg-[#00C853] border-[#00C853] text-white shadow-xl shadow-green-500/20 scale-105'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800 hover:border-[#00C853]/30 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <span className="tracking-tight uppercase">{cat}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {chamas.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
@@ -99,7 +125,9 @@ export default function Chamas() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {chamas.map((chama) => (
+            {chamas
+              .filter(c => selectedCategory === 'All' || c.category === selectedCategory)
+              .map((chama) => (
                 <motion.div
                     key={chama.id}
                     initial={{ opacity: 0, scale: 0.95 }}

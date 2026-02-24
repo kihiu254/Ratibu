@@ -12,6 +12,8 @@ import 'profile_screen.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../providers/profile_provider.dart';
+
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -21,6 +23,23 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkKyc();
+  }
+
+  void _checkKyc() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final kycAsync = ref.read(userProfileProvider);
+      kycAsync.whenData((profile) {
+        if (profile != null && profile['kyc_status'] == 'pending') {
+          context.go('/onboarding-success');
+        }
+      });
+    });
+  }
 
   static const List<Widget> _pages = <Widget>[
     ActivitiesTab(), // Home (Feed)
@@ -39,6 +58,91 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1e293b),
+        elevation: 0,
+        title: const Text('Ratibu', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      drawer: Drawer(
+        backgroundColor: const Color(0xFF0f172a),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Color(0xFF1e293b),
+              ),
+               child: Center(
+                 child: Column(
+                   mainAxisAlignment: MainAxisAlignment.center,
+                   children: [
+                      Icon(Icons.dashboard, color: Color(0xFF00C853), size: 48),
+                      SizedBox(height: 12),
+                      Text('Explore Ratibu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                   ],
+                 )
+               )
+            ),
+            ListTile(
+              leading: const Icon(Icons.inventory_2, color: Colors.blue),
+              title: const Text('Products', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context); // Close drawer
+                context.push('/products');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.rocket_launch, color: Colors.green),
+              title: const Text('Opportunities', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/opportunities');
+              },
+            ),
+             ListTile(
+              leading: const Icon(Icons.star, color: Colors.amber),
+              title: const Text('Features', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/features');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.payments, color: Colors.purple),
+              title: const Text('Pricing', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/pricing');
+              },
+            ),
+            const Divider(color: Colors.white10),
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings, color: Colors.white54),
+              title: const Text('Privacy Policy', style: TextStyle(color: Colors.white54)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/legal/Privacy%20Policy');
+              },
+            ),
+             ListTile(
+              leading: const Icon(Icons.gavel, color: Colors.white54),
+              title: const Text('Terms of Service', style: TextStyle(color: Colors.white54)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/legal/Terms%20of%20Service');
+              },
+            ),
+             ListTile(
+              leading: const Icon(Icons.cookie, color: Colors.white54),
+              title: const Text('Cookie Policy', style: TextStyle(color: Colors.white54)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/legal/Cookie%20Policy');
+              },
+            ),
+          ],
+        ),
+      ),
       body: SafeArea(
         child: _pages.elementAt(_selectedIndex),
       ),

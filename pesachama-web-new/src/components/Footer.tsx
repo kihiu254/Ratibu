@@ -25,21 +25,21 @@ const Footer = () => {
                     <div>
                         <h3 className="text-slate-900 dark:text-white font-black uppercase tracking-[0.2em] text-xs mb-8 transition-colors">Product</h3>
                         <ul className="space-y-4 text-sm font-bold">
-                            <li><Link to="/product/mobile-app" className="hover:text-[#00C853] transition-colors">Mobile App</Link></li>
-                            <li><Link to="/product/ussd-platform" className="hover:text-[#00C853] transition-colors">USSD Platform</Link></li>
-                            <li><Link to="/product/web-dashboard" className="hover:text-[#00C853] transition-colors">Web Dashboard</Link></li>
-                            <li><Link to="/product/integrations" className="hover:text-[#00C853] transition-colors">Integrations</Link></li>
+                            <li><Link to="/products" className="hover:text-[#00C853] transition-colors">Digital Wallets</Link></li>
+                            <li><Link to="/products" className="hover:text-[#00C853] transition-colors">Chama OS</Link></li>
+                            <li><Link to="/products" className="hover:text-[#00C853] transition-colors">Instant Credit</Link></li>
+                            <li><Link to="/products" className="hover:text-[#00C853] transition-colors">USSD Offline Access</Link></li>
                         </ul>
                     </div>
 
                     {/* Resources Column */}
                     <div>
-                        <h3 className="text-slate-900 dark:text-white font-black uppercase tracking-[0.2em] text-xs mb-8 transition-colors">Resources</h3>
+                        <h3 className="text-slate-900 dark:text-white font-black uppercase tracking-[0.2em] text-xs mb-8 transition-colors">Opportunities</h3>
                         <ul className="space-y-4 text-sm font-bold">
-                            <li><Link to="/resources/documentation" className="hover:text-[#00C853] transition-colors">Documentation</Link></li>
-                            <li><Link to="/resources/help-center" className="hover:text-[#00C853] transition-colors">Help Center</Link></li>
-                            <li><Link to="/resources/api-status" className="hover:text-[#00C853] transition-colors">API Status</Link></li>
-                            <li><Link to="/resources/blog" className="hover:text-[#00C853] transition-colors">Blog</Link></li>
+                            <li><Link to="/opportunities" className="hover:text-[#00C853] transition-colors">Agent Partnerships</Link></li>
+                            <li><Link to="/opportunities" className="hover:text-[#00C853] transition-colors">Developer APIs</Link></li>
+                            <li><Link to="/opportunities" className="hover:text-[#00C853] transition-colors">Institutional Investment</Link></li>
+                            <li><Link to="/opportunities" className="hover:text-[#00C853] transition-colors">Innovation Grants</Link></li>
                         </ul>
                     </div>
 

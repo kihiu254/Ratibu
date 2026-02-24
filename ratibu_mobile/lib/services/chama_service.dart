@@ -30,6 +30,7 @@ class ChamaService {
     required String description,
     required double contributionAmount,
     required String frequency,
+    required String category,
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('Not authenticated');
@@ -41,6 +42,7 @@ class ChamaService {
       'created_by': user.id,
       'contribution_amount': contributionAmount,
       'contribution_frequency': frequency,
+      'category': category,
       'member_limit': 50, // Default
       'balance': 0,
     }).select().single();

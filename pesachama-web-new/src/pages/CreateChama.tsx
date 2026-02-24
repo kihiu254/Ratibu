@@ -1,16 +1,20 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Users, FileText, Calendar, DollarSign, Loader2, Plus, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 
 export default function CreateChama() {
+  const [searchParams] = useSearchParams()
+  const initialCategory = searchParams.get('category') || 'Others'
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     meetingFrequency: 'monthly',
     contributionAmount: '',
+    category: initialCategory,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,6 +42,7 @@ export default function CreateChama() {
           created_by: user.id,
           contribution_amount: parseFloat(formData.contributionAmount),
           contribution_frequency: formData.meetingFrequency, // and renaming this as per schema
+          category: formData.category,
         },
       ])
       .select()
@@ -175,6 +180,31 @@ export default function CreateChama() {
                     placeholder="e.g. 1000"
                     required
                   />
+                </div>
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Chama Category</label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+                  <select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-[#00C853] focus:border-transparent outline-none transition-all text-slate-900 dark:text-slate-200 appearance-none"
+                  >
+                    <option value="Bodabodas">Bodabodas</option>
+                    <option value="House-helps">House-helps</option>
+                    <option value="Sales-people">Sales-people</option>
+                    <option value="Grocery Owners">Grocery Owners</option>
+                    <option value="Waiters">Waiters</option>
+                    <option value="Health Workers">Health Workers</option>
+                    <option value="Caretakers">Caretakers</option>
+                    <option value="Drivers">Drivers</option>
+                    <option value="Fundis">Fundis</option>
+                    <option value="Conductors">Conductors</option>
+                    <option value="Others">Others</option>
+                  </select>
                 </div>
               </div>
             </div>

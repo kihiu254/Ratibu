@@ -70,7 +70,7 @@ export default function Navbar() {
             </Link>
           )}
           <Link to="/" className="flex items-center group">
-            <RatibuLogo className="h-10 md:h-16 w-auto text-white group-hover:scale-105 transition-transform" />
+            <RatibuLogo className="h-14 md:h-20 w-auto text-white group-hover:scale-105 transition-transform" />
             <div className="ml-2 md:ml-4 h-6 md:h-8 w-px bg-white/10 hidden sm:block" />
             <div className="ml-2 md:ml-4 hidden sm:flex flex-col">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00C853]">Ratibu</span>
@@ -82,7 +82,7 @@ export default function Navbar() {
         {/* Desktop Links (Only shown on landing pages) */}
         {!isAuthPage && (
           <nav className="hidden md:flex items-center space-x-1">
-            {["Features", "Solutions", "Pricing", "Resources", "Chamas"].map((item) => (
+            {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
               <Link
                 key={item}
                 to={`/${item.toLowerCase()}`}
@@ -164,7 +164,7 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {open && !isAuthPage && (
         <div className="md:hidden mt-3 p-6 glass rounded-2xl border border-white/5 shadow-2xl animate-slide-up flex flex-col space-y-4">
-          {["Features", "Solutions", "Pricing", "Resources", "Chamas"].map((item) => (
+          {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
             <Link
               key={item}
               to={`/${item.toLowerCase()}`}

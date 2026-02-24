@@ -3,53 +3,116 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/chama_provider.dart';
 
-class ChamasTab extends ConsumerWidget {
+class ChamasTab extends ConsumerStatefulWidget {
   const ChamasTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChamasTab> createState() => _ChamasTabState();
+}
+
+class _ChamasTabState extends ConsumerState<ChamasTab> {
+  String _selectedCategory = 'All';
+  final List<String> _categories = [
+    'All', 'Bodabodas', 'House-helps', 'Sales-people', 'Grocery Owners', 
+    'Waiters', 'Health Workers', 'Caretakers', 'Drivers', 
+    'Fundis', 'Conductors', 'Others'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final chamasAsync = ref.watch(myChamasProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: chamasAsync.when(
-        data: (chamas) {
-          if (chamas.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.group_off, size: 64, color: Colors.grey[700]),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No Chamas yet',
-                    style: TextStyle(color: Colors.grey, fontSize: 18),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Create one to get started!',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => ref.refresh(myChamasProvider),
+      body: Column(
+        children: [
+          const SizedBox(height: 16),
+          // Categories Horizontal Scroll
+          SizedBox(
+            height: 44,
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: chamas.length,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _categories.length,
               itemBuilder: (context, index) {
-                final chama = chamas[index];
-                return _ChamaCard(chama: chama);
+                final cat = _categories[index];
+                final isSelected = _selectedCategory == cat;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(cat),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedCategory = cat);
+                      }
+                    },
+                    selectedColor: const Color(0xFF00C853),
+                    backgroundColor: Colors.white.withOpacity(0.05),
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: isSelected ? const Color(0xFF00C853) : Colors.white10,
+                      ),
+                    ),
+                    showCheckmark: false,
+                  ),
+                );
               },
             ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF00C853))),
-        error: (err, stack) => Center(
-          child: Text('Error: $err', style: const TextStyle(color: Colors.red)),
-        ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: chamasAsync.when(
+              data: (chamas) {
+                final filteredChamas = chamas.where((c) {
+                  return _selectedCategory == 'All' || c['category'] == _selectedCategory;
+                }).toList();
+
+                if (filteredChamas.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.group_off, size: 64, color: Colors.grey[700]),
+                        const SizedBox(height: 16),
+                        Text(
+                          _selectedCategory == 'All' ? 'No Chamas yet' : 'No $_selectedCategory Chamas',
+                          style: const TextStyle(color: Colors.grey, fontSize: 18),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Create one to get started!',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return RefreshIndicator(
+                  onRefresh: () async => ref.refresh(myChamasProvider),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredChamas.length,
+                    itemBuilder: (context, index) {
+                      final chama = filteredChamas[index];
+                      return _ChamaCard(chama: chama);
+                    },
+                  ),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF00C853))),
+              error: (err, stack) => Center(
+                child: Text('Error: $err', style: const TextStyle(color: Colors.red)),
+              ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: Row(
         mainAxisAlignment: MainAxisAlignment.end,

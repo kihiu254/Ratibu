@@ -9,7 +9,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import CreateChama from './pages/CreateChama';
 
-import GenericPage from './pages/GenericPage';
+import Products from './pages/Products';
+import Opportunities from './pages/Opportunities';
+import Features from './pages/Features';
+import Pricing from './pages/Pricing';
+import Legal from './pages/Legal';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import Chamas from './pages/Chamas';
@@ -23,6 +27,9 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminChamas from './pages/admin/AdminChamas';
 import AdminTransactions from './pages/admin/AdminTransactions';
 import AdminChamaDetails from './pages/admin/AdminChamaDetails';
+import Onboarding from './pages/Onboarding';
+import OTPVerification from './pages/OTPVerification';
+import MembershipKYC from './pages/MembershipKYC';
 
 // Layout for public pages that need Navbar and Footer
 const PublicLayout = () => (
@@ -45,13 +52,14 @@ function App() {
           <Route element={<PublicLayout />}>
             <Route path="/" element={<Home />} />
             <Route path="/create-chama" element={<CreateChama />} />
-            <Route path="/product/*" element={<GenericPage />} />
-            <Route path="/solutions/*" element={<GenericPage />} />
-            <Route path="/resources/*" element={<GenericPage />} />
-            <Route path="/legal/*" element={<GenericPage />} />
-            <Route path="/features" element={<GenericPage />} />
-            <Route path="/pricing" element={<GenericPage />} />
-            <Route path="/contact" element={<GenericPage />} />
+            <Route path="/product/*" element={<Products />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/opportunities" element={<Opportunities />} />
+            <Route path="/resources/*" element={<Opportunities />} />
+            <Route path="/legal/*" element={<Legal />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/contact" element={<Opportunities />} />
           </Route>
 
           {/* Auth Routes (Standalone) */}
@@ -67,6 +75,9 @@ function App() {
             <Route path="/chama/:id" element={<ChamaDetails />} />
             <Route path="/activity" element={<div className="p-8 text-slate-900 dark:text-white">Activity Log (Coming Soon)</div>} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/verify-otp" element={<OTPVerification />} />
+            <Route path="/membership-kyc" element={<MembershipKYC />} />
           </Route>
 
 

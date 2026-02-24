@@ -18,9 +18,15 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
   final _amountController = TextEditingController(); // Contribution amount
   
   String _frequency = 'Monthly'; // Default
+  String _selectedCategory = 'Others'; // Default
   bool _isLoading = false;
 
   final List<String> _frequencies = ['Daily', 'Weekly', 'Monthly', 'Bi-Weekly'];
+  final List<String> _categories = [
+    'Bodabodas', 'House-helps', 'Sales-people', 'Grocery Owners', 
+    'Waiters', 'Health Workers', 'Caretakers', 'Drivers', 
+    'Fundis', 'Conductors', 'Others'
+  ];
 
   @override
   void dispose() {
@@ -43,6 +49,7 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
         description: _descController.text.trim(),
         contributionAmount: amount,
         frequency: _frequency.toLowerCase(),
+        category: _selectedCategory,
       );
 
       // Refresh the list of chamas so the new one appears on the dashboard
@@ -132,8 +139,6 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-
               // Frequency Dropdown
               DropdownButtonFormField<String>(
                 value: _frequency,
@@ -142,6 +147,17 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
                 decoration: _inputDecoration('Contribution Frequency', Icons.calendar_today),
                 items: _frequencies.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
                 onChanged: (val) => setState(() => _frequency = val!),
+              ),
+              const SizedBox(height: 16),
+
+              // Category Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                dropdownColor: const Color(0xFF2C2C2C),
+                style: const TextStyle(color: Colors.white),
+                decoration: _inputDecoration('Chama Category', Icons.category),
+                items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (val) => setState(() => _selectedCategory = val!),
               ),
               const SizedBox(height: 32),
 

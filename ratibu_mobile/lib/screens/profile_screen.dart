@@ -32,6 +32,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   int _points = 0;
   int _level = 1;
   List<Map<String, dynamic>> _badges = [];
+  String _kycStatus = 'pending';
+  List<String> _memberCategories = [];
 
   @override
   void initState() {
@@ -80,6 +82,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         }
 
         _badges = (badgesData as List).map((b) => b['badges'] as Map<String, dynamic>).toList();
+        _kycStatus = data['kyc_status'] ?? 'pending';
+        _memberCategories = List<String>.from(data['member_category'] ?? []);
         _loading = false;
       });
     } catch (e) {
@@ -263,6 +267,62 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              
+              // KYC Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _kycStatus == 'approved' 
+                    ? const Color(0xFF00C853).withOpacity(0.1) 
+                    : Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(
+                    color: _kycStatus == 'approved' 
+                      ? const Color(0xFF00C853).withOpacity(0.3) 
+                      : Colors.amber.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _kycStatus == 'approved' ? Icons.verified : Icons.shield_outlined,
+                      size: 14,
+                      color: _kycStatus == 'approved' ? const Color(0xFF00C853) : Colors.amber,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _kycStatus == 'approved' ? 'Verified Member' : '${_kycStatus.toUpperCase()} Verification',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _kycStatus == 'approved' ? const Color(0xFF00C853) : Colors.amber,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (_kycStatus != 'approved') ...[
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.push('/onboarding-success'),
+                    icon: const Icon(Icons.shield_outlined, size: 18),
+                    label: const Text('VERIFY PROFILE'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C853).withOpacity(0.1),
+                      foregroundColor: const Color(0xFF00C853),
+                      elevation: 0,
+                      side: const BorderSide(color: Color(0xFF00C853)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+              
               const SizedBox(height: 32),
               
               // Form Fields
@@ -311,6 +371,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               // App Updates Section
               _buildUpdatesCard(),
+              
+              const SizedBox(height: 32),
+
+              // Categories Section
+              _buildCategoriesSection(),
               
               const SizedBox(height: 40),
               
@@ -698,22 +763,57 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildCategoriesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Member Categories',
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        if (_memberCategories.isEmpty)
+          Text(
+            'No categories selected yet.',
+            style: TextStyle(color: Colors.white.withOpacity(0.5), fontStyle: FontStyle.italic),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _memberCategories.map((cat) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Text(
+                cat,
+                style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            )).toList(),
+          ),
+      ],
+    );
+  }
 }
 
-class S_SignOutButton extends StatelessWidget {
+class S_SignOutButton extends ConsumerWidget {
   final WidgetRef ref;
   const S_SignOutButton({super.key, required this.ref});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return OutlinedButton.icon(
       onPressed: () async {
-        await Supabase.instance.client.auth.signOut();
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Signed out successfully')),
-          );
-        }
+        // Use the provider to sign out, which updates the state and triggers navigation
+        await ref.read(authProvider.notifier).signOut();
+        
+        // Navigation is handled by the auth state listener in the main app layout or login screen
+        // But if we are in a tab, we might need to be popped or the router refreshed
+        // transformAuth listens to the provider, so GoRouter should redirect automatically
       },
       icon: const Icon(Icons.logout, color: Colors.red),
       label: const Text('Sign Out', style: TextStyle(color: Colors.red)),

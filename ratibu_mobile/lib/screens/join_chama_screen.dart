@@ -17,6 +17,13 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
   Set<String> _joinedIds = {};
   bool _loading = true;
   String? _joiningId;
+  String _selectedCategory = 'All';
+
+  final List<String> _categories = [
+    'All', 'Bodabodas', 'House-helps', 'Sales-people', 'Grocery Owners', 
+    'Waiters', 'Health Workers', 'Caretakers', 'Drivers', 
+    'Fundis', 'Conductors', 'Others'
+  ];
 
   @override
   void initState() {
@@ -105,8 +112,12 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
   Widget build(BuildContext context) {
     final filteredChamas = _chamas.where((c) {
       final query = _searchController.text.toLowerCase();
-      return (c['name'] as String).toLowerCase().contains(query) ||
+      final matchesSearch = (c['name'] as String).toLowerCase().contains(query) ||
           (c['description'] as String?)?.toLowerCase().contains(query) == true;
+      
+      final matchesCategory = _selectedCategory == 'All' || c['category'] == _selectedCategory;
+      
+      return matchesSearch && matchesCategory;
     }).toList();
 
     return Scaffold(
@@ -137,6 +148,48 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
               ),
             ),
           ),
+          
+          // Categories Horizontal Scroll
+          SizedBox(
+            height: 50,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _categories.length,
+              itemBuilder: (context, index) {
+                final cat = _categories[index];
+                final isSelected = _selectedCategory == cat;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(cat),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedCategory = cat);
+                      }
+                    },
+                    selectedColor: const Color(0xFF00C853),
+                    backgroundColor: Colors.white.withOpacity(0.05),
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(100),
+                      side: BorderSide(
+                        color: isSelected ? const Color(0xFF00C853) : Colors.white10,
+                      ),
+                    ),
+                    showCheckmark: false,
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+
           Expanded(
             child: RefreshIndicator(
               onRefresh: _fetchData,

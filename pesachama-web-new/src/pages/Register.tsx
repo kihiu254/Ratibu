@@ -37,8 +37,8 @@ export default function Register() {
       setError(error.message)
       setLoading(false)
     } else {
-      // Auto login or redirect to create chama
-      navigate('/create-chama')
+      // Auto login or redirect to onboarding
+      navigate('/onboarding')
     }
   }
 

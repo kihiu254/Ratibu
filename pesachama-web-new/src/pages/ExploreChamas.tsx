@@ -11,7 +11,14 @@ export default function ExploreChamas() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [joiningId, setJoiningId] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const navigate = useNavigate()
+
+  const categories = [
+    'All', 'Bodabodas', 'House-helps', 'Sales-people', 'Grocery Owners', 
+    'Waiters', 'Health Workers', 'Caretakers', 'Drivers', 
+    'Fundis', 'Conductors', 'Others'
+  ]
 
   useEffect(() => {
     fetchData()
@@ -91,10 +98,14 @@ export default function ExploreChamas() {
     }
   }
 
-  const filteredChamas = chamas.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredChamas = chamas.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    const matchesCategory = selectedCategory === 'All' || c.category === selectedCategory
+    
+    return matchesSearch && matchesCategory
+  })
 
   if (loading) {
     return (
@@ -121,6 +132,25 @@ export default function ExploreChamas() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00C853] transition-all"
           />
+        </div>
+      </div>
+
+      {/* Categories Horizontal Scroll */}
+      <div className="overflow-x-auto pb-6 -mx-4 px-4 scrollbar-hide">
+        <div className="flex items-center gap-3 min-w-max">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-6 py-3 rounded-2xl text-sm font-black transition-all duration-300 border-2 ${
+                selectedCategory === cat
+                  ? 'bg-[#00C853] border-[#00C853] text-white shadow-xl shadow-green-500/20 scale-105'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800 hover:border-[#00C853]/30 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <span className="tracking-tight uppercase">{cat}</span>
+            </button>
+          ))}
         </div>
       </div>
 

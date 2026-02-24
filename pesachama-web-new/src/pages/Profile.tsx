@@ -10,7 +10,10 @@ import {
   Loader2, 
   ArrowLeft,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  ChevronRight,
+  Briefcase
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -25,7 +28,9 @@ export default function Profile() {
     phone: '',
     bio: '',
     avatar_url: '',
-    referral_code: ''
+    referral_code: '',
+    kyc_status: 'pending',
+    member_category: [] as string[]
   })
   
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -60,7 +65,9 @@ export default function Profile() {
           phone: data.phone || '',
           bio: data.bio || '',
           avatar_url: data.avatar_url || '',
-          referral_code: data.referral_code || ''
+          referral_code: data.referral_code || '',
+          kyc_status: data.kyc_status || 'pending',
+          member_category: data.member_category || []
         })
       }
     } catch (err: any) {
@@ -191,10 +198,34 @@ export default function Profile() {
                 <span>{user.email}</span>
               </div>
               <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400 text-sm">
-                <CheckCircle2 className="w-4 h-4 text-[#00C853]" />
-                <span>Verified Account</span>
+                {profile.kyc_status === 'approved' ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-[#00C853]" />
+                    <span>Verified Member</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4 text-amber-500" />
+                    <span>{profile.kyc_status.charAt(0).toUpperCase() + profile.kyc_status.slice(1)} Verification</span>
+                  </>
+                )}
               </div>
             </div>
+
+            {profile.kyc_status !== 'approved' && (
+              <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => navigate('/onboarding')}
+                  className="w-full flex items-center justify-between p-4 bg-[#00C853]/5 hover:bg-[#00C853]/10 text-[#00C853] rounded-2xl transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-5 h-5" />
+                    <span className="font-bold text-sm">Verify Profile</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            )}
 
             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-[#00C853]/30">
@@ -212,6 +243,18 @@ export default function Profile() {
                      </button>
                   </div>
                </div>
+            </div>
+           <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-left">Member Categories</p>
+              <div className="flex flex-wrap gap-2">
+                {profile.member_category.length > 0 ? profile.member_category.map(cat => (
+                  <span key={cat} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-bold border border-slate-200 dark:border-slate-700">
+                    {cat}
+                  </span>
+                )) : (
+                  <span className="text-sm text-slate-400 italic">No categories selected</span>
+                )}
+              </div>
             </div>
           </div>
         </div>

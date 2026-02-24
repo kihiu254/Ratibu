@@ -1,9 +1,11 @@
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Button from '../components/Button';
 
 const Hero = () => {
+    const navigate = useNavigate();
     return (
-        <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 bg-slate-50 dark:bg-midnight transition-colors duration-300">
+        <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-28 md:pt-36 bg-slate-50 dark:bg-midnight transition-colors duration-300">
             
             {/* Ambient Background Video */}
             <div className="absolute inset-0 z-0">
@@ -20,23 +22,27 @@ const Hero = () => {
             
             {/* Background Grid & Overlays */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none z-1" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-white/0 dark:from-midnight/80 dark:via-midnight/50 dark:to-midnight z-1 transition-colors duration-300" />
+            <div className="absolute inset-0 bg-white/10 dark:bg-midnight/40 z-1" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8)_0%,transparent_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(2,6,23,0.7)_0%,transparent_100%)] z-1 transition-all duration-500" />
 
             <div className="container mx-auto px-6 relative z-10">
-                <div className="max-w-5xl mx-auto text-center space-y-8">
+                <div className="max-w-5xl mx-auto text-center space-y-6">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     >
-                        <span className="inline-block px-4 py-1.5 rounded-full glass-green text-primary text-xs font-black uppercase tracking-[0.2em] mb-6 border border-primary/30">
-                            A CHAMA AT YOUR FINGERTIPS
-                        </span>
-                         <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-display font-black text-slate-900 dark:text-white leading-[0.9] tracking-tighter mb-8 max-w-4xl mx-auto transition-colors duration-300">
-                            RATIBU <br />
-                            <span className="text-gradient-green uppercase">Digital Banking.</span>
+                         <h1 className="flex flex-col items-center mb-6 max-w-4xl mx-auto transition-colors duration-300">
+                           <img 
+                               src="/hero-logo.png" 
+                               alt="Ratibu" 
+                               className="h-16 sm:h-24 md:h-32 lg:h-40 w-auto object-contain drop-shadow-xl -mb-2 sm:-mb-3 md:-mb-4 lg:-mb-5" 
+                           />
+                           <span className="text-2xl sm:text-3xl md:text-5xl font-display font-black text-slate-900 dark:text-white uppercase tracking-tight drop-shadow-md relative z-10">
+                              Digital Banking.
+                           </span>
                         </h1>
-                        <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed font-medium transition-colors duration-300">
+                        <p className="text-xl md:text-2xl text-slate-900 dark:text-slate-200 max-w-3xl mx-auto leading-relaxed font-bold drop-shadow-sm transition-colors duration-300">
                             The simple and integrated technological platform for SMEs and Chamas. Bridging the gap for the bottom of the economic pyramid.
                         </p>
                     </motion.div>
@@ -61,16 +67,20 @@ const Hero = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 1.5, delay: 0.5 }}
-                        className="pt-20"
+                        className="pt-12"
                     >
-                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-8">
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-700 dark:text-slate-400 mb-6">
                             Empowering these major sectors
                         </p>
-                        <div className="flex flex-wrap justify-center gap-4 max-w-4xl mx-auto">
-                           {["Bodabodas", "House-helps", "Sales-people", "Grocery Owners", "Waiters", "Health Workers", "Caretakers", "Drivers"].map((segment) => (
-                              <div key={segment} className="px-4 py-2 glass rounded-xl border border-slate-200 dark:border-white/5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-primary hover:border-primary/30 transition-all cursor-default">
+                        <div className="flex flex-wrap justify-center gap-2 md:gap-3 max-w-6xl mx-auto">
+                           {["Bodabodas", "House-helps", "Sales-people", "Grocery Owners", "Waiters", "Health Workers", "Caretakers", "Drivers", "Fundis", "Conductors", "Others"].map((segment) => (
+                              <button 
+                                 key={segment} 
+                                 onClick={() => navigate(`/create-chama?category=${encodeURIComponent(segment)}`)}
+                                 className="px-3 py-1.5 glass rounded-xl border border-slate-300 dark:border-white/10 text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-white hover:bg-primary/80 hover:border-primary/50 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                              >
                                  {segment}
-                              </div>
+                              </button>
                            ))}
                         </div>
                     </motion.div>

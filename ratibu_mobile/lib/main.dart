@@ -20,8 +20,17 @@ import 'screens/onboarding_screen.dart';
 import 'screens/referrals_screen.dart';
 import 'screens/updates_screen.dart';
 import 'screens/standing_order_setup_screen.dart';
+import 'screens/processing_screen.dart';
+import 'screens/onboarding_success_screen.dart';
+import 'screens/otp_verification_screen.dart';
+import 'screens/kyc_form_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'screens/products_screen.dart';
+import 'screens/opportunities_screen.dart';
+import 'screens/features_screen.dart';
+import 'screens/pricing_screen.dart';
+import 'screens/legal_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -39,6 +48,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
+    ),
+    GoRoute(
+      path: '/processing',
+      builder: (context, state) => const ProcessingScreen(),
     ),
     GoRoute(
       path: '/dashboard',
@@ -110,6 +123,41 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/updates',
       builder: (context, state) => const UpdatesScreen(),
+    ),
+    GoRoute(
+      path: '/onboarding-success',
+      builder: (context, state) => const OnboardingSuccessScreen(),
+    ),
+    GoRoute(
+      path: '/otp-verification',
+      builder: (context, state) => const OtpVerificationScreen(),
+    ),
+    GoRoute(
+      path: '/kyc-form',
+      builder: (context, state) => const KycFormScreen(),
+    ),
+    GoRoute(
+      path: '/products',
+      builder: (context, state) => const ProductsScreen(),
+    ),
+    GoRoute(
+      path: '/opportunities',
+      builder: (context, state) => const OpportunitiesScreen(),
+    ),
+    GoRoute(
+      path: '/features',
+      builder: (context, state) => const FeaturesScreen(),
+    ),
+    GoRoute(
+      path: '/pricing',
+      builder: (context, state) => const PricingScreen(),
+    ),
+    GoRoute(
+      path: '/legal/:type',
+      builder: (context, state) {
+        final type = state.pathParameters['type'] ?? 'Legal Information';
+        return LegalScreen(documentType: type);
+      }
     ),
   ],
 );
