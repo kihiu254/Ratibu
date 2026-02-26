@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Toaster } from 'sonner';
+import { Analytics } from '@vercel/analytics/react';
 import { BrowserRouter, Routes, Route, Outlet, useParams, useNavigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Navbar from './components/Navbar';
@@ -46,6 +47,7 @@ function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <Toaster richColors position="top-right" closeButton />
+      <Analytics />
       <BrowserRouter>
         <Routes>
           {/* Public Routes with Navbar & Footer */}
