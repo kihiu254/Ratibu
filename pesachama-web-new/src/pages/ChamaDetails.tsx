@@ -183,7 +183,7 @@ export default function ChamaDetails() {
 
   const fetchRealTimeBalance = async (chamaId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error: _error } = await supabase
         .from('balance_history')
         .select('*')
         .eq('chama_id', chamaId)
@@ -228,7 +228,7 @@ export default function ChamaDetails() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data, error } = await supabase.functions.invoke('payout-b2c', {
+      const { error } = await supabase.functions.invoke('payout-b2c', {
         body: {
           amount,
           phoneNumber: phone,

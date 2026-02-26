@@ -12,8 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
-  ChevronRight,
-  Briefcase
+  ChevronRight
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 

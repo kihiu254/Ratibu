@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ShieldCheck, Zap, Globe, RefreshCcw, Bell, LineChart, FileCheck, Users, Smartphone, LockKeyhole } from 'lucide-react';
+import { ShieldCheck, Zap, Globe, RefreshCcw, Bell, LineChart, FileCheck, Users, LockKeyhole } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
@@ -54,7 +54,7 @@ const Features = () => {
 
             <section className="py-20 relative z-10">
                 <div className="max-w-7xl mx-auto px-6">
-                    {featureCategories.map((category, catIdx) => (
+                    {featureCategories.map((category) => (
                         <div key={category.category} className="mb-24 last:mb-0">
                             <div className="flex items-center gap-4 mb-12">
                                 <h2 className="text-3xl md:text-4xl font-display font-black text-slate-900 dark:text-white uppercase tracking-tight">{category.category}</h2>

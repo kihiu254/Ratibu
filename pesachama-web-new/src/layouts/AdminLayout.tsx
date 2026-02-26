@@ -6,15 +6,11 @@ import {
   Target, 
   CreditCard,
   Settings,
-  LogOut, 
   Menu, 
-  User,
   ShieldAlert,
   ChevronRight
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { RatibuLogo } from '../components/RatibuLogo'
-import { motion, AnimatePresence } from 'framer-motion'
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -48,10 +44,6 @@ export default function AdminLayout() {
     setUser(user)
   }
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    navigate('/login')
-  }
 
   const menuItems = [
     { name: 'Overview', icon: LayoutDashboard, path: '/admin' },

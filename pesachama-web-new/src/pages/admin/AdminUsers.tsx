@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
-import { useNavigate } from 'react-router-dom'
 
 interface UserProfile {
   id: string;
@@ -29,8 +28,6 @@ export default function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   
-  const navigate = useNavigate()
-
   useEffect(() => {
     fetchUsers()
   }, [])

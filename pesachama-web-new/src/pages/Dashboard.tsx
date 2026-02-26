@@ -19,7 +19,6 @@ export default function Dashboard() {
     pendingPayments: 0,
     recentTransactions: []
   })
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchDashboardData()
@@ -86,8 +85,6 @@ export default function Dashboard() {
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
