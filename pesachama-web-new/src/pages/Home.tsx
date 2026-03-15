@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Button from '../components/Button';
+import { RatibuHeroLogo } from '../components/RatibuHeroLogo';
 
 const Hero = () => {
     const navigate = useNavigate();
@@ -22,9 +23,9 @@ const Hero = () => {
             
             {/* Background Grid & Overlays */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none z-1" />
-            <div className="absolute inset-0 bg-white/10 dark:bg-midnight/40 z-1" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8)_0%,transparent_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(2,6,23,0.7)_0%,transparent_100%)] z-1 transition-all duration-500" />
-
+            <div className="absolute inset-0 bg-white/5 dark:bg-midnight/40 z-1" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.3)_0%,transparent_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(2,6,23,0.7)_0%,transparent_100%)] z-1 transition-all duration-500" />
+ 
             <div className="container mx-auto px-6 relative z-10">
                 <div className="max-w-5xl mx-auto text-center space-y-6">
                     <motion.div
@@ -33,10 +34,8 @@ const Hero = () => {
                         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     >
                          <h1 className="flex flex-col items-center mb-6 max-w-4xl mx-auto transition-colors duration-300">
-                           <img 
-                               src="/hero-logo.png" 
-                               alt="Ratibu" 
-                               className="h-16 sm:h-24 md:h-32 lg:h-40 w-auto object-contain drop-shadow-xl -mb-2 sm:-mb-3 md:-mb-4 lg:-mb-5" 
+                           <RatibuHeroLogo 
+                               className="h-20 sm:h-28 md:h-36 lg:h-44 w-auto drop-shadow-xl -mb-2 sm:-mb-3 md:-mb-4 lg:-mb-5" 
                            />
                            <span className="text-2xl sm:text-3xl md:text-5xl font-display font-black text-slate-900 dark:text-white uppercase tracking-tight drop-shadow-md relative z-10">
                               Digital Banking.

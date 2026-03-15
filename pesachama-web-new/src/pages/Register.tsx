@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Lock, Mail, User, Phone, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
@@ -11,11 +11,20 @@ export default function Register() {
     email: '',
     phone: '',
     password: '',
+    referralCode: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  React.useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (ref) {
+      setFormData(prev => ({ ...prev, referralCode: ref }))
+    }
+  }, [searchParams])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +38,7 @@ export default function Register() {
         data: {
           full_name: formData.fullName,
           phone: formData.phone,
+          referral_code: formData.referralCode || undefined,
         },
       },
     })
@@ -37,8 +47,8 @@ export default function Register() {
       setError(error.message)
       setLoading(false)
     } else {
-      // Auto login or redirect to onboarding
-      navigate('/onboarding')
+      // Go to login — on first login the router will enforce KYC
+      navigate('/login')
     }
   }
 
@@ -68,7 +78,7 @@ export default function Register() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl relative z-20"
+          className="w-full max-w-md bg-white/70 backdrop-blur-md dark:bg-slate-900/50 dark:backdrop-blur-xl p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl relative z-20"
         >
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold bg-gradient-to-r from-[#00C853] to-green-600 bg-clip-text text-transparent">
@@ -152,6 +162,20 @@ export default function Register() {
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Referral Code (Optional)</label>
+              <div className="relative">
+                <input
+                  name="referralCode"
+                  type="text"
+                  value={formData.referralCode}
+                  onChange={handleChange}
+                  className="w-full pl-4 pr-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-[#00C853] focus:border-transparent outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 text-slate-900 dark:text-white"
+                  placeholder="RATIBU-XXXXXX"
+                />
               </div>
             </div>
 

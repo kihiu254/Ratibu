@@ -46,12 +46,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(authProvider, (previous, next) {
-      if (next is AuthStateUnauthenticated) {
-        // Registration successful (but maybe email confirmation needed)
-         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful! Please login.')),
+      if (next is AuthStateUnauthenticated && previous is AuthStateLoading) {
+        // Registration successful — go to login, router will enforce KYC on first login
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created! Please log in to continue.'),
+            backgroundColor: Color(0xFF00C853),
+          ),
         );
-        context.pushReplacement('/onboarding-success');
+        context.go('/login');
       } else if (next is AuthStateError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.message)),
@@ -68,7 +71,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      backgroundColor: const Color(0xFF0f172a), // Dark slate
+      backgroundColor: const Color(0xFF020617), // Midnight background
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -80,7 +83,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const Hero(
                   tag: 'app_logo',
                   child: Center(
-                    child: RatibuLogo(height: 60),
+                    child: RatibuLogo(height: 120),
                   ),
                 ),
                 const SizedBox(height: 32),

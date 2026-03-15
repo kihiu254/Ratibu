@@ -20,7 +20,7 @@ html, body {
 
 @layer utilities {
   .glass {
-    @apply bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200 dark:border-white/10;
+    @apply bg-white/70 backdrop-blur-md border border-slate-200 dark:bg-slate-900/40 dark:backdrop-blur-xl dark:border-white/10;
   }
 
   .glass-green {

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:math';
+import '../utils/notification_helper.dart';
+import '../widgets/ratibu_logo.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
-  const OtpVerificationScreen({super.key});
+  final String? email;
+  const OtpVerificationScreen({super.key, this.email});
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -13,6 +18,67 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
   bool _isLoading = false;
+  String? _sendError;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateAndSendOtp();
+  }
+
+  Future<void> _generateAndSendOtp() async {
+    if (widget.email == null || widget.email!.isEmpty) return;
+
+    setState(() { _isLoading = true; _sendError = null; });
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      
+      String fullName = 'Member';
+      if (user != null) {
+        final profile = await supabase
+            .from('users')
+            .select('first_name, last_name')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (profile != null) {
+          final first = profile['first_name'] ?? '';
+          final last = profile['last_name'] ?? '';
+          if (first.isNotEmpty) fullName = '$first $last'.trim();
+        }
+      }
+
+      final response = await supabase.functions.invoke('send-otp', body: {
+        'email': widget.email,
+        'userId': user?.id,
+        'fullName': fullName,
+      });
+
+      debugPrint('send-otp status: ${response.status}, data: ${response.data}');
+
+      if (response.status != 200) {
+        final errMsg = response.data?['error'] ?? 'Failed to send OTP (status ${response.status})';
+        throw Exception(errMsg);
+      }
+      
+      if (mounted) {
+        setState(() => _sendError = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Verification code sent to your email!'),
+            backgroundColor: Color(0xFF00C853),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error sending OTP: $e');
+      if (mounted) {
+        setState(() => _sendError = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -44,18 +110,40 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
 
     setState(() => _isLoading = true);
-    // Simulate API verification
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() => _isLoading = false);
-      context.pushReplacement('/kyc-form');
+    
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase.functions.invoke('verify-otp', body: {
+        'email': widget.email,
+        'code': otp
+      });
+
+      if (response.status != 200) {
+        throw Exception(response.data['error'] ?? 'Verification failed');
+      }
+      
+      if (mounted) {
+        context.pushReplacement('/kyc-form');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification failed: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: const Color(0xFF020617),
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -65,25 +153,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00C853).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(
-                  Icons.shield_outlined,
-                  size: 48,
-                  color: Color(0xFF00C853),
-                ),
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 8),
+              const Center(child: RatibuLogo(height: 90)),
+              const SizedBox(height: 24),
               const Text(
                 'Security Verification',
                 textAlign: TextAlign.center,
@@ -102,13 +180,36 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   color: Colors.white.withOpacity(0.6),
                 ),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
+              // Error banner
+              if (_sendError != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _sendError!,
+                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(
                   6,
                   (index) => SizedBox(
-                    width: 50,
+                    width: 45,
                     child: TextField(
                       controller: _controllers[index],
                       focusNode: _focusNodes[index],
@@ -141,7 +242,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(height: 28),
               ElevatedButton(
                 onPressed: _isLoading ? null : _verifyOtp,
                 style: ElevatedButton.styleFrom(
@@ -154,7 +255,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   disabledBackgroundColor: const Color(0xFF00C853).withOpacity(0.3),
                 ),
                 child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
                     : const Text(
                         'VERIFY & PROCEED',
                         style: TextStyle(
@@ -173,11 +278,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     style: TextStyle(color: Colors.white.withOpacity(0.5)),
                   ),
                   TextButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Code resent!')),
-                      );
-                    },
+                    onPressed: _isLoading ? null : _generateAndSendOtp,
                     child: const Text(
                       'Resend Code',
                       style: TextStyle(

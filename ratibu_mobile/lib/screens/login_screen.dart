@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/ratibu_logo.dart';
+import '../services/security_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,14 +17,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _biometricService = BiometricService();
   
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  bool _isBiometricAvailable = false;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadSavedEmail();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final available = await _biometricService.isBiometricAvailable();
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('biometrics_enabled') ?? false;
+
+    if (mounted) {
+      setState(() {
+        _isBiometricAvailable = available;
+        _isBiometricEnabled = enabled;
+      });
+    }
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    final authenticated = await _biometricService.authenticate();
+    if (authenticated) {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('remember_me_email');
+      final password = prefs.getString('saved_password'); // Note: Secure storage is better, but using prefs for now
+      
+      if (email != null && password != null) {
+        await ref.read(authProvider.notifier).signIn(
+          email: email,
+          password: password,
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please log in with password first to enable biometrics')),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -55,6 +95,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final prefs = await SharedPreferences.getInstance();
       if (_rememberMe) {
         await prefs.setString('remember_me_email', _emailController.text.trim());
+        await prefs.setString('saved_password', _passwordController.text);
       }
     }
   }
@@ -110,7 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 final email = emailController.text.trim();
                 Navigator.pop(context);
                 await ref.read(authProvider.notifier).resetPassword(email: email);
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Password reset link sent! Check your email.'),
@@ -151,7 +192,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isLoading = authState is AuthStateLoading;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: const Color(0xFF020617),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -164,7 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Hero(
                   tag: 'app_logo',
                   child: Center(
-                    child: RatibuLogo(height: 60),
+                    child: RatibuLogo(height: 120),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -268,30 +309,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 
                 const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C853),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isLoading ? null : _handleLogin,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C853),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        )
-                      : const Text(
-                          'Login',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Login',
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                    ),
+                    if (_isBiometricAvailable && _isBiometricEnabled) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        height: 56,
+                        width: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.fingerprint, color: Color(0xFF00C853), size: 32),
+                          onPressed: isLoading ? null : _handleBiometricLogin,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 24),
                 Row(

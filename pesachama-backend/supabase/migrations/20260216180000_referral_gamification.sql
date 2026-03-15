@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS public.gamification_stats (
     user_id UUID PRIMARY KEY REFERENCES public.users(id),
     points BIGINT DEFAULT 0,
     level INT DEFAULT 1,
+    referral_points BIGINT DEFAULT 0,
+    penalty_points BIGINT DEFAULT 0,
     total_contributions INT DEFAULT 0,
     meetings_attended INT DEFAULT 0,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -86,19 +88,21 @@ BEGIN
         SET points = points + 100,
             total_contributions = total_contributions + 1,
             updated_at = now()
-        WHERE user_id = NEW.profile_id;
+        WHERE user_id = NEW.user_id;
         
         -- Also check for referral completion if this is the first contribution
-        IF (SELECT total_contributions FROM public.gamification_stats WHERE user_id = NEW.profile_id) = 1 THEN
+        IF (SELECT total_contributions FROM public.gamification_stats WHERE user_id = NEW.user_id) = 1 THEN
             -- Mark referral as completed
             UPDATE public.referrals
             SET status = 'completed'
-            WHERE referred_id = NEW.profile_id AND status = 'pending';
+            WHERE referred_id = NEW.user_id AND status = 'pending';
             
             -- Reward the referrer (500 bonus points)
             UPDATE public.gamification_stats
-            SET points = points + 500
-            WHERE user_id = (SELECT referrer_id FROM public.referrals WHERE referred_id = NEW.profile_id);
+            SET points = points + 500,
+                referral_points = referral_points + 500,
+                updated_at = now()
+            WHERE user_id = (SELECT referrer_id FROM public.referrals WHERE referred_id = NEW.user_id);
         END IF;
     END IF;
     RETURN NEW;

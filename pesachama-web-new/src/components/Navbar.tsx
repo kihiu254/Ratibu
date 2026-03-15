@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Button from "./Button";
 import { ThemeToggle } from "./ThemeToggle";
-import { RatibuLogo } from "./RatibuLogo";
+import { RatibuLogo, RatibuLogoDark, RatibuLogoAuth } from "./RatibuLogo";
 import { supabase } from "../lib/supabase";
 import { User, LayoutDashboard, ArrowLeft } from "lucide-react";
 
@@ -70,11 +70,20 @@ export default function Navbar() {
             </Link>
           )}
           <Link to="/" className="flex items-center group">
-            <RatibuLogo className="h-14 md:h-20 w-auto text-white group-hover:scale-105 transition-transform" />
-            <div className="ml-2 md:ml-4 h-6 md:h-8 w-px bg-white/10 hidden sm:block" />
+            {isAuthPage ? (
+              <RatibuLogoAuth className="h-16 md:h-20 w-auto group-hover:scale-105 transition-transform" />
+            ) : (
+              <>
+                <RatibuLogo className="h-20 md:h-24 w-auto group-hover:scale-105 transition-transform" />
+                <RatibuLogoDark className="h-20 md:h-24 w-auto group-hover:scale-105 transition-transform" />
+              </>
+            )}
+            <div className="ml-2 md:ml-4 h-8 md:h-12 w-px bg-white/10 hidden sm:block" />
             <div className="ml-2 md:ml-4 hidden sm:flex flex-col">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00C853]">Ratibu</span>
-              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Digital Banking</span>
+              <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] whitespace-nowrap">
+                We Power Your Group
+              </span>
             </div>
           </Link>
         </div>

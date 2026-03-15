@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/ratibu_logo.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -17,18 +18,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingPage(
       title: 'Save Together',
       description: 'Join Chamas and save money with your friends and family efficiently.',
-      icon: Icons.groups,
+      imagePath: 'assets/images/onboarding_1.png',
+      icon: Icons.group_add_outlined,
       color: const Color(0xFF00C853),
     ),
     OnboardingPage(
       title: 'Total Transparency',
       description: 'Track every contribution and expense with our real-time ledger system.',
-      icon: Icons.account_balance_wallet,
+      imagePath: 'assets/images/onboarding_2.png',
+      icon: Icons.account_balance_wallet_outlined,
       color: Colors.orange,
     ),
     OnboardingPage(
       title: 'Financial Growth',
       description: 'Invest your group savings and watch your wealth grow together.',
+      imagePath: 'assets/images/logo.png', // Using the main logo for the last slide
       icon: Icons.trending_up,
       color: Colors.blue,
     ),
@@ -45,7 +49,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF020617), // Midnight background
       body: Stack(
         children: [
           PageView.builder(
@@ -59,14 +63,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(30),
-                      decoration: BoxDecoration(
-                        color: page.color.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(page.icon, size: 100, color: page.color),
-                    ),
+                    const Center(child: RatibuLogo(height: 160)),
                     const SizedBox(height: 60),
                     Text(
                       page.title,
@@ -155,12 +152,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 class OnboardingPage {
   final String title;
   final String description;
+  final String imagePath;
   final IconData icon;
   final Color color;
 
   OnboardingPage({
     required this.title,
     required this.description,
+    required this.imagePath,
     required this.icon,
     required this.color,
   });

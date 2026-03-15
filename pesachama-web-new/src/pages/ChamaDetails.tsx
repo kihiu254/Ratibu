@@ -24,7 +24,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 
-type TabType = 'overview' | 'members' | 'meetings' | 'prompts'
+type TabType = 'overview' | 'members' | 'meetings' | 'prompts' | 'calendar' | 'allocations'
 
 export default function ChamaDetails() {
   const { id } = useParams<{ id: string }>()
@@ -35,6 +35,13 @@ export default function ChamaDetails() {
   const [data, setData] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
   const [prompts, setPrompts] = useState<any[]>([])
+  const [allocations, setAllocations] = useState<any[]>([])
+  const [swapRequests, setSwapRequests] = useState<any[]>([])
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
+  const [isGeneratingAllocations, setIsGeneratingAllocations] = useState(false)
+  const [creatingSwap, setCreatingSwap] = useState(false)
+  const [swapTargetUserId, setSwapTargetUserId] = useState<string>('')
+  const [swapTargetDay, setSwapTargetDay] = useState<number>(1)
   const [userRole, setUserRole] = useState<string>('member')
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
@@ -53,8 +60,10 @@ export default function ChamaDetails() {
       fetchChamaDetails()
       fetchMeetings()
       fetchPrompts()
+      fetchAllocations()
+      fetchSwapRequests()
     }
-  }, [id])
+  }, [id, calendarMonth])
 
   async function fetchChamaDetails() {
     try {
@@ -91,10 +100,14 @@ export default function ChamaDetails() {
   }
 
   async function fetchMeetings() {
+    const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+    const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)
     const { data } = await supabase
       .from('meetings')
       .select('*')
       .eq('chama_id', id)
+      .gte('date', start.toISOString())
+      .lt('date', end.toISOString())
       .order('date', { ascending: true })
     setMeetings(data || [])
   }
@@ -107,6 +120,106 @@ export default function ChamaDetails() {
       .eq('is_active', true)
       .order('created_at', { ascending: false })
     setPrompts(data || [])
+  }
+
+  async function fetchAllocations() {
+    const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+    const { data } = await supabase
+      .from('chama_allocation_schedule')
+      .select('*, user:users(first_name,last_name)')
+      .eq('chama_id', id)
+      .eq('allocation_month', monthStart.toISOString().slice(0,10))
+      .order('allocation_day', { ascending: true })
+    setAllocations(data || [])
+  }
+
+  async function fetchSwapRequests() {
+    const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+    const { data } = await supabase
+      .from('allocation_swap_requests')
+      .select('*, requester:users!allocation_swap_requests_requester_id_fkey(first_name,last_name), target:users!allocation_swap_requests_target_user_id_fkey(first_name,last_name)')
+      .eq('chama_id', id)
+      .eq('month', monthStart.toISOString().slice(0,10))
+      .order('created_at', { ascending: false })
+      .limit(20)
+    setSwapRequests(data || [])
+  }
+
+  const handleGenerateAllocations = async () => {
+    if (!id) return
+    try {
+      setIsGeneratingAllocations(true)
+      const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+      const { error } = await supabase.rpc('generate_monthly_allocations', {
+        _chama_id: id,
+        _month: monthStart.toISOString().slice(0,10)
+      })
+      if (error) throw error
+      fetchAllocations()
+      toast.success('Allocations generated')
+    } catch (err: any) {
+      toast.error('Failed to generate allocations', err.message)
+    } finally {
+      setIsGeneratingAllocations(false)
+    }
+  }
+
+  const handleCreateSwap = async () => {
+    if (!id || !swapTargetUserId || !swapTargetDay) return
+    try {
+      setCreatingSwap(true)
+      const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const myDay = allocations.find(a => a.user_id === user.id)?.allocation_day
+      if (!myDay) {
+        toast.error('No allocation day found for you this month.')
+        return
+      }
+      const { error } = await supabase
+        .from('allocation_swap_requests')
+        .insert({
+          chama_id: id,
+          month: monthStart.toISOString().slice(0,10),
+          requester_id: user.id,
+          requester_day: myDay,
+          target_user_id: swapTargetUserId,
+          target_day: swapTargetDay
+        })
+      if (error) throw error
+      toast.success('Swap request sent')
+      fetchSwapRequests()
+    } catch (err: any) {
+      toast.error('Failed to create swap request', err.message)
+    } finally {
+      setCreatingSwap(false)
+    }
+  }
+
+  const handleApproveSwap = async (swapId: string) => {
+    try {
+      const { error } = await supabase.rpc('approve_allocation_swap', { _swap_id: swapId })
+      if (error) throw error
+      toast.success('Swap approved')
+      fetchAllocations()
+      fetchSwapRequests()
+    } catch (err: any) {
+      toast.error('Failed to approve swap', err.message)
+    }
+  }
+
+  const handleRejectSwap = async (swapId: string) => {
+    try {
+      const { error } = await supabase
+        .from('allocation_swap_requests')
+        .update({ status: 'rejected', updated_at: new Date().toISOString() })
+        .eq('id', swapId)
+      if (error) throw error
+      toast.success('Swap rejected')
+      fetchSwapRequests()
+    } catch (err: any) {
+      toast.error('Failed to reject swap', err.message)
+    }
   }
 
   const handlePayClick = (prompt: any) => {
@@ -257,7 +370,16 @@ export default function ChamaDetails() {
 
   if (!data) return <div className="p-8 text-center text-slate-500">Chama not found.</div>
 
-  const isAdmin = userRole === 'admin' || userRole === 'treasurer'
+  const isAdmin = ['admin', 'treasurer', 'secretary'].includes(userRole)
+  const monthLabel = format(calendarMonth, 'MMMM yyyy')
+  const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+  const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0)
+  const startDay = monthStart.getDay()
+  const totalDays = monthEnd.getDate()
+  const calendarCells = [
+    ...Array(startDay).fill(null),
+    ...Array.from({ length: totalDays }, (_, i) => i + 1),
+  ]
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24 md:pb-20">
@@ -322,6 +444,8 @@ export default function ChamaDetails() {
           { id: 'overview', label: 'Overview', icon: Wallet },
           { id: 'members', label: 'Members', icon: Users },
           { id: 'meetings', label: 'Meetings', icon: Calendar },
+          { id: 'calendar', label: 'Calendar', icon: Calendar },
+          { id: 'allocations', label: 'Allocations', icon: Star },
           { id: 'prompts', label: 'Prompts', icon: Bell }
         ].map((tab) => (
           <button
@@ -570,6 +694,174 @@ export default function ChamaDetails() {
                         ))}
                     </div>
                 )}
+            </div>
+          )}
+
+          {activeTab === 'calendar' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Monthly Meeting Calendar</h2>
+                  <p className="text-xs text-slate-500">{monthLabel}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const prev = new Date(calendarMonth)
+                      prev.setMonth(prev.getMonth() - 1)
+                      setCalendarMonth(prev)
+                    }}
+                    className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => {
+                      const next = new Date(calendarMonth)
+                      next.setMonth(next.getMonth() + 1)
+                      setCalendarMonth(next)
+                    }}
+                    className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+                  <div key={d} className="text-center">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-2">
+                {calendarCells.map((day, idx) => {
+                  if (!day) return <div key={`empty-${idx}`} className="p-3" />
+                  const hasMeeting = meetings.some(m => new Date(m.date).getDate() === day)
+                  return (
+                    <div key={day} className={`p-3 rounded-2xl border ${hasMeeting ? 'border-[#00C853] bg-[#00C853]/10' : 'border-slate-200 dark:border-slate-800'} text-center`}>
+                      <div className="font-black">{day}</div>
+                      {hasMeeting && <div className="text-[10px] text-[#00C853] font-bold">Meeting</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'allocations' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Monthly Allocations</h2>
+                {isAdmin && (
+                  <button
+                    onClick={handleGenerateAllocations}
+                    disabled={isGeneratingAllocations}
+                    className="px-4 py-2 rounded-lg bg-[#00C853] text-white font-bold"
+                  >
+                    {isGeneratingAllocations ? 'Generating...' : 'Generate'}
+                  </button>
+                )}
+              </div>
+              {allocations.length === 0 ? (
+                <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <Clock className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-slate-900 dark:text-white">No allocations yet</h3>
+                  <p className="text-slate-500 max-w-xs mx-auto">Generate monthly allocation schedule for members.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {allocations.map((a) => (
+                    <div key={a.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">{a.user?.first_name} {a.user?.last_name}</p>
+                          <p className="text-xs text-slate-500">Day {a.allocation_day}</p>
+                        </div>
+                        <span className="text-xs font-bold px-2 py-1 rounded-lg bg-[#00C853]/10 text-[#00C853] uppercase">{a.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                <h3 className="font-bold mb-2">Request Swap</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <select
+                    value={swapTargetUserId}
+                    onChange={(e) => {
+                      const userId = e.target.value
+                      setSwapTargetUserId(userId)
+                      const targetDay = allocations.find(a => a.user_id === userId)?.allocation_day
+                      if (targetDay) setSwapTargetDay(targetDay)
+                      else setSwapTargetDay(0)
+                    }}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  >
+                    <option value="">Select member</option>
+                    {data.members?.map((m:any) => (
+                      <option key={m.user_id} value={m.user_id}>
+                        {m.users?.first_name} {m.users?.last_name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Target day</span>
+                    <span className="font-black">{swapTargetDay || '-'}</span>
+                  </div>
+                  <button
+                    onClick={handleCreateSwap}
+                    disabled={creatingSwap}
+                    className="px-4 py-3 rounded-xl bg-slate-900 text-white font-bold"
+                  >
+                    {creatingSwap ? 'Sending...' : 'Request Swap'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <h3 className="font-bold mb-3">Swap Requests</h3>
+                {swapRequests.length === 0 ? (
+                  <div className="text-sm text-slate-500">No swap requests yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {swapRequests.map((s) => (
+                      <div key={s.id} className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold">
+                            {(s.requester?.first_name || 'Member')} {(s.requester?.last_name || '')} ↔ {(s.target?.first_name || 'Member')} {(s.target?.last_name || '')}
+                          </p>
+                          <p className="text-xs text-slate-500">Day {s.requester_day} ↔ Day {s.target_day}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
+                            s.status === 'approved' ? 'bg-green-500/10 text-green-500' :
+                            s.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
+                            'bg-amber-500/10 text-amber-600'
+                          }`}>
+                            {s.status}
+                          </span>
+                          {isAdmin && s.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveSwap(s.id)}
+                                className="px-2 py-1 text-xs font-bold bg-[#00C853] text-white rounded-lg"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectSwap(s.id)}
+                                className="px-2 py-1 text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -822,6 +1114,7 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
 function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, members: any[], onSuccess: () => void }) {
     const [title, setTitle] = useState('')
     const [amount, setAmount] = useState('')
+    const [dueDate, setDueDate] = useState('')
     const [loading, setLoading] = useState(false)
     const [targetAll, setTargetAll] = useState(true)
     const [selectedUsers, setSelectedUsers] = useState<string[]>([])
@@ -840,6 +1133,7 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                     created_by: user.id,
                     title,
                     amount: parseFloat(amount),
+                    due_date: dueDate ? new Date(dueDate).toISOString() : null,
                     target_member_ids: targetAll ? null : selectedUsers
                 })
             
@@ -889,6 +1183,17 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
                                 placeholder="0.00"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] outline-none"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Due Date</label>
+                            <input 
+                                type="date"
+                                value={dueDate}
+                                onChange={(e) => setDueDate(e.target.value)}
                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#00C853] outline-none"
                                 required
                             />

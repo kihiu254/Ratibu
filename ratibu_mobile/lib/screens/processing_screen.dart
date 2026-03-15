@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import '../widgets/ratibu_logo.dart';
 
@@ -33,20 +35,24 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
 
   void _startSequence() async {
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() {
-        _statusMessage = 'Finalizing profile setup...';
-      });
-    }
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() {
-        _statusMessage = 'Ready to go!';
-      });
-    }
+    if (mounted) setState(() => _statusMessage = 'Checking your session...');
+
+    // Check if there is an active Supabase session
+    final session = Supabase.instance.client.auth.currentSession;
+
     await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      context.go('/login');
+    if (mounted) setState(() => _statusMessage = 'Ready to go!');
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    if (!mounted) return;
+
+    if (session != null) {
+      // Already logged in — router will handle KYC redirect
+      context.go('/dashboard');
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
+      context.go(onboardingComplete ? '/login' : '/onboarding');
     }
   }
 
@@ -59,7 +65,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: const Color(0xFF020617),
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Center(
@@ -68,7 +74,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
             children: [
               const Hero(
                 tag: 'app_logo',
-                child: RatibuLogo(height: 80),
+                child: RatibuLogo(height: 140),
               ),
               const SizedBox(height: 48),
               const SizedBox(

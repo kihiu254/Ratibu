@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
-import Navbar from '../components/Navbar'
 
 const CATEGORIES = [
   "Bodabodas", "House-helps", "Sales-people", "Grocery Owners", 
@@ -130,7 +129,7 @@ export default function MembershipKYC() {
       if (updateError) throw updateError
 
       toast.success('KYC Submitted! Our team will review your documents.')
-      navigate('/profile')
+      navigate('/dashboard')
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit KYC')
     } finally {
@@ -144,9 +143,7 @@ export default function MembershipKYC() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
-      <Navbar />
-      
-      <div className="max-w-3xl mx-auto px-4 pt-32 pb-20">
+      <div className="max-w-3xl mx-auto px-4 py-12">
         {/* Progress Stepper */}
         <div className="flex items-center justify-between mb-12">
           {[1, 2, 3].map((i) => (

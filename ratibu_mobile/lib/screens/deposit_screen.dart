@@ -20,7 +20,6 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   final _amountController = TextEditingController();
   final _phoneController = TextEditingController();
   final _mpesaService = MpesaService();
-  DateTime? _dueDate;
   bool _isLoading = false;
   bool _isQrLoading = false;
   bool _isSuccess = false;
@@ -111,6 +110,24 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
             message: 'Follow the prompt on your phone to complete payment.',
             type: 'success',
           );
+
+          // Send Email Notification
+          if (user?.email != null) {
+            NotificationHelper.sendEmail(
+              to: user!.email!,
+              subject: 'Deposit Initiated - Ratibu',
+              html: '''
+                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                  <h2 style="color: #00C853;">Deposit Initiated</h2>
+                  <p>You have initiated a deposit of <b>KES $amount</b> via M-Pesa.</p>
+                  <p>Please complete the transaction by entering your PIN on the STK push prompt sent to your phone.</p>
+                  <p>Once confirmed, your balance will be updated automatically.</p>
+                  <br>
+                  <p>Best regards,<br>The Ratibu Team</p>
+                </div>
+              ''',
+            );
+          }
           
           // Wait a bit then pop
           Future.delayed(const Duration(seconds: 3), () {

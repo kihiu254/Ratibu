@@ -114,8 +114,9 @@ class _ChamasTabState extends ConsumerState<ChamasTab> {
           ),
         ],
       ),
-      floatingActionButton: Row(
+      floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton.extended(
             heroTag: 'discover',
@@ -124,7 +125,7 @@ class _ChamasTabState extends ConsumerState<ChamasTab> {
             icon: const Icon(Icons.search, color: Color(0xFF00C853)),
             label: const Text('Discover', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(height: 16),
           FloatingActionButton.extended(
             heroTag: 'create',
             onPressed: () => context.push('/create-chama'),
@@ -162,12 +163,15 @@ class _ChamaCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    chama['name'] ?? 'Unnamed Chama',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      chama['name'] ?? 'Unnamed Chama',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Container(

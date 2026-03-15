@@ -189,7 +189,7 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
               TextFormField(
                 controller: _nameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _inputDecoration('Automation Name', Icons.label, placeholder: 'e.g. Monthly Contribution'),
+                decoration: _inputDecoration('Automation Name', Icons.label),
                 validator: (value) => value == null || value.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
@@ -342,11 +342,9 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon, {String? placeholder}) {
+  InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      hintText: placeholder,
-      hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
       labelStyle: const TextStyle(color: Colors.grey),
       prefixIcon: Icon(icon, color: const Color(0xFF00C853)),
       filled: true,
@@ -360,11 +358,5 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
         borderSide: const BorderSide(color: Color(0xFF00C853)),
       ),
     );
-  }
-}
-
-extension on InputDecoration {
-  InputDecoration placeholder(String text) {
-     return copyWith(hintText: text);
   }
 }

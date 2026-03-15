@@ -14,12 +14,14 @@ abstract class AuthState {
     T Function(AuthStateLoading)? loading,
     T Function(AuthStateAuthenticated)? authenticated,
     T Function(AuthStateUnauthenticated)? unauthenticated,
+    T Function(AuthStateAwaiting2FA)? awaiting2FA,
     T Function(AuthStateError)? error,
   }) {
     if (this is AuthStateInitial) return initial?.call(this as AuthStateInitial);
     if (this is AuthStateLoading) return loading?.call(this as AuthStateLoading);
     if (this is AuthStateAuthenticated) return authenticated?.call(this as AuthStateAuthenticated);
     if (this is AuthStateUnauthenticated) return unauthenticated?.call(this as AuthStateUnauthenticated);
+    if (this is AuthStateAwaiting2FA) return awaiting2FA?.call(this as AuthStateAwaiting2FA);
     if (this is AuthStateError) return error?.call(this as AuthStateError);
     return null;
   }
@@ -29,9 +31,15 @@ class AuthStateInitial extends AuthState {}
 class AuthStateLoading extends AuthState {}
 class AuthStateAuthenticated extends AuthState {
   final User user;
-  AuthStateAuthenticated(this.user);
+  final String kycStatus;
+  AuthStateAuthenticated(this.user, {this.kycStatus = 'not_started'});
 }
 class AuthStateUnauthenticated extends AuthState {}
+class AuthStateAwaiting2FA extends AuthState {
+  final User user;
+  final String kycStatus;
+  AuthStateAwaiting2FA(this.user, {this.kycStatus = 'not_started'});
+}
 class AuthStateError extends AuthState {
   final String message;
   AuthStateError(this.message);
@@ -40,7 +48,23 @@ class AuthStateError extends AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final _supabase = Supabase.instance.client;
 
-  AuthNotifier() : super(AuthStateInitial());
+  AuthNotifier() : super(AuthStateInitial()) {
+    _initializeAuth();
+  }
+
+  void _initializeAuth() {
+    _supabase.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (session != null) {
+        refreshUser();
+      } else {
+        state = AuthStateUnauthenticated();
+      }
+    });
+
+    // Initial check
+    refreshUser();
+  }
 
   Future<bool> _isConnected() async {
     final connectivityResult = await Connectivity().checkConnectivity();
@@ -57,6 +81,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String firstName,
     required String lastName,
     required String phone,
+    String? referralCode,
   }) async {
     if (!await _isConnected()) return;
     state = AuthStateLoading();
@@ -70,6 +95,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'last_name': lastName,
           'full_name': '$firstName $lastName',
           'phone': phone,
+          if (referralCode != null && referralCode.trim().isNotEmpty) 'referral_code': referralCode.trim(),
         },
       );
       print('SignUp response: ${res.user?.id}');
@@ -78,11 +104,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       if (res.user != null) {
         print('Sending welcome notification for user: ${res.user!.id}');
-         NotificationHelper.sendNotification(
+        NotificationHelper.sendNotification(
           title: 'Welcome to Ratibu!',
           message: 'Your account has been created successfully. Please log in to continue.',
           type: 'success',
           userId: res.user!.id,
+        );
+
+        // Send Welcome Email
+        NotificationHelper.sendEmail(
+          to: email,
+          subject: 'Welcome to Ratibu Neobank 🚀',
+          html: '''
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+              <h1 style="color: #00C853;">Welcome to Ratibu, $firstName!</h1>
+              <p>We're thrilled to have you join our financial community. Ratibu is here to help you manage your Chamas and grow your wealth with ease.</p>
+              <p><b>Next Steps:</b></p>
+              <ul>
+                <li>Log in to your account.</li>
+                <li>Complete your KYC profile.</li>
+                <li>Join or create your first Chama!</li>
+              </ul>
+              <p>If you have any questions, simply reply to this email.</p>
+              <br>
+              <p>Best regards,<br>The Ratibu Team</p>
+            </div>
+          ''',
         );
       }
     } on AuthException catch (e) {
@@ -100,22 +147,77 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final AuthResponse res = await _supabase.auth.signInWithPassword(
         email: email,
-        password: password,      );
-      print('SignIn successful: ${res.user?.id}');
-      state = AuthStateAuthenticated(res.user!);
-      
-      NotificationHelper.sendNotification(
-        title: 'Welcome back!',
-        message: 'You have successfully signed in to your Ratibu account.',
-        type: 'success',
-        userId: res.user!.id,
+        password: password,
       );
+      
+      final kycData = await _supabase
+          .from('users')
+          .select('kyc_status, full_name, two_factor_enabled')
+          .eq('id', res.user!.id)
+          .maybeSingle();
+      
+      final is2FAEnabled = kycData?['two_factor_enabled'] ?? false;
+      final kycStatus = kycData?['kyc_status'] ?? 'not_started';
+      final fullName = kycData?['full_name'] ?? 'Member';
+
+      if (is2FAEnabled) {
+        // Trigger 2FA
+        await _supabase.functions.invoke('send-otp', body: {
+          'email': email,
+          'userId': res.user!.id,
+          'fullName': fullName,
+        });
+
+        state = AuthStateAwaiting2FA(
+          res.user!, 
+          kycStatus: kycStatus,
+        );
+      } else {
+        state = AuthStateAuthenticated(
+          res.user!,
+          kycStatus: kycStatus,
+        );
+      }
+      
     } on AuthException catch (e) {
       print('AuthException during signIn: ${e.message}');
       state = AuthStateError(e.message);
     } catch (e) {
       print('Unexpected error during signIn: $e');
       state = AuthStateError('Login failed: $e');
+    }
+  }
+
+  Future<void> verify2FA({required String email, required String code}) async {
+    final currentState = state;
+    if (currentState is! AuthStateAwaiting2FA) return;
+    
+    state = AuthStateLoading();
+    try {
+      final response = await _supabase.functions.invoke('verify-otp', body: {
+        'email': email,
+        'code': code,
+      });
+
+      if (response.status == 200) {
+        state = AuthStateAuthenticated(
+          currentState.user,
+          kycStatus: currentState.kycStatus,
+        );
+        
+        NotificationHelper.sendNotification(
+          title: 'Welcome back!',
+          message: 'You have successfully signed in to your Ratibu account.',
+          type: 'success',
+          userId: currentState.user.id,
+        );
+      } else {
+        state = AuthStateAwaiting2FA(currentState.user, kycStatus: currentState.kycStatus);
+        state = AuthStateError('Invalid or expired security code');
+      }
+    } catch (e) {
+      state = AuthStateAwaiting2FA(currentState.user, kycStatus: currentState.kycStatus);
+      state = AuthStateError('Verification failed: $e');
     }
   }
 
@@ -139,7 +241,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshUser() async {
     final user = _supabase.auth.currentUser;
     if (user != null) {
-      state = AuthStateAuthenticated(user);
+      try {
+        final kycData = await _supabase
+            .from('users')
+            .select('kyc_status')
+            .eq('id', user.id)
+            .maybeSingle(); // won't throw if row missing
+        state = AuthStateAuthenticated(
+          user,
+          kycStatus: kycData?['kyc_status'] ?? 'not_started',
+        );
+      } catch (e) {
+        print('Error fetching KYC status: $e');
+        state = AuthStateAuthenticated(user); // fallback
+      }
     } else {
       state = AuthStateUnauthenticated();
     }

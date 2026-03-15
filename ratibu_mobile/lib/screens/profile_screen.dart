@@ -2,14 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/home_provider.dart';
-import '../models/transaction.dart';
-import 'dashboard_screen.dart'; // For _TransactionItem if it was public, but I'll define a local version or use the existing building blocks
+import '../services/security_service.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -34,6 +34,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<Map<String, dynamic>> _badges = [];
   String _kycStatus = 'pending';
   List<String> _memberCategories = [];
+  bool _biometricsEnabled = false;
+  bool _twoFactorEnabled = false;
+  final _biometricService = BiometricService();
 
   @override
   void initState() {
@@ -84,6 +87,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _badges = (badgesData as List).map((b) => b['badges'] as Map<String, dynamic>).toList();
         _kycStatus = data['kyc_status'] ?? 'pending';
         _memberCategories = List<String>.from(data['member_category'] ?? []);
+        _twoFactorEnabled = data['two_factor_enabled'] ?? false;
+      });
+
+      // Load Biometrics preference from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _biometricsEnabled = prefs.getBool('biometrics_enabled') ?? false;
         _loading = false;
       });
     } catch (e) {
@@ -208,33 +218,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile Settings'),
-        actions: [
-          if (_saving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.only(right: 16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(
-              onPressed: _saveProfile,
-              icon: const Icon(Icons.check),
-            ),
-        ],
-      ),
+      // appBar: AppBar(...),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
+              const SizedBox(height: 20), // Top padding for no AppBar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Profile Settings',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (_saving)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    IconButton(
+                      onPressed: _saveProfile,
+                      icon: const Icon(Icons.check, color: Color(0xFF00C853)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
               // Avatar
               Center(
                 child: Stack(
@@ -304,14 +320,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
 
-              if (_kycStatus != 'approved') ...[
+              if (_kycStatus == 'not_started' || _kycStatus == 'rejected') ...[
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   child: ElevatedButton.icon(
-                    onPressed: () => context.push('/onboarding-success'),
+                    onPressed: () => context.push('/kyc-form'),
                     icon: const Icon(Icons.shield_outlined, size: 18),
-                    label: const Text('VERIFY PROFILE'),
+                    label: Text(_kycStatus == 'rejected' ? 'RE-SUBMIT KYC' : 'VERIFY PROFILE'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00C853).withOpacity(0.1),
                       foregroundColor: const Color(0xFF00C853),
@@ -320,6 +336,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
+                ),
+              ] else if (_kycStatus == 'pending') ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Your documents are under review (24–48 hrs)',
+                  style: TextStyle(color: Colors.amber, fontSize: 12),
+                  textAlign: TextAlign.center,
                 ),
               ],
               
@@ -376,6 +399,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               // Categories Section
               _buildCategoriesSection(),
+              
+              const SizedBox(height: 32),
+
+              // Security Section
+              _buildSecuritySection(),
               
               const SizedBox(height: 40),
               
@@ -615,6 +643,125 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildSecuritySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Security',
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1e293b),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: Column(
+            children: [
+              _buildSecurityToggle(
+                title: 'Face / Touch ID',
+                subtitle: 'Unlock Ratibu with biometrics',
+                value: _biometricsEnabled,
+                icon: Icons.fingerprint,
+                onChanged: _toggleBiometrics,
+              ),
+              const Divider(color: Colors.white10, height: 1),
+              _buildSecurityToggle(
+                title: 'Two-Factor Authentication',
+                subtitle: 'Secure your login with OTP',
+                value: _twoFactorEnabled,
+                icon: Icons.security,
+                onChanged: _toggle2FA,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecurityToggle({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required IconData icon,
+    required Function(bool) onChanged,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00C853).withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: const Color(0xFF00C853), size: 20),
+      ),
+      title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+      trailing: Switch.adaptive(
+        value: value,
+        activeColor: const Color(0xFF00C853),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Future<void> _toggleBiometrics(bool enabled) async {
+    if (enabled) {
+      final works = await _biometricService.authenticate();
+      if (!works) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to verify biometrics.')),
+          );
+        }
+        return;
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('biometrics_enabled', enabled);
+    setState(() => _biometricsEnabled = enabled);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(enabled ? 'Biometrics enabled.' : 'Biometrics disabled.')),
+      );
+    }
+  }
+
+  Future<void> _toggle2FA(bool enabled) async {
+    setState(() => _saving = true);
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      await Supabase.instance.client
+          .from('users')
+          .update({'two_factor_enabled': enabled})
+          .eq('id', user.id);
+
+      setState(() => _twoFactorEnabled = enabled);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(enabled ? '2FA activated.' : '2FA deactivated.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating 2FA: $e')),
+        );
+      }
+    } finally {
+      setState(() => _saving = false);
+    }
   }
 
   Widget _buildAchievementsSection() {

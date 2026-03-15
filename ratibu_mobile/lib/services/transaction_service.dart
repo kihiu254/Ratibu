@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/transaction.dart';
+import '../utils/notification_helper.dart';
+
 
 class TransactionService {
   final _supabase = Supabase.instance.client;
@@ -63,7 +65,42 @@ class TransactionService {
     if (user == null) return 0.0;
     
     // In a real app, we'd query a 'contributions' table for status='pending'
-    // For now, return 0 or mock logic if table doesn't support it yet
     return 0.0; 
+  }
+
+  Future<void> requestWithdrawal({
+    required String chamaId,
+    required double amount,
+    required String reason,
+  }) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+
+    await _supabase.from('transactions').insert({
+      'chama_id': chamaId,
+      'user_id': user.id,
+      'type': 'withdrawal',
+      'amount': amount,
+      'status': 'pending',
+      'description': 'Withdrawal: $reason',
+    });
+
+    // Notify User and Admin via Email
+    if (user.email != null) {
+      NotificationHelper.sendEmail(
+        to: user.email!,
+        subject: 'Withdrawal Request Received',
+        html: '''
+          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #FF9800;">Withdrawal Requested</h2>
+            <p>Your request to withdraw <b>KES $amount</b> has been received and is pending approval.</p>
+            <p><b>Reason:</b> $reason</p>
+            <p>You will be notified once the request is processed.</p>
+            <br>
+            <p>Best regards,<br>The Ratibu Team</p>
+          </div>
+        ''',
+      );
+    }
   }
 }

@@ -28,10 +28,7 @@ export default function Login() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
@@ -42,9 +39,24 @@ export default function Login() {
       } else {
         localStorage.removeItem('remember_me_email')
       }
-      
-      const redirectTo = searchParams.get('redirectTo') || '/dashboard'
-      navigate(redirectTo)
+
+      // Check KYC status to route correctly
+      const { data: profile } = await supabase
+        .from('users')
+        .select('kyc_status')
+        .eq('id', data.user!.id)
+        .maybeSingle()
+
+      const kycStatus = profile?.kyc_status ?? 'not_started'
+      const redirectTo = searchParams.get('redirectTo')
+
+      if (redirectTo) {
+        navigate(redirectTo)
+      } else if (kycStatus === 'not_started') {
+        navigate('/onboarding')
+      } else {
+        navigate('/dashboard')
+      }
     }
   }
 
@@ -70,7 +82,7 @@ export default function Login() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl relative z-20"
+          className="w-full max-w-md bg-white/70 backdrop-blur-md dark:bg-slate-900/50 dark:backdrop-blur-xl p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl relative z-20"
         >
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold bg-gradient-to-r from-[#00C853] to-green-600 bg-clip-text text-transparent">

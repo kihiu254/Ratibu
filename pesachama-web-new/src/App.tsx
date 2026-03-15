@@ -44,6 +44,68 @@ const PublicLayout = () => (
 );
 
 function App() {
+  useEffect(() => {
+    // 1. Register Service Worker for Push Notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then((reg) => {
+          console.log('Service Worker Registered', reg);
+          
+          // Subscribe to push notifications
+          if ('PushManager' in window) {
+            reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: null // Add your VAPID key here
+            }).then((subscription) => {
+              console.log('Push subscription:', subscription);
+              // Send subscription to your backend
+            }).catch((err) => {
+              console.log('Push subscription failed:', err);
+            });
+          }
+        })
+        .catch((err) => console.error('Service Worker Registry Failed', err));
+    }
+
+    // 2. Request Notification Permission
+    if ('Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            console.log('Notification permission granted.');
+            // Show welcome notification
+            new Notification('Welcome to Ratibu!', {
+              body: 'You will now receive important updates.',
+              icon: '/ratibu-logo.png'
+            });
+          }
+        });
+      }
+    }
+
+    // 3. Offline/Online Status Management
+    const handleOnline = () => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Back Online', {
+          body: 'Your connection has been restored.',
+          icon: '/ratibu-logo.png'
+        });
+      }
+    };
+    
+    const handleOffline = () => {
+      console.log('App is offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <Toaster richColors position="top-right" closeButton />

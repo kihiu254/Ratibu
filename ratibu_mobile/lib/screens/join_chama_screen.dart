@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:go_router/go_router.dart';
 import '../utils/notification_helper.dart';
 
 class JoinChamaScreen extends StatefulWidget {
@@ -83,6 +82,25 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
         message: 'You have joined a new Chama. Check your dashboard to see updates.',
         type: 'success',
       );
+
+      // Send Email Notification
+      final user = _supabase.auth.currentUser;
+      if (user?.email != null) {
+        final chamaNode = _chamas.firstWhere((c) => c['id'] == chamaId);
+        NotificationHelper.sendEmail(
+          to: user!.email!,
+          subject: 'Welcome to ${chamaNode['name']}! 🎊',
+          html: '''
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+              <h2 style="color: #00C853;">Joined Successfully!</h2>
+              <p>You have successfully joined <b>${chamaNode['name']}</b>.</p>
+              <p>You can now participate in meetings, contribute funds, and participate in Chama activities.</p>
+              <br>
+              <p>Best regards,<br>The Ratibu Team</p>
+            </div>
+          ''',
+        );
+      }
 
       setState(() {
         _joinedIds.add(chamaId);

@@ -31,3 +31,28 @@ final chamaPromptsProvider = FutureProvider.family.autoDispose<List<Map<String, 
   final service = ref.watch(chamaServiceProvider);
   return service.getChamaPrompts(chamaId);
 });
+
+// 6. Allocations Provider (Family with chamaId+month)
+class ChamaMonthParams {
+  final String chamaId;
+  final DateTime month;
+  const ChamaMonthParams(this.chamaId, this.month);
+  @override
+  bool operator ==(Object other) =>
+      other is ChamaMonthParams && other.chamaId == chamaId &&
+      other.month.year == month.year && other.month.month == month.month;
+  @override
+  int get hashCode => Object.hash(chamaId, month.year, month.month);
+}
+
+final chamaAllocationsProvider = FutureProvider.family.autoDispose<List<Map<String, dynamic>>, ChamaMonthParams>((ref, p) async {
+  return ref.watch(chamaServiceProvider).getAllocations(p.chamaId, p.month);
+});
+
+final chamaSwapRequestsProvider = FutureProvider.family.autoDispose<List<Map<String, dynamic>>, ChamaMonthParams>((ref, p) async {
+  return ref.watch(chamaServiceProvider).getSwapRequests(p.chamaId, p.month);
+});
+
+final chamaMeetingsByMonthProvider = FutureProvider.family.autoDispose<List<Map<String, dynamic>>, ChamaMonthParams>((ref, p) async {
+  return ref.watch(chamaServiceProvider).getChamaMeetingsByMonth(p.chamaId, p.month);
+});

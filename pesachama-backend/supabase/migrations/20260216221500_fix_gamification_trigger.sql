@@ -22,11 +22,13 @@ BEGIN
             SET status = 'completed'
             WHERE referred_id = NEW.user_id AND status = 'pending';
             
-            -- Reward the referrer (500 bonus points)
-            -- Changed NEW.profile_id to NEW.user_id
-            UPDATE public.gamification_stats
-            SET points = points + 500
-            WHERE user_id = (SELECT referrer_id FROM public.referrals WHERE referred_id = NEW.user_id);
+        -- Reward the referrer (500 bonus points)
+        -- Changed NEW.profile_id to NEW.user_id
+        UPDATE public.gamification_stats
+        SET points = points + 500,
+            referral_points = referral_points + 500,
+            updated_at = now()
+        WHERE user_id = (SELECT referrer_id FROM public.referrals WHERE referred_id = NEW.user_id);
         END IF;
     END IF;
     RETURN NEW;

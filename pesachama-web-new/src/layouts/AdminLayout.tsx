@@ -11,6 +11,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { RatibuLogo } from '../components/RatibuLogo'
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -64,9 +65,13 @@ export default function AdminLayout() {
       >
         <div className="h-20 flex items-center px-6 border-b border-slate-800">
           <Link to="/admin" className="flex items-center gap-3 overflow-hidden">
-             <div className="w-8 h-8 rounded-lg bg-[#00C853] flex items-center justify-center text-black font-black">
-                A
-             </div>
+             {sidebarOpen ? (
+               <RatibuLogo className="h-12 w-auto" />
+             ) : (
+               <div className="w-8 h-8 rounded-lg bg-[#00C853] flex items-center justify-center text-black font-black">
+                  A
+               </div>
+             )}
              {sidebarOpen && (
                <div>
                   <h1 className="font-black text-white leading-none">ADMIN</h1>

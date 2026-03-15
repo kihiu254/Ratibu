@@ -1,14 +1,28 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
-import Navbar from '../components/Navbar'
 
 export default function OTPVerification() {
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    async function getUser() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        navigate('/login')
+        return
+      }
+      setUser(user)
+    }
+    getUser()
+  }, [])
 
   const handleChange = (element: HTMLInputElement, index: number) => {
     if (isNaN(Number(element.value))) return false
@@ -38,20 +52,61 @@ export default function OTPVerification() {
       return
     }
 
+    if (!user?.email) {
+      toast.error('User email not found')
+      return
+    }
+
     setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false)
+    try {
+      const { error } = await supabase.functions.invoke('verify-otp', {
+        body: { 
+          email: user.email,
+          code: otpString
+        }
+      })
+
+      if (error) throw error
+
       toast.success('OTP Verified!')
+      
+      // Update local storage or session if needed, then navigate
       navigate('/membership-kyc')
-    }, 1500)
+    } catch (error: any) {
+      console.error('Error verifying OTP:', error)
+      toast.error(error.message || 'Verification failed. Please check the code.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!user?.email) return
+
+    setResending(true)
+    try {
+      const { error } = await supabase.functions.invoke('send-otp', {
+        body: { 
+          email: user.email,
+          userId: user.id,
+          fullName: user.user_metadata?.full_name || 'Member'
+        }
+      })
+
+      if (error) throw error
+      toast.success('New security code sent!')
+      setOtp(['', '', '', '', '', ''])
+    } catch (error: any) {
+      console.error('Error resending OTP:', error)
+      toast.error('Failed to resend code')
+    } finally {
+      setResending(false)
+    }
   }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30">
-      <Navbar />
-      
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4 pt-32 pb-12">
+      <div className="flex items-center justify-center min-h-screen px-4 py-12">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -101,7 +156,13 @@ export default function OTPVerification() {
           <div className="mt-8 text-center">
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Didn't receive the code?{' '}
-              <button className="text-[#00C853] font-bold hover:underline">Resend Code</button>
+              <button 
+                onClick={handleResend}
+                disabled={resending}
+                className="text-[#00C853] font-bold hover:underline disabled:opacity-50"
+              >
+                {resending ? 'Resending...' : 'Resend Code'}
+              </button>
             </p>
           </div>
         </motion.div>

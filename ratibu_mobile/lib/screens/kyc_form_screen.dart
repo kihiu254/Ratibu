@@ -1,17 +1,20 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
+import '../utils/notification_helper.dart';
 
-class KycFormScreen extends StatefulWidget {
+class KycFormScreen extends ConsumerStatefulWidget {
   const KycFormScreen({super.key});
 
   @override
-  State<KycFormScreen> createState() => _KycFormScreenState();
+  ConsumerState<KycFormScreen> createState() => _KycFormScreenState();
 }
 
-class _KycFormScreenState extends State<KycFormScreen> {
+class _KycFormScreenState extends ConsumerState<KycFormScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
   
@@ -34,10 +37,20 @@ class _KycFormScreenState extends State<KycFormScreen> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _idNumberController = TextEditingController();
   final TextEditingController _kraPinController = TextEditingController();
+  final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _countyController = TextEditingController();
+  final TextEditingController _subCountyController = TextEditingController();
+  final TextEditingController _wardController = TextEditingController();
+  final TextEditingController _occupationController = TextEditingController();
+  final TextEditingController _incomeSourceController = TextEditingController();
+  final TextEditingController _bankNameController = TextEditingController();
+  final TextEditingController _accountNumberController = TextEditingController();
   final TextEditingController _nextOfKinNameController = TextEditingController();
   final TextEditingController _nextOfKinPhoneController = TextEditingController();
   final TextEditingController _nextOfKinRelationController = TextEditingController();
   final TextEditingController _otherCategoryController = TextEditingController();
+
+  String? _selectedGender;
 
   @override
   void dispose() {
@@ -46,6 +59,14 @@ class _KycFormScreenState extends State<KycFormScreen> {
     _lastNameController.dispose();
     _idNumberController.dispose();
     _kraPinController.dispose();
+    _dobController.dispose();
+    _countyController.dispose();
+    _subCountyController.dispose();
+    _wardController.dispose();
+    _occupationController.dispose();
+    _incomeSourceController.dispose();
+    _bankNameController.dispose();
+    _accountNumberController.dispose();
     _nextOfKinNameController.dispose();
     _nextOfKinPhoneController.dispose();
     _nextOfKinRelationController.dispose();
@@ -112,17 +133,48 @@ class _KycFormScreenState extends State<KycFormScreen> {
         'last_name': _lastNameController.text,
         'id_number': _idNumberController.text,
         'kra_pin': _kraPinController.text,
+        'dob': _dobController.text,
+        'gender': _selectedGender,
+        'county': _countyController.text,
+        'sub_county': _subCountyController.text,
+        'ward': _wardController.text,
+        'occupation': _occupationController.text,
+        'income_source': _incomeSourceController.text,
+        'bank_name': _bankNameController.text,
+        'account_number': _accountNumberController.text,
         'next_of_kin_name': _nextOfKinNameController.text,
         'next_of_kin_phone': _nextOfKinPhoneController.text,
         'next_of_kin_relation': _nextOfKinRelationController.text,
         'category_other_specification': _selectedCategories.contains('Others') ? _otherCategoryController.text : null,
       }).eq('id', user.id);
 
+      // Send Onboarding/KYC Success Email
+      if (user.email != null) {
+        NotificationHelper.sendEmail(
+          to: user.email!,
+          subject: 'Onboarding Documents Received 📋',
+          html: '''
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
+              <h2 style="color: #00C853;">Onboarding Update</h2>
+              <p>Hi ${_firstNameController.text},</p>
+              <p>We've successfully received your KYC verification documents. Our team is now reviewing them.</p>
+              <p><b>Status:</b> Pending Review</p>
+              <p>This process usually takes 24-48 hours. We'll notify you as soon as your account is fully verified.</p>
+              <p>Thank you for your patience!</p>
+              <br>
+              <p>Best regards,<br>The Ratibu Team</p>
+            </div>
+          ''',
+        );
+      }
+
       if (mounted) {
+        // Refresh auth state so router sees kycStatus = 'pending' and stops redirecting to /kyc-form
+        await ref.read(authProvider.notifier).refreshUser();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('KYC Submitted! Our team will review your documents.')),
         );
-        context.go('/profile');
+        context.go('/dashboard');
       }
     } catch (e) {
       if (mounted) {
@@ -139,17 +191,31 @@ class _KycFormScreenState extends State<KycFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
-      appBar: AppBar(
-        title: const Text('Member Verification', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: Stepper(
-        type: StepperType.horizontal,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => context.pop(),
+                  ),
+                  const Text(
+                    'Member Verification',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Stepper(
+                type: StepperType.vertical,
         currentStep: _currentStep,
         onStepContinue: () {
           if (_currentStep == 0) {
@@ -180,6 +246,17 @@ class _KycFormScreenState extends State<KycFormScreen> {
               return;
             }
             setState(() => _currentStep += 1);
+          } else if (_currentStep == 2) {
+            if (_dobController.text.isEmpty || _countyController.text.isEmpty || _occupationController.text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please fill all required details')),
+              );
+              return;
+            }
+            setState(() => _currentStep += 1);
+          } else if (_currentStep == 3) {
+             // Bank details are optional, just continue
+             setState(() => _currentStep += 1);
           } else {
             _submitKyc();
           }
@@ -326,6 +403,70 @@ class _KycFormScreenState extends State<KycFormScreen> {
           ),
           Step(
             isActive: _currentStep >= 2,
+            title: const Text('Address', style: TextStyle(color: Colors.white)),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Address & Occupation',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                const Text('Tell us where you stay and what you do.', style: TextStyle(color: Colors.white54)),
+                const SizedBox(height: 24),
+                _buildTextField(label: 'Date of Birth', controller: _dobController, icon: Icons.calendar_today_outlined, keyboardType: TextInputType.datetime),
+                const SizedBox(height: 16),
+                const Text('Gender', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['Male', 'Female', 'Other'].map((g) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: ChoiceChip(
+                        label: Text(g),
+                        selected: _selectedGender == g,
+                        onSelected: (val) => setState(() => _selectedGender = g),
+                        selectedColor: const Color(0xFF00C853).withOpacity(0.2),
+                        backgroundColor: Colors.white.withOpacity(0.05),
+                        labelStyle: TextStyle(color: _selectedGender == g ? const Color(0xFF00C853) : Colors.white70),
+                      ),
+                    ),
+                  )).toList(),
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(label: 'County', controller: _countyController, icon: Icons.location_on_outlined),
+                const SizedBox(height: 16),
+                _buildTextField(label: 'Sub-County', controller: _subCountyController, icon: Icons.location_city_outlined),
+                const SizedBox(height: 16),
+                _buildTextField(label: 'Ward', controller: _wardController, icon: Icons.map_outlined),
+                const SizedBox(height: 16),
+                _buildTextField(label: 'Occupation', controller: _occupationController, icon: Icons.work_outline),
+                const SizedBox(height: 16),
+                _buildTextField(label: 'Source of Income', controller: _incomeSourceController, icon: Icons.monetization_on_outlined),
+              ],
+            ),
+          ),
+          Step(
+            isActive: _currentStep >= 3,
+            title: const Text('Bank', style: TextStyle(color: Colors.white)),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bank Details',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                const Text('Optional, but helps with withdrawals.', style: TextStyle(color: Colors.white54)),
+                const SizedBox(height: 24),
+                _buildTextField(label: 'Bank Name', controller: _bankNameController, icon: Icons.account_balance_outlined),
+                const SizedBox(height: 16),
+                _buildTextField(label: 'Account Number', controller: _accountNumberController, icon: Icons.numbers_outlined, keyboardType: TextInputType.number),
+              ],
+            ),
+          ),
+          Step(
+            isActive: _currentStep >= 4,
             title: const Text('ID Docs', style: TextStyle(color: Colors.white)),
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +503,11 @@ class _KycFormScreenState extends State<KycFormScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ],
+),
+),
+);
   }
 
   Widget _buildUploadField({required String label, File? file, required VoidCallback onTap}) {

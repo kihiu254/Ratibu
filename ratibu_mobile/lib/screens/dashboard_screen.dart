@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
-import '../providers/home_provider.dart';
-import '../models/transaction.dart';
 import 'tabs/chamas_tab.dart';
 import 'tabs/dashboard_tab.dart';
 import 'profile_screen.dart';
@@ -13,6 +11,11 @@ import 'profile_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/profile_provider.dart';
+import '../services/transaction_service.dart';
+import '../services/chama_service.dart';
+
+final transactionServiceProvider = Provider((ref) => TransactionService());
+final chamaServiceProvider = Provider((ref) => ChamaService());
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -58,11 +61,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1e293b),
-        elevation: 0,
-        title: const Text('Ratibu', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      // appBar: AppBar(
+      //   backgroundColor: const Color(0xFF1e293b),
+      //   elevation: 0,
+      //   title: const Text('Ratibu', style: TextStyle(fontWeight: FontWeight.bold)),
+      // ),
       drawer: Drawer(
         backgroundColor: const Color(0xFF0f172a),
         child: ListView(
@@ -269,32 +272,38 @@ class ActivitiesTab extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Hello,',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                        ),
-                        Text(
-                          email,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hello,',
+                                style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                              ),
+                              Text(
+                                email,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          icon: const Icon(Icons.notifications, color: Colors.white),
+                          onPressed: () => context.push('/notifications'),
                         ),
                       ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.notifications, color: Colors.white),
-                      onPressed: () => context.push('/notifications'),
-                    ),
-                  ],
-                ),
+                  ),
                 const SizedBox(height: 24),
                 
                 // --- Real Data Stats ---
@@ -347,7 +356,11 @@ class ActivitiesTab extends ConsumerWidget {
                           );
                         },
                       ),
-                       _ActionButton(icon: Icons.arrow_outward, label: 'Withdraw'),
+                       _ActionButton(
+                        icon: Icons.arrow_outward, 
+                        label: 'Withdraw',
+                        onTap: () => _showWithdrawDialog(context, ref),
+                      ),
                       _ActionButton(icon: Icons.swap_horiz, label: 'Transfer'),
                       _ActionButton(
                         icon: Icons.qr_code, 
@@ -401,6 +414,117 @@ class ActivitiesTab extends ConsumerWidget {
       }
     );
   }
+
+  void _showWithdrawDialog(BuildContext context, WidgetRef ref) async {
+    final amountController = TextEditingController();
+    final reasonController = TextEditingController();
+    String? selectedChamaId;
+
+    // Fetch Chamas for the dropdown
+    final chamas = await ref.read(chamaServiceProvider).getMyChamas();
+
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            backgroundColor: const Color(0xFF1e293b),
+            title: const Text('Request Withdrawal', style: TextStyle(color: Colors.white)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    dropdownColor: const Color(0xFF0f172a),
+                    value: selectedChamaId,
+                    hint: const Text('Select Chama', style: TextStyle(color: Colors.white54)),
+                    items: chamas.map((c) => DropdownMenuItem(
+                      value: c['id'] as String,
+                      child: Text(c['name'] as String, style: const TextStyle(color: Colors.white)),
+                    )).toList(),
+                    onChanged: (val) => setState(() => selectedChamaId = val),
+                    decoration: const InputDecoration(
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      hintText: 'Amount (KES)',
+                      hintStyle: TextStyle(color: Colors.white54),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(
+                      hintText: 'Reason for withdrawal',
+                      hintStyle: TextStyle(color: Colors.white54),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (selectedChamaId == null || amountController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fill all fields')),
+                    );
+                    return;
+                  }
+
+                  final amount = double.tryParse(amountController.text);
+                  if (amount == null || amount <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Invalid amount')),
+                    );
+                    return;
+                  }
+
+                  try {
+                    await ref.read(transactionServiceProvider).requestWithdrawal(
+                      chamaId: selectedChamaId!,
+                      amount: amount,
+                      reason: reasonController.text,
+                    );
+
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Withdrawal request submitted! You will receive an email confirmation.'),
+                          backgroundColor: Color(0xFF00C853),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Submit Request', style: TextStyle(color: Color(0xFF00C853))),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
 }
 
 class _StatCard extends StatelessWidget {
@@ -421,33 +545,49 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1e293b),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-               Container(
-                 padding: const EdgeInsets.all(8),
-                 decoration: BoxDecoration(
-                   color: color.withOpacity(0.2),
-                   borderRadius: BorderRadius.circular(8),
-                 ),
-                 child: Icon(icon, color: color, size: 20),
-               ),
-               if (!fullWidth) const SizedBox() // Spacer
-            ],
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
         ],
       ),
     );
@@ -515,39 +655,45 @@ class _TransactionItem extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isNegative
-                      ? Colors.red.withOpacity(0.1)
-                      : Colors.green.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isNegative ? Icons.arrow_upward : Icons.arrow_downward,
-                  color: isNegative ? Colors.red : Colors.green,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isNegative
+                        ? Colors.red.withOpacity(0.1)
+                        : Colors.green.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  Text(
-                    date,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  child: Icon(
+                    isNegative ? Icons.arrow_upward : Icons.arrow_downward,
+                    color: isNegative ? Colors.red : Colors.green,
+                    size: 20,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        date,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 12),
           Text(
             amount,
             style: TextStyle(

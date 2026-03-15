@@ -1,16 +1,54 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, ArrowRight, UserCircle, Rocket } from 'lucide-react'
-import Navbar from '../components/Navbar'
+import { CheckCircle2, ArrowRight, UserCircle, Rocket, Loader2 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { toast } from '../utils/toast'
 
 export default function Onboarding() {
+  const [loading, setLoading] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    async function getUser() {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
+  }, [])
+
+  const handleProceed = async () => {
+    if (!user?.email) {
+      toast.error('User email not found')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('send-otp', {
+        body: { 
+          email: user.email,
+          userId: user.id,
+          fullName: user.user_metadata?.full_name || 'Member'
+        }
+      })
+
+      if (error) throw error
+
+      toast.success('Security code sent to your email')
+      navigate('/verify-otp')
+    } catch (error: any) {
+      console.error('Error sending OTP:', error)
+      toast.error(error.message || 'Failed to send security code')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30">
-      <Navbar />
-      
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4 pt-32 pb-12">
+      <div className="flex items-center justify-center min-h-screen px-4 py-12">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -49,11 +87,18 @@ export default function Onboarding() {
 
             <div className="space-y-4">
               <button
-                onClick={() => navigate('/verify-otp')}
-                className="w-full flex items-center justify-center py-4 px-6 bg-[#00C853] hover:bg-green-600 text-white font-black rounded-2xl shadow-xl shadow-green-500/20 transition-all group scale-105"
+                onClick={handleProceed}
+                disabled={loading}
+                className="w-full flex items-center justify-center py-4 px-6 bg-[#00C853] hover:bg-green-600 text-white font-black rounded-2xl shadow-xl shadow-green-500/20 transition-all group scale-105 disabled:opacity-50"
               >
-                PROCEED TO MEMBERS PROFILE
-                <ArrowRight className="ml-2 h-6 w-6 group-hover:translate-x-1 transition-transform" />
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <>
+                    PROCEED TO MEMBERS PROFILE
+                    <ArrowRight className="ml-2 h-6 w-6 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </button>
               
             </div>

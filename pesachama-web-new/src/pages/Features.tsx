@@ -87,7 +87,14 @@ const Features = () => {
             </section>
 
             <section className="py-24 bg-[#00C853] relative overflow-hidden">
-                 <div className="absolute inset-0 bg-[url('/noise.png')] opacity-20 mix-blend-overlay" />
+                 <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay">
+                    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                        <filter id="noiseFilter">
+                            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+                        </filter>
+                        <rect width="100%" height="100%" filter="url(#noiseFilter)" />
+                    </svg>
+                 </div>
                  <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
                      <LockKeyhole className="w-16 h-16 text-white mx-auto mb-6 opacity-80" />
                      <h2 className="text-4xl md:text-5xl font-display font-black text-white mb-6">Security first, always.</h2>
