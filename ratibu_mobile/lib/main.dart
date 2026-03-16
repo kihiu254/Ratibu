@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config/supabase_config.dart';
 import 'utils/notification_helper.dart';
@@ -27,6 +28,10 @@ import 'package:ratibu_mobile/screens/processing_screen.dart';
 import 'package:ratibu_mobile/screens/onboarding_success_screen.dart';
 import 'package:ratibu_mobile/screens/otp_verification_screen.dart';
 import 'package:ratibu_mobile/screens/two_factor_screen.dart';
+import 'package:ratibu_mobile/screens/rewards_screen.dart';
+import 'package:ratibu_mobile/screens/penalties_screen.dart';
+import 'package:ratibu_mobile/screens/meetings_screen.dart';
+import 'package:ratibu_mobile/screens/swaps_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:ratibu_mobile/providers/auth_provider.dart';
@@ -41,7 +46,7 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterL
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('Handling background message: ${message.messageId}');
+  debugPrint('Handling background message: ${message.messageId}');
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -70,9 +75,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/2fa?email=${s.user.email}';
         },
         authenticated: (s) {
-          // Strict KYC Guard — only force KYC if never started
+          // Strict KYC Guard — ensure OTP verification before KYC
           if (s.kycStatus == 'not_started') {
-            if (state.matchedLocation == '/kyc-form') return null;
+            final isOtp = state.matchedLocation == '/otp-verification';
+            final isKyc = state.matchedLocation == '/kyc-form';
+            final isOnboardingSuccess = state.matchedLocation == '/onboarding-success';
+            if (!s.otpVerified) {
+              if (isOtp || isOnboardingSuccess || isOnboarding || isLoggingIn || isRegistering) return null;
+              return '/otp-verification?email=${s.user.email ?? ''}';
+            }
+            if (isKyc) return null;
+            if (isOtp || isOnboardingSuccess) return '/kyc-form';
             return '/kyc-form';
           }
 
@@ -189,6 +202,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       builder: (context, state) => const UpdatesScreen(),
     ),
     GoRoute(
+      path: '/rewards',
+      builder: (context, state) => const RewardsScreen(),
+    ),
+    GoRoute(
+      path: '/penalties',
+      builder: (context, state) => const PenaltiesScreen(),
+    ),
+    GoRoute(
+      path: '/meetings',
+      builder: (context, state) => const MeetingsScreen(),
+    ),
+    GoRoute(
+      path: '/swaps',
+      builder: (context, state) => const SwapsScreen(),
+    ),
+    GoRoute(
       path: '/onboarding-success',
       builder: (context, state) {
         final email = state.uri.queryParameters['email'];
@@ -237,6 +266,12 @@ void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint('Firebase init skipped: $e');
+    }
+
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
       anonKey: SupabaseConfig.supabaseAnonKey,
@@ -280,8 +315,8 @@ void main() {
       debugPrint('STACK TRACE: ${details.stack}');
     };
 
-    runApp(ProviderScope(
-      child: const MyApp(),
+    runApp(const ProviderScope(
+      child: MyApp(),
     ));
   }, (error, stack) {
     debugPrint('ZONED ERROR: $error');
@@ -289,18 +324,28 @@ void main() {
   });
 }
 
-class MyApp extends ConsumerWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
-    
-    // Initialize FCM when app starts
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  bool _fcmInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeFCM();
     });
-    
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final router = ref.watch(routerProvider);
+
     return MaterialApp.router(
       title: 'Ratibu Mobile',
       routerConfig: router,
@@ -334,9 +379,15 @@ class MyApp extends ConsumerWidget {
   
   Future<void> _initializeFCM() async {
     try {
+      if (_fcmInitialized) return;
+      _fcmInitialized = true;
+      if (Firebase.apps.isEmpty) {
+        debugPrint('FCM skipped: Firebase not initialized');
+        return;
+      }
       await NotificationHelper.initializeFCM();
     } catch (e) {
-      print('Error initializing FCM: $e');
+      debugPrint('Error initializing FCM: $e');
     }
   }
 }

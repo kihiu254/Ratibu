@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
+
 import '../widgets/ratibu_toast.dart';
 
 class NotificationHelper {
@@ -21,7 +22,7 @@ class NotificationHelper {
     // Get FCM token
     final token = await _firebaseMessaging.getToken();
     if (token != null) {
-      print('FCM Token: $token');
+      debugPrint('FCM Token: $token');
       // Store token in Supabase for push notifications
       final user = _supabase.auth.currentUser;
       if (user != null) {
@@ -127,7 +128,7 @@ class NotificationHelper {
         payload: 'notifications',
       );
     } catch (e) {
-      print('Error sending notification: $e');
+      debugPrint('Error sending notification: $e');
     }
   }
 
@@ -149,12 +150,12 @@ class NotificationHelper {
       );
 
       if (response.status != 200) {
-        print('Failed to send email: ${response.data}');
+        debugPrint('Failed to send email: ${response.data}');
       } else {
-        print('Email sent successfully to $to');
+        debugPrint('Email sent successfully to $to');
       }
     } catch (e) {
-      print('Error calling send-email function: $e');
+      debugPrint('Error calling send-email function: $e');
     }
   }
 

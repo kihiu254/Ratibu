@@ -56,7 +56,7 @@ class DashboardTab extends ConsumerWidget {
               borderRadius: BorderRadius.circular(16), // Rounded-2xl approx
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 15,
                   offset: const Offset(0, 8),
                 ),
@@ -64,7 +64,7 @@ class DashboardTab extends ConsumerWidget {
             ),
             child: Stack(
               children: [
-                Positioned(
+                const Positioned(
                   top: 0,
                   right: 0,
                   child: Opacity(
@@ -92,7 +92,7 @@ class DashboardTab extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4ade80).withOpacity(0.1), // green-400 equivalent
+                        color: const Color(0xFF4ade80).withValues(alpha: 0.1), // green-400 equivalent
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Row(
@@ -137,7 +137,7 @@ class DashboardTab extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.blue[900]!.withOpacity(0.3), // blue-900/30
+                        color: Colors.blue[900]!.withValues(alpha: 0.3), // blue-900/30
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(LucideIcons.wallet, color: Colors.blue, size: 20), // blue-400
@@ -178,7 +178,7 @@ class DashboardTab extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.orange[900]!.withOpacity(0.3), // orange-900/30
+                        color: Colors.orange[900]!.withValues(alpha: 0.3), // orange-900/30
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(LucideIcons.arrowDownLeft, color: Colors.orange, size: 20), // orange-400
@@ -210,18 +210,18 @@ class DashboardTab extends ConsumerWidget {
             ),
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(20),
+                const Padding(
+                  padding: EdgeInsets.all(20),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Recent Transactions',
                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         'View All',
-                        style: TextStyle(color: const Color(0xFF00C853), fontSize: 14, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: Color(0xFF00C853), fontSize: 14, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -249,8 +249,8 @@ class DashboardTab extends ConsumerWidget {
                           Container(
                             width: 40,
                             height: 40,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1e293b), // slate-800
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1e293b), // slate-800
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -287,7 +287,7 @@ class DashboardTab extends ConsumerWidget {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
               ],
             ),
           ),
@@ -298,3 +298,4 @@ class DashboardTab extends ConsumerWidget {
     );
   }
 }
+

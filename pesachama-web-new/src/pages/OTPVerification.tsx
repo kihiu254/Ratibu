@@ -20,6 +20,16 @@ export default function OTPVerification() {
         return
       }
       setUser(user)
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('otp_verified_at')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profile?.otp_verified_at) {
+        navigate('/membership-kyc')
+      }
     }
     getUser()
   }, [])
@@ -62,11 +72,22 @@ export default function OTPVerification() {
       const { error } = await supabase.functions.invoke('verify-otp', {
         body: { 
           email: user.email,
-          code: otpString
+          code: otpString,
+          purpose: 'onboarding'
         }
       })
 
       if (error) throw error
+
+      if (!user?.id) {
+        throw new Error('User not found')
+      }
+      const verifiedAt = new Date().toISOString()
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ otp_verified_at: verifiedAt, updated_at: verifiedAt })
+        .eq('id', user.id)
+      if (updateError) throw updateError
 
       toast.success('OTP Verified!')
       
@@ -85,15 +106,22 @@ export default function OTPVerification() {
 
     setResending(true)
     try {
-      const { error } = await supabase.functions.invoke('send-otp', {
+      const { data, error } = await supabase.functions.invoke('send-otp', {
         body: { 
           email: user.email,
           userId: user.id,
-          fullName: user.user_metadata?.full_name || 'Member'
+          fullName: user.user_metadata?.full_name || 'Member',
+          purpose: 'onboarding',
+          force: true
         }
       })
 
       if (error) throw error
+      if (data?.verified) {
+        toast.success('Email already verified')
+        navigate('/membership-kyc')
+        return
+      }
       toast.success('New security code sent!')
       setOtp(['', '', '', '', '', ''])
     } catch (error: any) {

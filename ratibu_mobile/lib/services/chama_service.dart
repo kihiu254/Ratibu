@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../utils/notification_helper.dart';
 
 class ChamaService {
@@ -153,7 +154,7 @@ class ChamaService {
         }
       }
     } catch (e) {
-      print('Error sending meeting notification emails: $e');
+      debugPrint('Error sending meeting notification emails: $e');
     }
   }
 
@@ -206,7 +207,7 @@ class ChamaService {
         }
       }
     } catch (e) {
-      print('Error sending payment prompt emails: $e');
+      debugPrint('Error sending payment prompt emails: $e');
     }
   }
 

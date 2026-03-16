@@ -26,17 +26,36 @@ export default function Onboarding() {
 
     setLoading(true)
     try {
-      const { error } = await supabase.functions.invoke('send-otp', {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('otp_verified_at')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profile?.otp_verified_at) {
+        toast.success('Email already verified')
+        navigate('/membership-kyc')
+        return
+      }
+
+      const { data, error } = await supabase.functions.invoke('send-otp', {
         body: { 
           email: user.email,
           userId: user.id,
-          fullName: user.user_metadata?.full_name || 'Member'
+          fullName: user.user_metadata?.full_name || 'Member',
+          purpose: 'onboarding'
         }
       })
 
       if (error) throw error
+      if (data?.verified) {
+        toast.success('Email already verified')
+        navigate('/membership-kyc')
+        return
+      }
 
-      toast.success('Security code sent to your email')
+      const alreadySent = data?.alreadySent
+      toast.success(alreadySent ? 'Security code already sent. Check your email' : 'Security code sent to your email')
       navigate('/verify-otp')
     } catch (error: any) {
       console.error('Error sending OTP:', error)

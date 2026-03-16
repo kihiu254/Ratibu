@@ -1,0 +1,22 @@
+{
+  "name": "Ratibu",
+  "short_name": "Ratibu",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#00C853",
+  "description": "Digital banking for Chamas & SMEs. Save together, grow together.",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

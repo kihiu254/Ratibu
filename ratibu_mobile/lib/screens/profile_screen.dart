@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -35,7 +35,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _kycStatus = 'pending';
   List<String> _memberCategories = [];
   bool _biometricsEnabled = false;
-  bool _twoFactorEnabled = false;
   final _biometricService = BiometricService();
 
   @override
@@ -87,7 +86,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _badges = (badgesData as List).map((b) => b['badges'] as Map<String, dynamic>).toList();
         _kycStatus = data['kyc_status'] ?? 'pending';
         _memberCategories = List<String>.from(data['member_category'] ?? []);
-        _twoFactorEnabled = data['two_factor_enabled'] ?? false;
       });
 
       // Load Biometrics preference from SharedPreferences
@@ -290,13 +288,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: _kycStatus == 'approved' 
-                    ? const Color(0xFF00C853).withOpacity(0.1) 
-                    : Colors.amber.withOpacity(0.1),
+                    ? const Color(0xFF00C853).withValues(alpha: 0.1) 
+                    : Colors.amber.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
                     color: _kycStatus == 'approved' 
-                      ? const Color(0xFF00C853).withOpacity(0.3) 
-                      : Colors.amber.withOpacity(0.3),
+                      ? const Color(0xFF00C853).withValues(alpha: 0.3) 
+                      : Colors.amber.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -329,7 +327,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: const Icon(Icons.shield_outlined, size: 18),
                     label: Text(_kycStatus == 'rejected' ? 'RE-SUBMIT KYC' : 'VERIFY PROFILE'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00C853).withOpacity(0.1),
+                      backgroundColor: const Color(0xFF00C853).withValues(alpha: 0.1),
                       foregroundColor: const Color(0xFF00C853),
                       elevation: 0,
                       side: const BorderSide(color: Color(0xFF00C853)),
@@ -340,7 +338,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ] else if (_kycStatus == 'pending') ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'Your documents are under review (24–48 hrs)',
+                  'Your documents are under review (24â€“48 hrs)',
                   style: TextStyle(color: Colors.amber, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
@@ -408,7 +406,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 40),
               
               // Sign Out Button
-              S_SignOutButton(ref: ref),
+              SignOutButton(ref: ref),
             ],
           ),
         ),
@@ -438,10 +436,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 10,
                 offset: const Offset(0, 5),
               ),
@@ -474,7 +472,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C853).withOpacity(0.1),
+                      color: const Color(0xFF00C853).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.account_balance_wallet, color: Color(0xFF00C853), size: 20),
@@ -608,7 +606,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -623,9 +621,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     GestureDetector(
                       onTap: () {
                         final shareUrl = 'https://ratibu.vercel.app/ref/$_referralCode';
-                        Share.share(
-                          'Join me on Ratibu! Use my referral code $_referralCode to sign up: $shareUrl',
-                          subject: 'Join Ratibu',
+                        SharePlus.instance.share(
+                          ShareParams(
+                            text: 'Join me on Ratibu! Use my referral code $_referralCode to sign up: $shareUrl',
+                            subject: 'Join Ratibu',
+                          ),
                         );
                       },
                       child: const Icon(Icons.share, color: Colors.white, size: 20),
@@ -659,7 +659,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF1e293b),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Column(
             children: [
@@ -670,14 +670,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 icon: Icons.fingerprint,
                 onChanged: _toggleBiometrics,
               ),
-              const Divider(color: Colors.white10, height: 1),
-              _buildSecurityToggle(
-                title: 'Two-Factor Authentication',
-                subtitle: 'Secure your login with OTP',
-                value: _twoFactorEnabled,
-                icon: Icons.security,
-                onChanged: _toggle2FA,
-              ),
+              
             ],
           ),
         ),
@@ -696,7 +689,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: const Color(0xFF00C853).withOpacity(0.1),
+          color: const Color(0xFF00C853).withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: const Color(0xFF00C853), size: 20),
@@ -705,7 +698,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
       trailing: Switch.adaptive(
         value: value,
-        activeColor: const Color(0xFF00C853),
+        activeThumbColor: const Color(0xFF00C853),
         onChanged: onChanged,
       ),
     );
@@ -732,35 +725,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(enabled ? 'Biometrics enabled.' : 'Biometrics disabled.')),
       );
-    }
-  }
-
-  Future<void> _toggle2FA(bool enabled) async {
-    setState(() => _saving = true);
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) return;
-
-      await Supabase.instance.client
-          .from('users')
-          .update({'two_factor_enabled': enabled})
-          .eq('id', user.id);
-
-      setState(() => _twoFactorEnabled = enabled);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(enabled ? '2FA activated.' : '2FA deactivated.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating 2FA: $e')),
-        );
-      }
-    } finally {
-      setState(() => _saving = false);
     }
   }
 
@@ -846,7 +810,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF00C853).withOpacity(0.3),
+                  color: const Color(0xFF00C853).withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -874,14 +838,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1e293b),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C853).withOpacity(0.1),
+              color: const Color(0xFF00C853).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.system_update_alt, color: Color(0xFF00C853)),
@@ -923,7 +887,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         if (_memberCategories.isEmpty)
           Text(
             'No categories selected yet.',
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontStyle: FontStyle.italic),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontStyle: FontStyle.italic),
           )
         else
           Wrap(
@@ -932,9 +896,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: _memberCategories.map((cat) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Text(
                 cat,
@@ -947,9 +911,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 }
 
-class S_SignOutButton extends ConsumerWidget {
+class SignOutButton extends ConsumerWidget {
   final WidgetRef ref;
-  const S_SignOutButton({super.key, required this.ref});
+  const SignOutButton({super.key, required this.ref});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -972,3 +936,4 @@ class S_SignOutButton extends ConsumerWidget {
     );
   }
 }
+

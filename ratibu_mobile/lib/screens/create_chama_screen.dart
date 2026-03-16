@@ -141,7 +141,7 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
               ),
               // Frequency Dropdown
               DropdownButtonFormField<String>(
-                value: _frequency,
+                initialValue: _frequency,
                 dropdownColor: const Color(0xFF2C2C2C),
                 style: const TextStyle(color: Colors.white),
                 decoration: _inputDecoration('Contribution Frequency', Icons.calendar_today),
@@ -152,7 +152,7 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
 
               // Category Dropdown
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 dropdownColor: const Color(0xFF2C2C2C),
                 style: const TextStyle(color: Colors.white),
                 decoration: _inputDecoration('Chama Category', Icons.category),

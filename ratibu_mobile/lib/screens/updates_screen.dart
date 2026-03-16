@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/update_service.dart';
@@ -70,16 +70,16 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C853).withOpacity(0.1),
+              color: const Color(0xFF00C853).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.info_outline, color: Color(0xFF00C853)),
@@ -111,11 +111,11 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        const Row(
           children: [
-            const Icon(Icons.system_update_alt, color: Color(0xFF00C853)),
-            const SizedBox(width: 12),
-            const Text(
+            Icon(Icons.system_update_alt, color: Color(0xFF00C853)),
+            SizedBox(width: 12),
+            Text(
               'New Update Available!',
               style: TextStyle(
                 color: Color(0xFF00C853),
@@ -188,3 +188,4 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     );
   }
 }
+

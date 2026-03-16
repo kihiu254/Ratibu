@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class RatibuToast extends StatefulWidget {
@@ -146,12 +146,12 @@ class _RatibuToastState extends State<RatibuToast> with SingleTickerProviderStat
                 color: const Color(0xFF1E293B), // Dark slate/navy background
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: color.withOpacity(0.3),
+                  color: color.withValues(alpha: 0.3),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                     spreadRadius: 0,
@@ -175,8 +175,8 @@ class _RatibuToastState extends State<RatibuToast> with SingleTickerProviderStat
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              Colors.white.withOpacity(0.05),
-                              Colors.white.withOpacity(0.01),
+                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.01),
                             ],
                           ),
                         ),
@@ -192,10 +192,10 @@ class _RatibuToastState extends State<RatibuToast> with SingleTickerProviderStat
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
+                              color: color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: color.withOpacity(0.2),
+                                color: color.withValues(alpha: 0.2),
                               ),
                             ),
                             child: Icon(
@@ -243,7 +243,7 @@ class _RatibuToastState extends State<RatibuToast> with SingleTickerProviderStat
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
+                                color: Colors.white.withValues(alpha: 0.05),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -286,3 +286,4 @@ class _RatibuToastState extends State<RatibuToast> with SingleTickerProviderStat
     );
   }
 }
+

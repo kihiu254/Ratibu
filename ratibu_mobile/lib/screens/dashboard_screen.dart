@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -87,6 +87,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                )
             ),
             ListTile(
+              leading: const Icon(Icons.explore, color: Colors.cyan),
+              title: const Text('Explore Chamas', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/join-chama');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events, color: Colors.amber),
+              title: const Text('Rewards', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/rewards');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.gavel, color: Colors.orange),
+              title: const Text('Penalties', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/penalties');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.event, color: Colors.greenAccent),
+              title: const Text('Meetings', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/meetings');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz, color: Colors.white70),
+              title: const Text('Swaps', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/swaps');
+              },
+            ),
+            const Divider(color: Colors.white10),
+            ListTile(
               leading: const Icon(Icons.inventory_2, color: Colors.blue),
               title: const Text('Products', style: TextStyle(color: Colors.white)),
               onTap: () {
@@ -118,7 +159,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 context.push('/pricing');
               },
             ),
-            const Divider(color: Colors.white10),
             ListTile(
               leading: const Icon(Icons.admin_panel_settings, color: Colors.white54),
               title: const Text('Privacy Policy', style: TextStyle(color: Colors.white54)),
@@ -179,10 +219,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 }
 
-class ActivitiesTab extends ConsumerWidget {
+class ActivitiesTab extends ConsumerStatefulWidget {
   const ActivitiesTab({super.key});
 
-  Future<Map<String, dynamic>> _fetchDashboardData(WidgetRef ref) async {
+  @override
+  ConsumerState<ActivitiesTab> createState() => _ActivitiesTabState();
+}
+
+class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetchDashboardData();
+  }
+
+  Future<Map<String, dynamic>> _fetchDashboardData() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) return {};
@@ -238,7 +291,7 @@ class ActivitiesTab extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // Attempt to get user name safely
     final user = ref.watch(authProvider).mapState(
       authenticated: (state) => state.user,
@@ -247,7 +300,7 @@ class ActivitiesTab extends ConsumerWidget {
     final email = user?.email ?? 'User';
 
     return FutureBuilder<Map<String, dynamic>>(
-      future: _fetchDashboardData(ref),
+      future: _future,
       builder: (context, snapshot) {
         final isLoading = snapshot.connectionState == ConnectionState.waiting;
         final data = snapshot.data ?? {};
@@ -259,50 +312,48 @@ class ActivitiesTab extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async {
             await ref.read(authProvider.notifier).refreshUser();
-            // Trigger rebuild by setState if we were stateful, 
-            // but for now FutureBuilder re-runs on parent rebuild or we can assume pull-to-refresh
-            // forces re-evaluation if we used a provider. 
-            // Ideally we'd wrap this in a provider but for quick implementation this works.
-            (context as Element).markNeedsBuild(); 
+            if (!mounted) return;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              setState(() {
+                _future = _fetchDashboardData();
+              });
+            });
           },
           color: const Color(0xFF00C853),
-          child: SingleChildScrollView(
+          child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                  Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Hello,',
-                                style: TextStyle(color: Colors.grey[400], fontSize: 16),
+            children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hello,',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                            ),
+                            Text(
+                              email,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
-                              Text(
-                                email,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: const Icon(Icons.notifications, color: Colors.white),
-                          onPressed: () => context.push('/notifications'),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.notifications, color: Colors.white),
+                        onPressed: () => context.push('/notifications'),
+                      ),
+                    ],
                   ),
                 const SizedBox(height: 24),
                 
@@ -344,27 +395,45 @@ class ActivitiesTab extends ConsumerWidget {
                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                  const SizedBox(height: 16),
-                 Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                 Wrap(
+                    spacing: 20,
+                    runSpacing: 16,
+                    alignment: WrapAlignment.spaceAround,
                     children: [
                       _ActionButton(
                         icon: Icons.add,
                         label: 'Deposit',
-                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please select a Chama first to make a deposit.')),
-                          );
-                        },
+                        onTap: _showDepositDialog,
                       ),
-                       _ActionButton(
+                      _ActionButton(
                         icon: Icons.arrow_outward, 
                         label: 'Withdraw',
                         onTap: () => _showWithdrawDialog(context, ref),
                       ),
-                      _ActionButton(icon: Icons.swap_horiz, label: 'Transfer'),
                       _ActionButton(
-                        icon: Icons.qr_code, 
-                        label: 'Scan',
+                        icon: Icons.explore,
+                        label: 'Explore',
+                        onTap: () => context.push('/join-chama'),
+                      ),
+                      _ActionButton(
+                        icon: Icons.event,
+                        label: 'Meetings',
+                        onTap: () => context.push('/meetings'),
+                      ),
+                      _ActionButton(
+                        icon: Icons.swap_horiz,
+                        label: 'Swaps',
+                        onTap: () => context.push('/swaps'),
+                      ),
+                      _ActionButton(
+                        icon: Icons.emoji_events,
+                        label: 'Rewards',
+                        onTap: () => context.push('/rewards'),
+                      ),
+                      _ActionButton(
+                        icon: Icons.gavel,
+                        label: 'Penalties',
+                        onTap: () => context.push('/penalties'),
                       ),
                     ],
                  ),
@@ -408,11 +477,67 @@ class ActivitiesTab extends ConsumerWidget {
                     )).toList(),
                   ),
               ],
-            ),
           ),
         );
       }
     );
+  }
+
+  Future<void> _showDepositDialog() async {
+    try {
+      final chamas = await ref.read(chamaServiceProvider).getMyChamas();
+      if (!mounted) return;
+      if (chamas.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No chamas found. Join or create one first.')),
+        );
+        return;
+      }
+
+      String? selectedChamaId;
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            backgroundColor: const Color(0xFF1e293b),
+            title: const Text('Select Chama', style: TextStyle(color: Colors.white)),
+            content: DropdownButtonFormField<String>(
+              dropdownColor: const Color(0xFF0f172a),
+              value: selectedChamaId,
+              hint: const Text('Choose a chama', style: TextStyle(color: Colors.white54)),
+              items: chamas
+                  .map((c) => DropdownMenuItem(
+                        value: c['id'] as String,
+                        child: Text(c['name'] ?? 'Chama', style: const TextStyle(color: Colors.white)),
+                      ))
+                  .toList(),
+              onChanged: (val) => setState(() => selectedChamaId = val),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+              ),
+              TextButton(
+                onPressed: selectedChamaId == null
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        context.push('/chama/$selectedChamaId/deposit');
+                      },
+                child: const Text('Continue', style: TextStyle(color: Color(0xFF00C853))),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load chamas: $e')),
+        );
+      }
+    }
   }
 
   void _showWithdrawDialog(BuildContext context, WidgetRef ref) async {
@@ -436,7 +561,7 @@ class ActivitiesTab extends ConsumerWidget {
                 children: [
                   DropdownButtonFormField<String>(
                     dropdownColor: const Color(0xFF0f172a),
-                    value: selectedChamaId,
+                    initialValue: selectedChamaId,
                     hint: const Text('Select Chama', style: TextStyle(color: Colors.white54)),
                     items: chamas.map((c) => DropdownMenuItem(
                       value: c['id'] as String,
@@ -547,12 +672,12 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.05),
+            color: color.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -564,7 +689,7 @@ class _StatCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 24),
@@ -573,7 +698,7 @@ class _StatCard extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -614,7 +739,7 @@ class _ActionButton extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: Colors.white),
@@ -662,8 +787,8 @@ class _TransactionItem extends StatelessWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: isNegative
-                        ? Colors.red.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
+                        ? Colors.red.withValues(alpha: 0.1)
+                        : Colors.green.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -706,3 +831,4 @@ class _TransactionItem extends StatelessWidget {
     );
   }
 }
+

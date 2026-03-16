@@ -28,9 +28,25 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminChamas from './pages/admin/AdminChamas';
 import AdminTransactions from './pages/admin/AdminTransactions';
 import AdminChamaDetails from './pages/admin/AdminChamaDetails';
+import AdminSettings from './pages/admin/AdminSettings';
+import AdminKycDocuments from './pages/admin/AdminKycDocuments';
+import AdminActivities from './pages/admin/AdminActivities';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
+import AdminRoles from './pages/admin/AdminRoles';
 import Onboarding from './pages/Onboarding';
 import OTPVerification from './pages/OTPVerification';
 import MembershipKYC from './pages/MembershipKYC';
+
+const urlB64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
 
 // Layout for public pages that need Navbar and Footer
 const PublicLayout = () => (
@@ -45,6 +61,8 @@ const PublicLayout = () => (
 
 function App() {
   useEffect(() => {
+    const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
+
     // 1. Register Service Worker for Push Notifications
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/service-worker.js')
@@ -53,15 +71,28 @@ function App() {
           
           // Subscribe to push notifications
           if ('PushManager' in window) {
-            reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: null // Add your VAPID key here
-            }).then((subscription) => {
-              console.log('Push subscription:', subscription);
-              // Send subscription to your backend
-            }).catch((err) => {
-              console.log('Push subscription failed:', err);
-            });
+            if (!vapidKey) {
+              console.info('Push subscription skipped: missing VAPID public key')
+              return
+            }
+
+            reg.pushManager.getSubscription()
+              .then((subscription) => {
+                if (subscription) return subscription
+                return reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: urlB64ToUint8Array(vapidKey)
+                })
+              })
+              .then((subscription) => {
+                if (subscription) {
+                  console.log('Push subscription:', subscription)
+                  // Send subscription to your backend
+                }
+              })
+              .catch((err) => {
+                console.log('Push subscription failed:', err)
+              })
           }
         })
         .catch((err) => console.error('Service Worker Registry Failed', err));
@@ -147,10 +178,15 @@ function App() {
 
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Admin />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="kyc-documents" element={<AdminKycDocuments />} />
             <Route path="chamas" element={<AdminChamas />} />
             <Route path="chamas/:id" element={<AdminChamaDetails />} />
+            <Route path="activities" element={<AdminActivities />} />
+            <Route path="roles" element={<AdminRoles />} />
             <Route path="transactions" element={<AdminTransactions />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
 
           {/* Referral Redirect */}

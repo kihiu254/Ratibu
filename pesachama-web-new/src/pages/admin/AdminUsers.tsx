@@ -85,13 +85,13 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
           {/* KYC Actions */}
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Update KYC:</span>
-            {['verified', 'pending', 'rejected', 'not_started'].map(s => (
+            {['approved', 'pending', 'rejected', 'not_started'].map(s => (
               <button
                 key={s}
                 disabled={updating || user.kyc_status === s}
                 onClick={() => updateKycStatus(s)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 ${
-                  s === 'verified' ? 'bg-green-100 text-green-700 hover:bg-green-200' :
+                  s === 'approved' ? 'bg-green-100 text-green-700 hover:bg-green-200' :
                   s === 'pending'  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' :
                   s === 'rejected' ? 'bg-red-100 text-red-700 hover:bg-red-200' :
                   'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -234,12 +234,13 @@ export default function AdminUsers() {
 
   const kycBadge = (status?: string) => {
     const map: Record<string, { icon: any, cls: string, label: string }> = {
-      verified:    { icon: CheckCircle,  cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   label: 'Verified' },
+      approved:    { icon: CheckCircle,  cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   label: 'Approved' },
       pending:     { icon: Clock,        cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', label: 'Pending' },
       rejected:    { icon: AlertCircle,  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',           label: 'Rejected' },
       not_started: { icon: User,         cls: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',      label: 'Not Started' },
     }
-    const s = map[status ?? 'not_started'] ?? map['not_started']
+    const normalized = status === 'verified' ? 'approved' : (status ?? 'not_started')
+    const s = map[normalized] ?? map['not_started']
     const Icon = s.icon
     return (
       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${s.cls}`}>
@@ -253,7 +254,8 @@ export default function AdminUsers() {
       u.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchKyc = kycFilter === 'all' || (u.kyc_status ?? 'not_started') === kycFilter
+    const normalizedKyc = u.kyc_status === 'verified' ? 'approved' : (u.kyc_status ?? 'not_started')
+    const matchKyc = kycFilter === 'all' || normalizedKyc === kycFilter
     return matchSearch && matchKyc
   })
 
@@ -279,7 +281,7 @@ export default function AdminUsers() {
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853] transition-all"
           >
             <option value="all">All KYC</option>
-            <option value="verified">Verified</option>
+            <option value="approved">Approved</option>
             <option value="pending">Pending</option>
             <option value="rejected">Rejected</option>
             <option value="not_started">Not Started</option>

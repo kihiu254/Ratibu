@@ -26,7 +26,7 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     getProfile()
-  }, [])
+  }, [location.pathname])
 
   async function getProfile() {
     try {
@@ -45,11 +45,19 @@ export default function DashboardLayout() {
       
       setUser(data || user)
 
-      // KYC Enforcement â€” only force onboarding if never started
+      // KYC Enforcement — require OTP verification before KYC, then complete KYC
       const onboardingRoutes = ['/onboarding', '/verify-otp', '/membership-kyc']
+      const otpGateRoutes = ['/onboarding', '/verify-otp']
       const kycStatus = data?.kyc_status ?? 'not_started'
+      const otpVerified = Boolean(data?.otp_verified_at)
+
       if (kycStatus === 'not_started') {
-        if (!onboardingRoutes.includes(location.pathname)) navigate('/onboarding')
+        if (!otpVerified) {
+          if (!otpGateRoutes.includes(location.pathname)) navigate('/onboarding')
+        } else {
+          if (otpGateRoutes.includes(location.pathname)) navigate('/membership-kyc')
+          if (!onboardingRoutes.includes(location.pathname)) navigate('/membership-kyc')
+        }
       } else if (['pending', 'approved'].includes(kycStatus)) {
         if (onboardingRoutes.includes(location.pathname)) navigate('/dashboard')
       }
@@ -292,3 +300,4 @@ export default function DashboardLayout() {
     </div>
   )
 }
+

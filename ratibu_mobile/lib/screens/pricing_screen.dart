@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class PricingScreen extends StatelessWidget {
   const PricingScreen({super.key});
@@ -66,10 +66,10 @@ class PricingScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isPopular ? const Color(0xFF00C853).withOpacity(0.1) : const Color(0xFF1e293b),
+        color: isPopular ? const Color(0xFF00C853).withValues(alpha: 0.1) : const Color(0xFF1e293b),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isPopular ? const Color(0xFF00C853) : Colors.white.withOpacity(0.05),
+          color: isPopular ? const Color(0xFF00C853) : Colors.white.withValues(alpha: 0.05),
           width: isPopular ? 2 : 1,
         ),
       ),
@@ -117,3 +117,4 @@ class PricingScreen extends StatelessWidget {
     );
   }
 }
+

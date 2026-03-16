@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class MpesaService {
   final _supabase = Supabase.instance.client;
@@ -16,14 +17,14 @@ class MpesaService {
   }) async {
     final session = _supabase.auth.currentSession;
     if (session == null) {
-      print('ERROR: User not logged in. STK Push aborted.');
+      debugPrint('ERROR: User not logged in. STK Push aborted.');
       throw 'User not logged in. Cannot initiate STK Push.';
     }
     
     // Debug: Log token to verify it exists
     final token = session.accessToken;
-    print('Initiating STK Push with User: ${_supabase.auth.currentUser?.id}');
-    print('Has Access Token: ${token.isNotEmpty}');
+    debugPrint('Initiating STK Push with User: ${_supabase.auth.currentUser?.id}');
+    debugPrint('Has Access Token: ${token.isNotEmpty}');
 
     final body = {
           'amount': amount,
@@ -32,7 +33,7 @@ class MpesaService {
           'chamaId': chamaId,
           // 'type': 'contribution' // Optional, add if needed by backend
         };
-    print('Sending STK Push Body: $body');
+    debugPrint('Sending STK Push Body: $body');
 
     try {
       final response = await _supabase.functions.invoke(
@@ -46,12 +47,12 @@ class MpesaService {
       }
     } on FunctionException catch (e) {
       // Print the full error to the console to avoid truncation in toast
-      print('FULL FUNCTION ERROR: $e');
-      if (e.details != null) print('ERROR DETAILS: ${e.details}');
+      debugPrint('FULL FUNCTION ERROR: $e');
+      if (e.details != null) debugPrint('ERROR DETAILS: ${e.details}');
       
       throw 'STK Push Function Error: $e';
     } catch (e) {
-       print('FULL GENERAL ERROR: $e');
+       debugPrint('FULL GENERAL ERROR: $e');
        throw 'STK Push failed: $e';
     }
   }

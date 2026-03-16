@@ -78,6 +78,12 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_dueDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a due date')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -189,7 +195,7 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
                       const SizedBox(width: 12),
                       Text(
                         _dueDate == null
-                            ? 'Select Due Date (Optional)'
+                            ? 'Select Due Date'
                             : 'Due: ${DateFormat('MMM d, y').format(_dueDate!)}',
                         style: TextStyle(
                           color: _dueDate == null ? Colors.grey : Colors.white,
@@ -213,7 +219,7 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
                 title: const Text('All Members', style: TextStyle(color: Colors.white)),
                 subtitle: const Text('Send to everyone in the group', style: TextStyle(color: Colors.grey)),
                 value: _targetAll,
-                activeColor: const Color(0xFF00C853),
+                activeThumbColor: const Color(0xFF00C853),
                 onChanged: (value) => setState(() => _targetAll = value),
               ),
 
@@ -235,7 +241,6 @@ class _CreatePaymentPromptScreenState extends ConsumerState<CreatePaymentPromptS
                         title: Text(name.isNotEmpty ? name : 'Unknown User', style: const TextStyle(color: Colors.white)),
                         subtitle: Text(member['role']?.toString().toUpperCase() ?? '', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         value: _selectedMemberIds.contains(memberId),
-                        activeColor: const Color(0xFF00C853),
                         onChanged: (isChecked) {
                           setState(() {
                             if (isChecked == true) {

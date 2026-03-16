@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/notification_helper.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
@@ -32,13 +34,23 @@ class AuthStateLoading extends AuthState {}
 class AuthStateAuthenticated extends AuthState {
   final User user;
   final String kycStatus;
-  AuthStateAuthenticated(this.user, {this.kycStatus = 'not_started'});
+  final bool otpVerified;
+  AuthStateAuthenticated(
+    this.user, {
+    this.kycStatus = 'not_started',
+    this.otpVerified = false,
+  });
 }
 class AuthStateUnauthenticated extends AuthState {}
 class AuthStateAwaiting2FA extends AuthState {
   final User user;
   final String kycStatus;
-  AuthStateAwaiting2FA(this.user, {this.kycStatus = 'not_started'});
+  final bool otpVerified;
+  AuthStateAwaiting2FA(
+    this.user, {
+    this.kycStatus = 'not_started',
+    this.otpVerified = false,
+  });
 }
 class AuthStateError extends AuthState {
   final String message;
@@ -98,12 +110,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
           if (referralCode != null && referralCode.trim().isNotEmpty) 'referral_code': referralCode.trim(),
         },
       );
-      print('SignUp response: ${res.user?.id}');
-      
-      state = AuthStateUnauthenticated(); // Require login after signup
+      debugPrint('SignUp response: ${res.user?.id}');
+
+      // If a session is created, keep user authenticated to allow OTP verification
+      await refreshUser();
 
       if (res.user != null) {
-        print('Sending welcome notification for user: ${res.user!.id}');
+        debugPrint('Sending welcome notification for user: ${res.user!.id}');
         NotificationHelper.sendNotification(
           title: 'Welcome to Ratibu!',
           message: 'Your account has been created successfully. Please log in to continue.',
@@ -133,10 +146,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
     } on AuthException catch (e) {
-      print('AuthException during signUp: ${e.message}');
+      debugPrint('AuthException during signUp: ${e.message}');
       state = AuthStateError(e.message);
     } catch (e) {
-      print('Unexpected error during signUp: $e');
+      debugPrint('Unexpected error during signUp: $e');
       state = AuthStateError('An unexpected error occurred: $e');
     }
   }
@@ -152,13 +165,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       
       final kycData = await _supabase
           .from('users')
-          .select('kyc_status, full_name, two_factor_enabled')
+          .select('kyc_status, full_name, two_factor_enabled, otp_verified_at')
           .eq('id', res.user!.id)
           .maybeSingle();
       
-      final is2FAEnabled = kycData?['two_factor_enabled'] ?? false;
+      // 2FA disabled in mobile security settings
+      final is2FAEnabled = false;
       final kycStatus = kycData?['kyc_status'] ?? 'not_started';
       final fullName = kycData?['full_name'] ?? 'Member';
+      final prefs = await SharedPreferences.getInstance();
+      final localOtpVerified = prefs.getBool('otp_verified_${res.user!.id}') ?? false;
+      final otpVerified = kycData?['otp_verified_at'] != null || localOtpVerified;
 
       if (is2FAEnabled) {
         // Trigger 2FA
@@ -166,24 +183,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'email': email,
           'userId': res.user!.id,
           'fullName': fullName,
+          'purpose': '2fa',
         });
 
         state = AuthStateAwaiting2FA(
           res.user!, 
           kycStatus: kycStatus,
+          otpVerified: otpVerified,
         );
       } else {
         state = AuthStateAuthenticated(
           res.user!,
           kycStatus: kycStatus,
+          otpVerified: otpVerified,
         );
       }
       
     } on AuthException catch (e) {
-      print('AuthException during signIn: ${e.message}');
+      debugPrint('AuthException during signIn: ${e.message}');
       state = AuthStateError(e.message);
     } catch (e) {
-      print('Unexpected error during signIn: $e');
+      debugPrint('Unexpected error during signIn: $e');
       state = AuthStateError('Login failed: $e');
     }
   }
@@ -197,12 +217,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final response = await _supabase.functions.invoke('verify-otp', body: {
         'email': email,
         'code': code,
+        'purpose': '2fa',
       });
 
       if (response.status == 200) {
         state = AuthStateAuthenticated(
           currentState.user,
           kycStatus: currentState.kycStatus,
+          otpVerified: currentState.otpVerified,
         );
         
         NotificationHelper.sendNotification(
@@ -212,11 +234,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
           userId: currentState.user.id,
         );
       } else {
-        state = AuthStateAwaiting2FA(currentState.user, kycStatus: currentState.kycStatus);
+        state = AuthStateAwaiting2FA(
+          currentState.user,
+          kycStatus: currentState.kycStatus,
+          otpVerified: currentState.otpVerified,
+        );
         state = AuthStateError('Invalid or expired security code');
       }
     } catch (e) {
-      state = AuthStateAwaiting2FA(currentState.user, kycStatus: currentState.kycStatus);
+      state = AuthStateAwaiting2FA(
+        currentState.user,
+        kycStatus: currentState.kycStatus,
+        otpVerified: currentState.otpVerified,
+      );
       state = AuthStateError('Verification failed: $e');
     }
   }
@@ -244,15 +274,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         final kycData = await _supabase
             .from('users')
-            .select('kyc_status')
+            .select('kyc_status, otp_verified_at')
             .eq('id', user.id)
             .maybeSingle(); // won't throw if row missing
+        final prefs = await SharedPreferences.getInstance();
+        final localOtpVerified = prefs.getBool('otp_verified_${user.id}') ?? false;
+        final otpVerified = kycData?['otp_verified_at'] != null || localOtpVerified;
         state = AuthStateAuthenticated(
           user,
           kycStatus: kycData?['kyc_status'] ?? 'not_started',
+          otpVerified: otpVerified,
         );
       } catch (e) {
-        print('Error fetching KYC status: $e');
+        debugPrint('Error fetching KYC status: $e');
         state = AuthStateAuthenticated(user); // fallback
       }
     } else {

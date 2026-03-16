@@ -47,8 +47,18 @@ export default function Register() {
       setError(error.message)
       setLoading(false)
     } else {
-      // Go to login — on first login the router will enforce KYC
-      navigate('/login')
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if (signInError) {
+        setLoading(false)
+        navigate('/login?redirectTo=/onboarding')
+      } else {
+        // Go to onboarding after signup
+        navigate('/onboarding')
+      }
     }
   }
 

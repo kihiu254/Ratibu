@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -69,7 +69,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.03),
+                            color: Colors.white.withValues(alpha: 0.03),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
@@ -182,3 +182,4 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
 }
+

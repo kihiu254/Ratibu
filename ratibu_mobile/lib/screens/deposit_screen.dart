@@ -61,8 +61,8 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
         final user = ref.read(authProvider).mapState(
             authenticated: (state) => state.user,
         );
-        print('DEBUG - User Phone: ${user?.phone}');
-        print('DEBUG - User Metadata: ${user?.userMetadata}');
+        debugPrint('DEBUG - User Phone: ${user?.phone}');
+        debugPrint('DEBUG - User Metadata: ${user?.userMetadata}');
         
         if (_phoneOption == 'mine') {
             var userPhone = user?.phone;
@@ -220,7 +220,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1e293b),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF00C853).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -291,42 +291,40 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white24),
                 ),
-                child: Column(
-                  children: [
-                    RadioListTile<String>(
-                      title: Text(
-                        'My Number (${_myNumber ?? 'Not found'})',
-                        style: const TextStyle(color: Colors.white),
+                child: RadioGroup<String>(
+                  groupValue: _phoneOption,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _phoneOption = value;
+                      if (_phoneOption == 'mine') {
+                        if (_myNumber != null) {
+                          _phoneController.text = _myNumber!.replaceFirst('+', '');
+                        }
+                      } else {
+                        _phoneController.clear();
+                      }
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      RadioListTile<String>(
+                        title: Text(
+                          'My Number (${_myNumber ?? 'Not found'})',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        value: 'mine',
                       ),
-                      value: 'mine',
-                      groupValue: _phoneOption,
-                      activeColor: const Color(0xFF00C853),
-                      onChanged: (value) {
-                        setState(() {
-                          _phoneOption = value!;
-                          if (_myNumber != null) {
-                            _phoneController.text = _myNumber!.replaceFirst('+', '');
-                          }
-                        });
-                      },
-                    ),
-                    Divider(height: 1, color: Colors.white10),
-                    RadioListTile<String>(
-                      title: const Text(
-                        'Other Number',
-                        style: TextStyle(color: Colors.white),
+                      const Divider(height: 1, color: Colors.white10),
+                      RadioListTile<String>(
+                        title: const Text(
+                          'Other Number',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        value: 'other',
                       ),
-                      value: 'other',
-                      groupValue: _phoneOption,
-                      activeColor: const Color(0xFF00C853),
-                      onChanged: (value) {
-                        setState(() {
-                          _phoneOption = value!;
-                          _phoneController.clear();
-                        });
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -379,7 +377,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                         ),
                       )
                     : Text(
-                        _isSuccess ? 'Request Sent ✅' : 'Pay via STK Push',
+                        _isSuccess ? 'Request Sent âœ…' : 'Pay via STK Push',
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
               ),
@@ -424,3 +422,4 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
     );
   }
 }
+

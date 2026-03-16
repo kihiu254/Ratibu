@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -210,7 +210,7 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
 
               // Frequency
               DropdownButtonFormField<String>(
-                value: _frequency,
+                initialValue: _frequency,
                 dropdownColor: const Color(0xFF2C2C2C),
                 style: const TextStyle(color: Colors.white),
                 decoration: _inputDecoration('Frequency', Icons.refresh),
@@ -296,9 +296,9 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: [
@@ -325,7 +325,7 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 8,
-                    shadowColor: const Color(0xFF00C853).withOpacity(0.3),
+                    shadowColor: const Color(0xFF00C853).withValues(alpha: 0.3),
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
@@ -360,3 +360,4 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
     );
   }
 }
+

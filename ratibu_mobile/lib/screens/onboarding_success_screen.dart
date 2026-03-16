@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/ratibu_logo.dart';
 
@@ -16,7 +16,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF00C853).withOpacity(0.1),
+              const Color(0xFF00C853).withValues(alpha: 0.1),
               const Color(0xFF0f172a),
             ],
           ),
@@ -37,7 +37,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00C853).withOpacity(0.4),
+                          color: const Color(0xFF00C853).withValues(alpha: 0.4),
                           blurRadius: 40,
                           spreadRadius: 10,
                         )
@@ -64,7 +64,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(height: 48),
@@ -90,7 +90,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       elevation: 8,
-                      shadowColor: const Color(0xFF00C853).withOpacity(0.4),
+                      shadowColor: const Color(0xFF00C853).withValues(alpha: 0.4),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -125,16 +125,16 @@ class OnboardingSuccessScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C853).withOpacity(0.1),
+              color: const Color(0xFF00C853).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: const Color(0xFF00C853), size: 24),
@@ -155,7 +155,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
                   description,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
               ],
@@ -166,3 +166,4 @@ class OnboardingSuccessScreen extends StatelessWidget {
     );
   }
 }
+

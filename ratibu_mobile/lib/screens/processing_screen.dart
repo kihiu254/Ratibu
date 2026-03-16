@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
-import '../widgets/ratibu_logo.dart';
 
 class ProcessingScreen extends StatefulWidget {
   const ProcessingScreen({super.key});
@@ -15,7 +14,7 @@ class ProcessingScreen extends StatefulWidget {
 class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-  String _statusMessage = 'Creating your account...';
+  String _statusMessage = 'Starting Ratibu...';
   
   @override
   void initState() {
@@ -46,13 +45,30 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
 
     if (!mounted) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    final pendingOnboarding = prefs.getBool('pending_onboarding') ?? false;
+    final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
+    if (!mounted) return;
+
+    if (pendingOnboarding) {
+      if (session != null) {
+        context.go('/onboarding');
+      } else {
+        context.go('/login');
+      }
+      return;
+    }
+
+    if (!onboardingComplete) {
+      context.go('/onboarding');
+      return;
+    }
+
     if (session != null) {
       // Already logged in — router will handle KYC redirect
       context.go('/dashboard');
     } else {
-      final prefs = await SharedPreferences.getInstance();
-      final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
-      context.go(onboardingComplete ? '/login' : '/onboarding');
+      context.go('/login');
     }
   }
 
@@ -64,6 +80,8 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoSize = (screenWidth * 0.6).clamp(220.0, 300.0) as double;
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       body: FadeTransition(
@@ -72,9 +90,16 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Hero(
+              Hero(
                 tag: 'app_logo',
-                child: RatibuLogo(height: 140),
+                child: SizedBox(
+                  height: logoSize,
+                  width: logoSize,
+                  child: const Image(
+                    image: AssetImage('assets/images/logo_square.png'),
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ),
               const SizedBox(height: 48),
               const SizedBox(

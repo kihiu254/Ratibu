@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/chama_provider.dart';
@@ -48,7 +48,7 @@ class _ChamasTabState extends ConsumerState<ChamasTab> {
                       }
                     },
                     selectedColor: const Color(0xFF00C853),
-                    backgroundColor: Colors.white.withOpacity(0.05),
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -177,7 +177,7 @@ class _ChamaCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C853).withOpacity(0.2),
+                      color: const Color(0xFF00C853).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -240,3 +240,4 @@ class _InfoBadge extends StatelessWidget {
     );
   }
 }
+

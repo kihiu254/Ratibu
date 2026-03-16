@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class FeaturesScreen extends StatelessWidget {
   const FeaturesScreen({super.key});
@@ -64,14 +64,14 @@ class FeaturesScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF1e293b),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: Row(
               children: [
                  Container(
                    padding: const EdgeInsets.all(10),
                    decoration: BoxDecoration(
-                     color: const Color(0xFF00C853).withOpacity(0.1),
+                     color: const Color(0xFF00C853).withValues(alpha: 0.1),
                      borderRadius: BorderRadius.circular(10),
                    ),
                    child: Icon(f['icon'] as IconData, color: const Color(0xFF00C853), size: 20),
@@ -94,3 +94,4 @@ class FeaturesScreen extends StatelessWidget {
     );
   }
 }
+

@@ -269,8 +269,14 @@ export default function ChamaDetails() {
         'Ratibu Chama',
         `Chama-${id?.slice(0, 8)}`
       )
-      if (data.QRCode) {
-        setQrCodeData(data.QRCode)
+      console.log('QR Code response:', JSON.stringify(data)) // Debug log
+      // Safaricom returns 'QRCode' (capital), but guard against other casing too
+      const qrBase64 = data?.QRCode ?? data?.qrCode ?? data?.qr_code ?? null
+      if (qrBase64) {
+        setQrCodeData(qrBase64)
+      } else {
+        alert('QR data missing. Response: ' + JSON.stringify(data))
+        setQrModalOpen(false)
       }
     } catch (err: any) {
       alert('Failed to generate QR code: ' + err.message)

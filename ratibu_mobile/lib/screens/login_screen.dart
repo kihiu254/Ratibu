@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -176,9 +176,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
-    ref.listen(authProvider, (previous, next) {
-      if (next is AuthStateAuthenticated) {
-         context.go('/dashboard');
+    ref.listen(authProvider, (previous, next) async {
+      if (next is AuthStateAuthenticated && previous is AuthStateLoading) {
+        final prefs = await SharedPreferences.getInstance();
+        final pendingOnboarding = prefs.getBool('pending_onboarding') ?? false;
+        if (!mounted) return;
+        context.go(pendingOnboarding ? '/onboarding' : '/dashboard');
       } else if (next is AuthStateError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -193,6 +196,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => context.go('/onboarding'),
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -289,7 +300,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       width: 24,
                       child: Checkbox(
                         value: _rememberMe,
-                        activeColor: const Color(0xFF00C853),
+                        fillColor: const WidgetStatePropertyAll(Color(0xFF00C853)),
                         side: const BorderSide(color: Colors.grey),
                         onChanged: (value) {
                           setState(() {
@@ -344,7 +355,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         height: 56,
                         width: 56,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
+                          color: Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white10),
                         ),
@@ -386,3 +397,4 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
+

@@ -128,7 +128,7 @@ export default function MembershipKYC() {
 
       if (updateError) throw updateError
 
-      toast.success('KYC Submitted! Our team will review your documents.')
+      toast.success('KYC submitted! Our team will review your documents.')
       navigate('/dashboard')
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit KYC')

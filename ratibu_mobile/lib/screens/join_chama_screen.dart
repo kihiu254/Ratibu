@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/notification_helper.dart';
 
@@ -89,7 +89,7 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
         final chamaNode = _chamas.firstWhere((c) => c['id'] == chamaId);
         NotificationHelper.sendEmail(
           to: user!.email!,
-          subject: 'Welcome to ${chamaNode['name']}! 🎊',
+          subject: 'Welcome to ${chamaNode['name']}! ðŸŽŠ',
           html: '''
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
               <h2 style="color: #00C853;">Joined Successfully!</h2>
@@ -158,7 +158,7 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
                 hintStyle: const TextStyle(color: Colors.white54),
                 prefixIcon: const Icon(Icons.search, color: Color(0xFF00C853)),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -188,7 +188,7 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
                       }
                     },
                     selectedColor: const Color(0xFF00C853),
-                    backgroundColor: Colors.white.withOpacity(0.05),
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -241,9 +241,9 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
                               margin: const EdgeInsets.only(bottom: 16),
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.03),
+                                color: Colors.white.withValues(alpha: 0.03),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white.withOpacity(0.05)),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +254,7 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
                                         width: 48,
                                         height: 48,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF00C853).withOpacity(0.1),
+                                          color: const Color(0xFF00C853).withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: const Icon(Icons.group, color: Color(0xFF00C853)),
@@ -325,3 +325,4 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
     );
   }
 }
+

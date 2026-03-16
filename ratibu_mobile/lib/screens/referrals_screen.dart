@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
@@ -51,9 +51,11 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
 
   void _shareReferral() {
     final shareUrl = 'https://ratibu.vercel.app/ref/$_referralCode';
-    Share.share(
-      'Join me on Ratibu! Use my referral code $_referralCode to sign up: $shareUrl',
-      subject: 'Join Ratibu',
+    SharePlus.instance.share(
+      ShareParams(
+        text: 'Join me on Ratibu! Use my referral code $_referralCode to sign up: $shareUrl',
+        subject: 'Join Ratibu',
+      ),
     );
   }
 
@@ -107,7 +109,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00C853).withOpacity(0.3),
+            color: const Color(0xFF00C853).withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -131,7 +133,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white24),
             ),
@@ -166,11 +168,11 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1e293b),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         children: [
-          Icon(LucideIcons.userPlus, color: Colors.white.withOpacity(0.1), size: 64),
+          Icon(LucideIcons.userPlus, color: Colors.white.withValues(alpha: 0.1), size: 64),
           const SizedBox(height: 16),
           const Text(
             'No friends referred yet',
@@ -228,7 +230,7 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isCompleted ? Colors.green.withOpacity(0.1) : Colors.amber.withOpacity(0.1),
+              color: isCompleted ? Colors.green.withValues(alpha: 0.1) : Colors.amber.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -245,3 +247,4 @@ class _ReferralsScreenState extends State<ReferralsScreen> {
     );
   }
 }
+

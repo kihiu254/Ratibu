@@ -1,5 +1,6 @@
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class AppUpdate {
   final String version;
@@ -50,7 +51,7 @@ class UpdateService {
         }
       }
     } catch (e) {
-      print('Error checking for updates: $e');
+      debugPrint('Error checking for updates: $e');
     }
     return null;
   }

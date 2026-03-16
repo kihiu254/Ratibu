@@ -75,8 +75,10 @@ class QrCodeDisplay extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Share.share(
-                      'Scan this QR code to pay KES $amount to $chamaName via M-Pesa.',
+                    SharePlus.instance.share(
+                      ShareParams(
+                        text: 'Scan this QR code to pay KES $amount to $chamaName via M-Pesa.',
+                      ),
                     );
                   },
                   icon: const Icon(Icons.share),

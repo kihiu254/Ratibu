@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/ratibu_logo.dart';
 
@@ -18,6 +19,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _referralCodeController = TextEditingController();
 
   bool _obscurePassword = true;
 
@@ -28,6 +30,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 
@@ -39,22 +42,40 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             firstName: _firstNameController.text,
             lastName: _lastNameController.text,
             phone: _phoneController.text,
+            referralCode: _referralCodeController.text,
           );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(authProvider, (previous, next) {
-      if (next is AuthStateUnauthenticated && previous is AuthStateLoading) {
-        // Registration successful — go to login, router will enforce KYC on first login
+    ref.listen(authProvider, (previous, next) async {
+      if (next is AuthStateAuthenticated && previous is AuthStateLoading) {
+        // Registration successful - start onboarding flow
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('pending_onboarding', true);
+        await prefs.setBool('onboarding_complete', false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Account created! Please log in to continue.'),
+            content: Text('Account created! Continue onboarding.'),
             backgroundColor: Color(0xFF00C853),
           ),
         );
-        context.go('/login');
+        context.go('/onboarding');
+      } else if (next is AuthStateUnauthenticated && previous is AuthStateLoading) {
+        // Fallback for setups without an active session on sign up
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('pending_onboarding', true);
+        await prefs.setBool('onboarding_complete', false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created! Continue onboarding.'),
+            backgroundColor: Color(0xFF00C853),
+          ),
+        );
+        context.go('/onboarding');
       } else if (next is AuthStateError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.message)),
@@ -69,7 +90,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => context.go('/onboarding'),
+        ),
       ),
       backgroundColor: const Color(0xFF020617), // Midnight background
       body: Center(
@@ -149,6 +173,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   validator: (v) => v?.length != null && v!.length < 6
                       ? 'Min 6 chars'
                       : null,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _referralCodeController,
+                  label: 'Referral Code (Optional)',
+                  validator: (_) => null,
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(
@@ -230,3 +260,4 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 }
+

@@ -38,11 +38,9 @@ class TransactionService {
         .select('chamas(balance)')
         .eq('user_id', user.id);
 
-    if (response != null) {
-      for (var item in (response as List)) {
-        if (item['chamas'] != null) {
-          total += (item['chamas']['balance'] as num).toDouble();
-        }
+    for (var item in (response as List)) {
+      if (item['chamas'] != null) {
+        total += (item['chamas']['balance'] as num).toDouble();
       }
     }
     return total;

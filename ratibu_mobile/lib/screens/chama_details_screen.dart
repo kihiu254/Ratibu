@@ -57,7 +57,7 @@ class ChamaDetailsScreen extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator(color: Color(0xFF00C853))),
       ),
       error: (err, stack) => Scaffold(
-        backgroundColor: Color(0xFF121212),
+        backgroundColor: const Color(0xFF121212),
         appBar: AppBar(title: const Text('Error'), backgroundColor: Colors.red),
         body: Center(child: Text('Error: $err', style: const TextStyle(color: Colors.white))),
       ),
@@ -121,7 +121,7 @@ class _OverviewTab extends ConsumerWidget {
                           icon: const Icon(Icons.timer, size: 18),
                           label: const Text('Automate'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.2),
+                            backgroundColor: Colors.white.withValues(alpha: 0.2),
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -163,8 +163,8 @@ class _OverviewTab extends ConsumerWidget {
             _InfoRow(icon: Icons.monetization_on, label: 'Amount', value: currencyFormat.format(chama['contribution_amount'] ?? 0)),
             const SizedBox(height: 12),
             _InfoRow(
-              icon: Icons.card_giftcard, 
-              label: 'Join Reward', 
+              icon: Icons.card_giftcard,
+              label: 'Join Reward',
               value: '${chama['join_points'] ?? 500} Points',
               valueColor: const Color(0xFF00C853),
             ),
@@ -182,8 +182,8 @@ class _InfoRow extends StatelessWidget {
   final Color? valueColor;
 
   const _InfoRow({
-    required this.icon, 
-    required this.label, 
+    required this.icon,
+    required this.label,
     required this.value,
     this.valueColor,
   });
@@ -200,9 +200,9 @@ class _InfoRow extends StatelessWidget {
             children: [
               Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
               Text(
-                value, 
+                value,
                 style: TextStyle(
-                  color: valueColor ?? Colors.white, 
+                  color: valueColor ?? Colors.white,
                   fontSize: 16,
                   fontWeight: valueColor != null ? FontWeight.bold : FontWeight.normal,
                 ),
@@ -228,7 +228,7 @@ class _MembersTab extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () async => ref.refresh(chamaDetailsProvider(members.isNotEmpty ? members[0]['chama_id'] : '')), 
+      onRefresh: () async => ref.refresh(chamaDetailsProvider(members.isNotEmpty ? members[0]['chama_id'] : '')),
       color: const Color(0xFF00C853),
       child: Column(
         children: [
@@ -251,43 +251,43 @@ class _MembersTab extends ConsumerWidget {
             child: ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: members.length,
-        itemBuilder: (context, index) {
-          final member = members[index];
-          final user = member['users'] ?? {};
-          final name = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
-          final role = member['role'] ?? 'Member';
-          final currentUser = Supabase.instance.client.auth.currentUser;
-          
-          // Check if current user is admin of this chama
-          final isAdmin = members.any((m) => m['user_id'] == currentUser?.id && m['role'] == 'admin');
+              itemCount: members.length,
+              itemBuilder: (context, index) {
+                final member = members[index];
+                final user = member['users'] ?? {};
+                final name = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+                final role = member['role'] ?? 'Member';
+                final currentUser = Supabase.instance.client.auth.currentUser;
 
-          return Card(
-            color: const Color(0xFF1e293b),
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: const Color(0xFF00C853),
-                foregroundColor: Colors.white,
-                child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
-              ),
-              title: Text(name.isNotEmpty ? name : 'Unknown User', style: const TextStyle(color: Colors.white)),
-              subtitle: Text(role.toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              trailing: isAdmin && member['user_id'] != currentUser?.id 
-                ? IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                    onPressed: () => _showRoleDialog(context, ref, member),
-                  )
-                : null,
+                // Check if current user is admin of this chama
+                final isAdmin = members.any((m) => m['user_id'] == currentUser?.id && m['role'] == 'admin');
+
+                return Card(
+                  color: const Color(0xFF1e293b),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFF00C853),
+                      foregroundColor: Colors.white,
+                      child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
+                    ),
+                    title: Text(name.isNotEmpty ? name : 'Unknown User', style: const TextStyle(color: Colors.white)),
+                    subtitle: Text(role.toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    trailing: isAdmin && member['user_id'] != currentUser?.id
+                        ? IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                            onPressed: () => _showRoleDialog(context, ref, member),
+                          )
+                        : null,
+                  ),
+                );
+              },
             ),
-            );
-          },
-        ),
+          ),
+        ],
       ),
-    ],
-  ),
-);
-}
+    );
+  }
 
   void _showRoleDialog(BuildContext context, WidgetRef ref, dynamic member) {
     final roles = ['admin', 'treasurer', 'secretary', 'member'];
@@ -412,11 +412,11 @@ class _MeetingsTab extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   const Icon(Icons.event_busy, size: 64, color: Colors.grey),
-                   const SizedBox(height: 16),
-                   const Text('No meetings scheduled', style: TextStyle(color: Colors.grey)),
-                   const SizedBox(height: 16),
-                   ElevatedButton(
+                  const Icon(Icons.event_busy, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text('No meetings scheduled', style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
                     onPressed: () => context.push('/chama/$chamaId/create-meeting'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2C2C2C),
@@ -467,19 +467,19 @@ class _MeetingsTab extends ConsumerWidget {
                           ],
                         ),
                         if (isVirtual) ...[
-                           const SizedBox(height: 8),
-                           InkWell(
-                             onTap: () {
-                               // TODO: Launch URL
-                               ScaffoldMessenger.of(context).showSnackBar(
-                                 SnackBar(content: Text('Join Link: ${meeting['video_link']}')),
-                               );
-                             },
-                             child: const Text(
-                               'Join Meeting',
-                               style: TextStyle(color: Color(0xFF00C853), fontWeight: FontWeight.bold),
-                             ),
-                           ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () {
+                              // TODO: Launch URL
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Join Link: ${meeting['video_link']}')),
+                              );
+                            },
+                            child: const Text(
+                              'Join Meeting',
+                              style: TextStyle(color: Color(0xFF00C853), fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ]
                       ],
                     ),
@@ -513,11 +513,11 @@ class _PromptsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final promptsAsync = ref.watch(chamaPromptsProvider(chamaId));
     final currentUser = Supabase.instance.client.auth.currentUser;
-    final myMember = members.firstWhere(
+    final myMember = members.cast<Map<String, dynamic>>().firstWhere(
       (m) => m['user_id'] == currentUser?.id,
-      orElse: () => null,
+      orElse: () => <String, dynamic>{},
     );
-    final myRole = myMember?['role'] ?? 'member';
+    final myRole = myMember['role'] ?? 'member';
     final canCreatePrompt = ['admin', 'treasurer', 'secretary'].contains(myRole);
 
     return Scaffold(
@@ -534,14 +534,14 @@ class _PromptsTab extends ConsumerWidget {
                   const Text('No active payment requests', style: TextStyle(color: Colors.grey)),
                   const SizedBox(height: 16),
                   if (canCreatePrompt)
-                  ElevatedButton(
-                    onPressed: () => context.push('/chama/$chamaId/create-prompt'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2C2C2C),
-                      foregroundColor: Colors.white,
+                    ElevatedButton(
+                      onPressed: () => context.push('/chama/$chamaId/create-prompt'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2C2C2C),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Create Request'),
                     ),
-                    child: const Text('Create Request'),
-                  ),
                 ],
               ),
             );
@@ -566,7 +566,7 @@ class _PromptsTab extends ConsumerWidget {
                     subtitle: Text('Amount: KES $amount', style: const TextStyle(color: Colors.white70)),
                     trailing: ElevatedButton(
                       onPressed: () {
-                        context.push('/chama/$chamaId/deposit'); 
+                        context.push('/chama/$chamaId/deposit');
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF00C853),
@@ -583,12 +583,14 @@ class _PromptsTab extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
       ),
-      floatingActionButton: canCreatePrompt ? FloatingActionButton.extended(
-        onPressed: () => context.push('/chama/$chamaId/create-prompt'),
-        backgroundColor: const Color(0xFF00C853),
-        label: const Text('New Request'),
-        icon: const Icon(Icons.add_alert),
-      ) : null,
+      floatingActionButton: canCreatePrompt
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/chama/$chamaId/create-prompt'),
+              backgroundColor: const Color(0xFF00C853),
+              label: const Text('New Request'),
+              icon: const Icon(Icons.add_alert),
+            )
+          : null,
     );
   }
 }

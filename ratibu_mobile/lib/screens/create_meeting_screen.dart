@@ -253,7 +253,7 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
               SwitchListTile(
                 title: const Text('Virtual Meeting (Google Meet/Zoom)', style: TextStyle(color: Colors.white)),
                 value: _isVirtual,
-                activeColor: const Color(0xFF00C853),
+                activeThumbColor: const Color(0xFF00C853),
                 contentPadding: EdgeInsets.zero,
                 onChanged: (val) => setState(() => _isVirtual = val),
               ),

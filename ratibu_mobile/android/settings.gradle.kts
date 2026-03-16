@@ -1,3 +1,5 @@
+rootProject.name = "ratibu_mobile_android"
+
 pluginManagement {
     val flutterSdkPath =
         run {

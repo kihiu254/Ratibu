@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -95,7 +95,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             return ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: notifications.length,
-              separatorBuilder: (context, index) => Divider(color: Colors.white.withOpacity(0.05), height: 1),
+              separatorBuilder: (context, index) => Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
               itemBuilder: (context, index) {
                 final n = notifications[index];
                 final bool isRead = n['is_read'] ?? false;
@@ -104,7 +104,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
                 return ListTile(
                   onTap: () => _markAsRead(n['id']),
-                  tileColor: isRead ? Colors.transparent : Colors.green.withOpacity(0.05),
+                  tileColor: isRead ? Colors.transparent : Colors.green.withValues(alpha: 0.05),
                   leading: _buildIcon(type),
                   title: Text(
                     n['title'],
@@ -163,10 +163,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         shape: BoxShape.circle,
       ),
       child: Icon(iconData, color: color, size: 20),
     );
   }
 }
+

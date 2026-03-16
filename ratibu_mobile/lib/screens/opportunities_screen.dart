@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class OpportunitiesScreen extends StatelessWidget {
   const OpportunitiesScreen({super.key});
@@ -57,7 +57,7 @@ class OpportunitiesScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1e293b),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,7 +65,7 @@ class OpportunitiesScreen extends StatelessWidget {
           Container(
              padding: const EdgeInsets.all(12),
              decoration: BoxDecoration(
-               color: color.withOpacity(0.1),
+               color: color.withValues(alpha: 0.1),
                borderRadius: BorderRadius.circular(12),
              ),
              child: Icon(icon, color: color, size: 24),
@@ -86,3 +86,4 @@ class OpportunitiesScreen extends StatelessWidget {
     );
   }
 }
+

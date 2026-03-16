@@ -5,10 +5,14 @@ import {
   Users, 
   Target, 
   CreditCard,
+  FileCheck,
   Settings,
   Menu, 
   ShieldAlert,
-  ChevronRight
+  ChevronRight,
+  Activity,
+  BarChart2,
+  ShieldCheck
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { RatibuLogo } from '../components/RatibuLogo'
@@ -30,7 +34,6 @@ export default function AdminLayout() {
        return
     }
     
-    // Double check admin status
     const { data: profile } = await supabase
       .from('users')
       .select('system_role')
@@ -45,11 +48,14 @@ export default function AdminLayout() {
     setUser(user)
   }
 
-
   const menuItems = [
     { name: 'Overview', icon: LayoutDashboard, path: '/admin' },
+    { name: 'Analytics', icon: BarChart2, path: '/admin/analytics' },
     { name: 'Users', icon: Users, path: '/admin/users' },
+    { name: 'KYC Docs', icon: FileCheck, path: '/admin/kyc-documents' },
     { name: 'Chamas', icon: Target, path: '/admin/chamas' },
+    { name: 'Activities', icon: Activity, path: '/admin/activities' },
+    { name: 'Roles', icon: ShieldCheck, path: '/admin/roles' },
     { name: 'Transactions', icon: CreditCard, path: '/admin/transactions' },
     { name: 'Settings', icon: Settings, path: '/admin/settings' },
   ]
@@ -135,7 +141,6 @@ export default function AdminLayout() {
               <Menu className="w-5 h-5" />
             </button>
             
-            {/* Breadcrumbs */}
             <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
                <span className="hover:text-slate-900 dark:hover:text-white cursor-pointer" onClick={() => navigate('/admin')}>Admin</span>
                <ChevronRight className="w-4 h-4" />
@@ -146,8 +151,8 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                 {user?.email?.[0].toUpperCase()}
+             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-sm">
+                 {user?.email?.[0]?.toUpperCase()}
              </div>
           </div>
         </header>

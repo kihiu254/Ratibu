@@ -1,9 +1,11 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../utils/notification_helper.dart';
 
@@ -51,6 +53,7 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
   final TextEditingController _otherCategoryController = TextEditingController();
 
   String? _selectedGender;
+  DateTime? _selectedDob;
 
   @override
   void dispose() {
@@ -122,6 +125,10 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         _uploadFile(_selfie!, 'selfie'),
       ]);
 
+      final dobValue = _selectedDob != null
+          ? DateFormat('yyyy-MM-dd').format(_selectedDob!)
+          : _dobController.text.trim();
+
       await Supabase.instance.client.from('users').update({
         'kyc_status': 'pending',
         'id_front_url': urls[0],
@@ -133,7 +140,7 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         'last_name': _lastNameController.text,
         'id_number': _idNumberController.text,
         'kra_pin': _kraPinController.text,
-        'dob': _dobController.text,
+        'dob': dobValue,
         'gender': _selectedGender,
         'county': _countyController.text,
         'sub_county': _subCountyController.text,
@@ -152,7 +159,7 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
       if (user.email != null) {
         NotificationHelper.sendEmail(
           to: user.email!,
-          subject: 'Onboarding Documents Received 📋',
+          subject: 'Onboarding Documents Received ðŸ“‹',
           html: '''
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
               <h2 style="color: #00C853;">Onboarding Update</h2>
@@ -168,14 +175,17 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         );
       }
 
-      if (mounted) {
-        // Refresh auth state so router sees kycStatus = 'pending' and stops redirecting to /kyc-form
-        await ref.read(authProvider.notifier).refreshUser();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('KYC Submitted! Our team will review your documents.')),
-        );
-        context.go('/dashboard');
-      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('pending_onboarding', false);
+      await prefs.setBool('onboarding_complete', true);
+
+      // Refresh auth state so router sees kycStatus = 'pending'
+      await ref.read(authProvider.notifier).refreshUser();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('KYC submitted! Our team will review your documents.')),
+      );
+      context.go('/dashboard');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -183,7 +193,26 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final initial = _selectedDob ?? DateTime(now.year - 18, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDob = picked;
+        _dobController.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
     }
   }
 
@@ -253,6 +282,14 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
               );
               return;
             }
+            final parsedDob = DateTime.tryParse(_dobController.text.trim());
+            if (parsedDob == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please select a valid date of birth')),
+              );
+              return;
+            }
+            _selectedDob = parsedDob;
             setState(() => _currentStep += 1);
           } else if (_currentStep == 3) {
              // Bank details are optional, just continue
@@ -331,8 +368,8 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
                           }
                         });
                       },
-                      selectedColor: const Color(0xFF00C853).withOpacity(0.2),
-                      backgroundColor: Colors.white.withOpacity(0.05),
+                      selectedColor: const Color(0xFF00C853).withValues(alpha: 0.2),
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
                       labelStyle: TextStyle(
                         color: isSelected ? const Color(0xFF00C853) : Colors.white70,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -357,7 +394,7 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
                       hintText: 'e.g. Architect, Consultant',
                       hintStyle: const TextStyle(color: Colors.white24),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.05),
+                      fillColor: Colors.white.withValues(alpha: 0.05),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                     ),
                   ),
@@ -414,7 +451,15 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
                 const SizedBox(height: 8),
                 const Text('Tell us where you stay and what you do.', style: TextStyle(color: Colors.white54)),
                 const SizedBox(height: 24),
-                _buildTextField(label: 'Date of Birth', controller: _dobController, icon: Icons.calendar_today_outlined, keyboardType: TextInputType.datetime),
+                _buildTextField(
+                  label: 'Date of Birth',
+                  controller: _dobController,
+                  icon: Icons.calendar_today_outlined,
+                  keyboardType: TextInputType.none,
+                  readOnly: true,
+                  onTap: _pickDob,
+                  hintText: 'YYYY-MM-DD',
+                ),
                 const SizedBox(height: 16),
                 const Text('Gender', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
@@ -426,8 +471,8 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
                         label: Text(g),
                         selected: _selectedGender == g,
                         onSelected: (val) => setState(() => _selectedGender = g),
-                        selectedColor: const Color(0xFF00C853).withOpacity(0.2),
-                        backgroundColor: Colors.white.withOpacity(0.05),
+                        selectedColor: const Color(0xFF00C853).withValues(alpha: 0.2),
+                        backgroundColor: Colors.white.withValues(alpha: 0.05),
                         labelStyle: TextStyle(color: _selectedGender == g ? const Color(0xFF00C853) : Colors.white70),
                       ),
                     ),
@@ -518,7 +563,7 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         height: 120,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: file != null ? const Color(0xFF00C853) : Colors.white10,
@@ -540,7 +585,7 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
           : Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.add_a_photo_outlined, color: Colors.white.withOpacity(0.3), size: 32),
+                Icon(Icons.add_a_photo_outlined, color: Colors.white.withValues(alpha: 0.3), size: 32),
                 const SizedBox(height: 8),
                 Text(label, style: const TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 12)),
               ],
@@ -554,6 +599,9 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
     required TextEditingController controller, 
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    String? hintText,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,11 +611,15 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          readOnly: readOnly,
+          onTap: onTap,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: const Color(0xFF00C853), size: 20),
+            hintText: hintText,
+            hintStyle: const TextStyle(color: Colors.white24),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
+            fillColor: Colors.white.withValues(alpha: 0.05),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
@@ -606,3 +658,4 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
     );
   }
 }
+
