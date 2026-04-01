@@ -86,7 +86,7 @@ class ChamaService {
           .from('meetings')
           .select()
           .eq('chama_id', chamaId)
-          .order('date', ascending: true); // Upcoming first (needs filtering logic in UI or here)
+          .order('date', ascending: true);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       throw Exception('Failed to load meetings: $e');
@@ -130,11 +130,11 @@ class ChamaService {
     try {
       final members = await _supabase
           .from('chama_members')
-          .select('users(email)')
+          .select('users:user_id(email)')
           .eq('chama_id', chamaId);
       
       for (var member in members) {
-        final email = member['users']['email'];
+        final email = member['users']?['email'];
         if (email != null) {
           NotificationHelper.sendEmail(
             to: email,
@@ -239,11 +239,10 @@ class ChamaService {
   /// Generates monthly allocations via RPC.
   Future<void> generateAllocations(String chamaId, DateTime month) async {
     final monthStart = DateTime(month.year, month.month, 1);
-    final response = await _supabase.rpc('generate_monthly_allocations', params: {
+    await _supabase.rpc('generate_monthly_allocations', params: {
       '_chama_id': chamaId,
       '_month': monthStart.toIso8601String().substring(0, 10),
     });
-    if (response.error != null) throw Exception(response.error!.message);
   }
 
   /// Creates a swap request.

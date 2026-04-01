@@ -12,6 +12,18 @@ interface DashboardStats {
   recentTransactions: any[]
 }
 
+interface SavingsTarget {
+  id: string
+  name: string
+  purpose: 'rent' | 'daily_payments' | 'bill_payment' | 'withdrawal' | 'custom'
+  destination_label: string | null
+  target_amount: number
+  current_amount: number
+  allocation_type: 'percentage' | 'fixed_amount'
+  allocation_value: number
+  status: 'active' | 'paused' | 'completed'
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalBalance: 0,
@@ -19,6 +31,7 @@ export default function Dashboard() {
     pendingPayments: 0,
     recentTransactions: []
   })
+  const [savingsTargets, setSavingsTargets] = useState<SavingsTarget[]>([])
 
   useEffect(() => {
     fetchDashboardData()
@@ -83,8 +96,27 @@ export default function Dashboard() {
         recentTransactions: recentTransactions || []
       })
 
+      const { data: goals } = await supabase
+        .from('user_savings_targets')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      setSavingsTargets((goals || []) as SavingsTarget[])
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
+    }
+  }
+
+  const formatPurpose = (purpose: SavingsTarget['purpose']) => {
+    switch (purpose) {
+      case 'daily_payments':
+        return 'Daily payments'
+      case 'bill_payment':
+        return 'Bill payment'
+      default:
+        return purpose.charAt(0).toUpperCase() + purpose.slice(1)
     }
   }
 
@@ -157,6 +189,64 @@ export default function Dashboard() {
              <p className="text-slate-500 dark:text-slate-400 font-medium">Pending Payments</p>
              <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">KES {stats.pendingPayments.toLocaleString()}</h3>
         </motion.div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-lg text-slate-900 dark:text-white">Personal Savings Targets</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Set individual goals and define how funds should be routed when they mature.</p>
+          </div>
+          <Link to="/profile" className="text-sm text-[#00C853] hover:text-green-600 font-medium">
+            Manage in Profile
+          </Link>
+        </div>
+        <div className="p-6">
+          {savingsTargets.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center text-slate-500">
+              No personal savings targets yet. Create one in your profile for rent, daily payments, bill payments, or withdrawals.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {savingsTargets.slice(0, 4).map((target) => {
+                const progress = Math.min((Number(target.current_amount) / Number(target.target_amount)) * 100, 100)
+                return (
+                  <div key={target.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-5">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div>
+                        <p className="font-bold text-slate-900 dark:text-white">{target.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Route to {target.destination_label || formatPurpose(target.purpose)}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        target.status === 'completed'
+                          ? 'bg-green-500/10 text-green-600'
+                          : target.status === 'paused'
+                            ? 'bg-amber-500/10 text-amber-600'
+                            : 'bg-blue-500/10 text-blue-600'
+                      }`}>
+                        {target.status}
+                      </span>
+                    </div>
+                    <div className="mb-2 flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">KES {Number(target.current_amount).toLocaleString()}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">KES {Number(target.target_amount).toLocaleString()}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-3">
+                      <div className="h-full bg-[#00C853]" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Auto allocation: {target.allocation_type === 'percentage'
+                        ? `${Number(target.allocation_value)}% of matched savings`
+                        : `KES ${Number(target.allocation_value).toLocaleString()} per matched savings event`}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Recent Activity Section */}

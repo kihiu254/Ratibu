@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, ArrowRight, UserCircle, Rocket, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
@@ -8,6 +8,8 @@ import { toast } from '../utils/toast'
 export default function Onboarding() {
   const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -28,14 +30,38 @@ export default function Onboarding() {
     try {
       const { data: profile } = await supabase
         .from('users')
-        .select('otp_verified_at')
+        .select('otp_verified_at, terms_accepted_at, privacy_accepted_at')
         .eq('id', user.id)
         .maybeSingle()
 
+      if (!acceptedTerms || !acceptedPrivacy) {
+        toast.error('Please accept the Terms and Conditions and Privacy Policy before continuing')
+        return
+      }
+
+      const legalAccepted = Boolean(profile?.terms_accepted_at && profile?.privacy_accepted_at)
+
       if (profile?.otp_verified_at) {
         toast.success('Email already verified')
+        if (!legalAccepted) {
+          const now = new Date().toISOString()
+          const { error: consentError } = await supabase
+            .from('users')
+            .update({ terms_accepted_at: now, privacy_accepted_at: now, updated_at: now })
+            .eq('id', user.id)
+          if (consentError) throw consentError
+        }
         navigate('/membership-kyc')
         return
+      }
+
+      if (!legalAccepted) {
+        const now = new Date().toISOString()
+        const { error: consentError } = await supabase
+          .from('users')
+          .update({ terms_accepted_at: now, privacy_accepted_at: now, updated_at: now })
+          .eq('id', user.id)
+        if (consentError) throw consentError
       }
 
       const { data, error } = await supabase.functions.invoke('send-otp', {
@@ -105,9 +131,34 @@ export default function Onboarding() {
             </div>
 
             <div className="space-y-4">
+              <div className="text-left p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                <label className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    I accept the <Link to="/legal/terms" className="text-[#00C853] font-bold">Terms and Conditions</Link>.
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300 mt-3">
+                  <input
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    I accept the <Link to="/legal/privacy" className="text-[#00C853] font-bold">Privacy Policy</Link>.
+                  </span>
+                </label>
+              </div>
+
               <button
                 onClick={handleProceed}
-                disabled={loading}
+                disabled={loading || !acceptedTerms || !acceptedPrivacy}
                 className="w-full flex items-center justify-center py-4 px-6 bg-[#00C853] hover:bg-green-600 text-white font-black rounded-2xl shadow-xl shadow-green-500/20 transition-all group scale-105 disabled:opacity-50"
               >
                 {loading ? (

@@ -44,7 +44,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
 
       final meetings = await Supabase.instance.client
           .from('meetings')
-          .select('*, chama:chamas(name)')
+          .select('id, title, description, date, venue, video_link, chama_id, chamas(name)')
           .inFilter('chama_id', chamaIds)
           .order('date', ascending: true);
 
@@ -85,7 +85,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                       itemBuilder: (context, index) {
                         final m = _meetings[index];
                         final date = DateTime.tryParse(m['date'] ?? '');
-                        final chama = m['chama'] as Map<String, dynamic>?;
+                        final chama = m['chamas'] as Map<String, dynamic>?;
                         final isVirtual = (m['video_link'] ?? '').toString().isNotEmpty;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),

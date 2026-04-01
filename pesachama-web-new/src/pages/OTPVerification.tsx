@@ -23,12 +23,13 @@ export default function OTPVerification() {
 
       const { data: profile } = await supabase
         .from('users')
-        .select('otp_verified_at')
+        .select('otp_verified_at, terms_accepted_at, privacy_accepted_at')
         .eq('id', user.id)
         .maybeSingle()
 
       if (profile?.otp_verified_at) {
-        navigate('/membership-kyc')
+        const legalAccepted = Boolean(profile?.terms_accepted_at && profile?.privacy_accepted_at)
+        navigate(legalAccepted ? '/membership-kyc' : '/onboarding')
       }
     }
     getUser()
@@ -92,7 +93,13 @@ export default function OTPVerification() {
       toast.success('OTP Verified!')
       
       // Update local storage or session if needed, then navigate
-      navigate('/membership-kyc')
+      const { data: refreshedProfile } = await supabase
+        .from('users')
+        .select('terms_accepted_at, privacy_accepted_at')
+        .eq('id', user.id)
+        .maybeSingle()
+      const legalAccepted = Boolean(refreshedProfile?.terms_accepted_at && refreshedProfile?.privacy_accepted_at)
+      navigate(legalAccepted ? '/membership-kyc' : '/onboarding')
     } catch (error: any) {
       console.error('Error verifying OTP:', error)
       toast.error(error.message || 'Verification failed. Please check the code.')
@@ -119,7 +126,13 @@ export default function OTPVerification() {
       if (error) throw error
       if (data?.verified) {
         toast.success('Email already verified')
-        navigate('/membership-kyc')
+        const { data: refreshedProfile } = await supabase
+          .from('users')
+          .select('terms_accepted_at, privacy_accepted_at')
+          .eq('id', user.id)
+          .maybeSingle()
+        const legalAccepted = Boolean(refreshedProfile?.terms_accepted_at && refreshedProfile?.privacy_accepted_at)
+        navigate(legalAccepted ? '/membership-kyc' : '/onboarding')
         return
       }
       toast.success('New security code sent!')

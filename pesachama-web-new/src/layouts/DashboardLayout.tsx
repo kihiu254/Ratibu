@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -8,7 +8,8 @@ import {
   Menu, 
   User,
   Loader2,
-  Trophy
+  Trophy,
+  PiggyBank
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { RatibuLogo, RatibuLogoDark } from '../components/RatibuLogo'
@@ -45,16 +46,21 @@ export default function DashboardLayout() {
       
       setUser(data || user)
 
-      // KYC Enforcement � require OTP verification before KYC, then complete KYC
+      // KYC Enforcement — require OTP verification before KYC, then complete KYC
       const onboardingRoutes = ['/onboarding', '/verify-otp', '/membership-kyc']
       const otpGateRoutes = ['/onboarding', '/verify-otp']
       const kycStatus = data?.kyc_status ?? 'not_started'
       const otpVerified = Boolean(data?.otp_verified_at)
+      const legalAccepted = Boolean(data?.terms_accepted_at && data?.privacy_accepted_at)
 
       if (kycStatus === 'not_started') {
         if (!otpVerified) {
           if (!otpGateRoutes.includes(location.pathname)) navigate('/onboarding')
         } else {
+          if (!legalAccepted) {
+            if (location.pathname !== '/onboarding') navigate('/onboarding')
+            return
+          }
           if (otpGateRoutes.includes(location.pathname)) navigate('/membership-kyc')
           if (!onboardingRoutes.includes(location.pathname)) navigate('/membership-kyc')
         }
@@ -78,6 +84,7 @@ export default function DashboardLayout() {
     { name: 'Dashboard Overview', icon: LayoutDashboard, path: '/dashboard' },
     { name: 'My Chamas', icon: Users, path: '/chamas' },
     { name: 'Discover', icon: Users, path: '/explore' },
+    { name: 'Personal Savings', icon: PiggyBank, path: '/personal-savings' },
     { name: 'Rewards', icon: Trophy, path: '/rewards' },
     { name: 'Activity', icon: Activity, path: '/activity' },
     { name: 'Profile', icon: User, path: '/profile' },
@@ -300,4 +307,5 @@ export default function DashboardLayout() {
     </div>
   )
 }
+
 

@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/home_provider.dart';
 import '../services/security_service.dart';
+import '../services/savings_target_service.dart';
+import '../models/savings_target.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -36,6 +38,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<String> _memberCategories = [];
   bool _biometricsEnabled = false;
   final _biometricService = BiometricService();
+  final _savingsTargetService = SavingsTargetService();
+  List<SavingsTarget> _savingsTargets = [];
+  bool _loadingSavingsTargets = false;
 
   @override
   void initState() {
@@ -94,9 +99,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _biometricsEnabled = prefs.getBool('biometrics_enabled') ?? false;
         _loading = false;
       });
+
+      await _loadSavingsTargets();
     } catch (e) {
       debugPrint('Error loading profile: $e');
       setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadSavingsTargets() async {
+    setState(() => _loadingSavingsTargets = true);
+    try {
+      final targets = await _savingsTargetService.getSavingsTargets();
+      if (mounted) {
+        setState(() {
+          _savingsTargets = targets;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading savings targets: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _loadingSavingsTargets = false);
+      }
     }
   }
 
@@ -378,15 +403,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // Dashboard Overview
               _buildDashboardOverview(),
               
-              const SizedBox(height: 32),
-              
-              // Referral Section
-              _buildReferralSection(),
-              
-              const SizedBox(height: 32),
-              
-              // Achievements Section
-              _buildAchievementsSection(),
+               const SizedBox(height: 32),
+               
+               // Referral Section
+               _buildReferralSection(),
+               
+               const SizedBox(height: 32),
+
+               _buildSavingsTargetsSection(),
+
+               const SizedBox(height: 32),
+               
+               // Achievements Section
+               _buildAchievementsSection(),
               
               const SizedBox(height: 32),
 
@@ -642,6 +671,354 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSavingsTargetsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Savings Targets',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            TextButton.icon(
+              onPressed: _showAddSavingsTargetDialog,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Target'),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF00C853)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1e293b),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: _loadingSavingsTargets
+              ? const Center(child: CircularProgressIndicator())
+              : _savingsTargets.isEmpty
+                  ? const Text(
+                      'No personal savings targets yet. Add one for rent, daily payments, bill payment, or withdrawal planning.',
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                    )
+                  : Column(
+                      children: _savingsTargets.map((target) {
+                        final isActive = target.status == 'active';
+                        final routeLabel = target.destinationLabel?.isNotEmpty == true
+                            ? target.destinationLabel!
+                            : _formatPurpose(target.purpose);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0f172a),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          target.name,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Route to $routeLabel',
+                                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: (target.status == 'completed'
+                                              ? Colors.green
+                                              : target.status == 'paused'
+                                                  ? Colors.amber
+                                                  : Colors.blue)
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(100),
+                                    ),
+                                    child: Text(
+                                      target.status.toUpperCase(),
+                                      style: TextStyle(
+                                        color: target.status == 'completed'
+                                            ? Colors.greenAccent
+                                            : target.status == 'paused'
+                                                ? Colors.amber
+                                                : Colors.lightBlueAccent,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'KES ${target.currentAmount.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                  ),
+                                  Text(
+                                    'KES ${target.targetAmount.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(99),
+                                child: LinearProgressIndicator(
+                                  value: target.progressPercent / 100,
+                                  minHeight: 8,
+                                  backgroundColor: Colors.white12,
+                                  valueColor: const AlwaysStoppedAnimation(Color(0xFF00C853)),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                target.allocationType == 'percentage'
+                                    ? 'Auto allocation: ${target.allocationValue.toStringAsFixed(0)}% of matched savings'
+                                    : 'Auto allocation: KES ${target.allocationValue.toStringAsFixed(0)} per matched savings event',
+                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              ),
+                              if (target.notes != null && target.notes!.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  target.notes!,
+                                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                                ),
+                              ],
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () async {
+                                    final nextStatus = isActive ? 'paused' : 'active';
+                                    await _savingsTargetService.updateSavingsTargetStatus(
+                                      targetId: target.id,
+                                      status: nextStatus,
+                                    );
+                                    await _loadSavingsTargets();
+                                  },
+                                  child: Text(isActive ? 'Pause target' : 'Activate target'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  String _formatPurpose(String purpose) {
+    switch (purpose) {
+      case 'daily_payments':
+        return 'Daily payments';
+      case 'bill_payment':
+        return 'Bill payment';
+      default:
+        return '${purpose[0].toUpperCase()}${purpose.substring(1)}';
+    }
+  }
+
+  Future<void> _showAddSavingsTargetDialog() async {
+    final nameController = TextEditingController();
+    final destinationController = TextEditingController();
+    final targetAmountController = TextEditingController();
+    final currentAmountController = TextEditingController(text: '0');
+    final allocationValueController = TextEditingController(text: '100');
+    final notesController = TextEditingController();
+    String purpose = 'rent';
+    String allocationType = 'percentage';
+    bool autoAllocate = true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1e293b),
+              title: const Text('New Savings Target', style: TextStyle(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDialogField(controller: nameController, label: 'Target name'),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: purpose,
+                      dropdownColor: const Color(0xFF0f172a),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _dialogDecoration('Purpose'),
+                      items: const [
+                        DropdownMenuItem(value: 'rent', child: Text('Rent')),
+                        DropdownMenuItem(value: 'daily_payments', child: Text('Daily payments')),
+                        DropdownMenuItem(value: 'bill_payment', child: Text('Bill payment')),
+                        DropdownMenuItem(value: 'withdrawal', child: Text('Withdrawal reserve')),
+                        DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setModalState(() => purpose = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDialogField(controller: destinationController, label: 'Destination label'),
+                    const SizedBox(height: 12),
+                    _buildDialogField(
+                      controller: targetAmountController,
+                      label: 'Target amount (KES)',
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDialogField(
+                      controller: currentAmountController,
+                      label: 'Current saved (KES)',
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: allocationType,
+                      dropdownColor: const Color(0xFF0f172a),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _dialogDecoration('Allocation type'),
+                      items: const [
+                        DropdownMenuItem(value: 'percentage', child: Text('Percentage')),
+                        DropdownMenuItem(value: 'fixed_amount', child: Text('Fixed amount')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setModalState(() => allocationType = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDialogField(
+                      controller: allocationValueController,
+                      label: allocationType == 'percentage' ? 'Allocation %' : 'Allocation amount (KES)',
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDialogField(controller: notesController, label: 'Notes', maxLines: 3),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      value: autoAllocate,
+                      onChanged: (value) => setModalState(() => autoAllocate = value),
+                      activeThumbColor: const Color(0xFF00C853),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Enable auto allocation', style: TextStyle(color: Colors.white)),
+                      subtitle: const Text('Track how savings should flow toward this target', style: TextStyle(color: Colors.white54)),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final targetAmount = double.tryParse(targetAmountController.text.trim());
+                    final currentAmount = double.tryParse(currentAmountController.text.trim()) ?? 0;
+                    final allocationValue = double.tryParse(allocationValueController.text.trim());
+
+                    if (nameController.text.trim().isEmpty || targetAmount == null || allocationValue == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please fill in the required target fields.')),
+                      );
+                      return;
+                    }
+
+                    await _savingsTargetService.createSavingsTarget(
+                      name: nameController.text.trim(),
+                      purpose: purpose,
+                      destinationLabel: destinationController.text.trim(),
+                      targetAmount: targetAmount,
+                      currentAmount: currentAmount,
+                      autoAllocate: autoAllocate,
+                      allocationType: allocationType,
+                      allocationValue: allocationValue,
+                      notes: notesController.text.trim(),
+                    );
+
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    await _loadSavingsTargets();
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Savings target created successfully!')),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00C853)),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  InputDecoration _dialogDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.grey),
+      filled: true,
+      fillColor: const Color(0xFF0f172a),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.white10),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF00C853)),
+      ),
+    );
+  }
+
+  Widget _buildDialogField({
+    required TextEditingController controller,
+    required String label,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      style: const TextStyle(color: Colors.white),
+      decoration: _dialogDecoration(label),
     );
   }
 

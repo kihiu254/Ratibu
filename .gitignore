@@ -3,6 +3,7 @@
 # Dependencies
 node_modules
 .npmrc
+.venv/
 
 # Logs
 npm-debug.log*
@@ -22,6 +23,7 @@ dist/
 dist-ssr/
 *.tsbuildinfo
 .output/
+*.tmp
 
 # Editor
 .vscode/
@@ -35,8 +37,15 @@ dist-ssr/
 /ratibu_mobile/.pub-cache/
 /ratibu_mobile/.pub/
 /ratibu_mobile/pubspec.lock
+/ratibu_mobile/analysis*.txt
+/ratibu_mobile/analysis_report*.txt
+/ratibu_mobile/build_log.txt
 
 # Supabase Local
 supabase/.temp/
 .supabase/
 supabase/functions/*/deno.lock
+
+# Archives and local exports
+archive/
+*.bak

@@ -1,17 +1,35 @@
-# ratibu_mobile
+# Ratibu Mobile
 
-A new Flutter project.
+This is the Flutter client for Ratibu. It includes authentication, onboarding,
+OTP verification, KYC submission, dashboard access, chama flows, payments,
+notifications, and profile management.
 
-## Getting Started
+## Stack
 
-This project is a starting point for a Flutter application.
+- Flutter 3.x
+- Riverpod
+- GoRouter
+- Supabase Flutter
+- Firebase Messaging
+- flutter_local_notifications
 
-A few resources to get you started if this is your first Flutter project:
+## Run Locally
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Important Files
+
+- `lib/main.dart`: app bootstrap, routing, theme, and notification setup
+- `lib/providers/`: auth, profile, chama, and home state
+- `lib/services/`: M-Pesa, security, user, and transaction logic
+- `lib/screens/`: product screens and onboarding flows
+
+## Setup Notes
+
+- Update the Supabase configuration before running auth flows.
+- Configure Firebase per platform before testing push notifications.
+- Generated analysis logs should not be committed; use `flutter analyze`
+  locally instead of storing analyzer output files in the repo.

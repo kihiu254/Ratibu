@@ -66,7 +66,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         if (localOtpVerified) {
           await ref.read(authProvider.notifier).refreshUser();
           if (!mounted) return;
-          context.pushReplacement('/kyc-form');
+          context.pushReplacement('/onboarding');
           return;
         }
       }
@@ -75,14 +75,15 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       if (user != null) {
         final profile = await supabase
             .from('users')
-            .select('first_name, last_name, otp_verified_at')
+            .select('first_name, last_name, otp_verified_at, terms_accepted_at, privacy_accepted_at')
             .eq('id', user.id)
             .maybeSingle();
         if (profile != null) {
           if (profile['otp_verified_at'] != null) {
             await ref.read(authProvider.notifier).refreshUser();
             if (!mounted) return;
-            context.pushReplacement('/kyc-form');
+            final legalAccepted = profile['terms_accepted_at'] != null && profile['privacy_accepted_at'] != null;
+            context.pushReplacement(legalAccepted ? '/kyc-form' : '/onboarding');
             return;
           }
           final first = profile['first_name'] ?? '';
@@ -107,7 +108,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         }
         await ref.read(authProvider.notifier).refreshUser();
         if (!mounted) return;
-        context.pushReplacement('/kyc-form');
+        context.pushReplacement('/onboarding');
         return;
       }
 
@@ -197,7 +198,14 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
       await ref.read(authProvider.notifier).refreshUser();
       if (!mounted) return;
-      context.pushReplacement('/kyc-form');
+      final refreshedProfile = await supabase
+          .from('users')
+          .select('terms_accepted_at, privacy_accepted_at')
+          .eq('id', currentUser?.id)
+          .maybeSingle();
+      final legalAccepted = refreshedProfile?['terms_accepted_at'] != null &&
+          refreshedProfile?['privacy_accepted_at'] != null;
+      context.pushReplacement(legalAccepted ? '/kyc-form' : '/onboarding');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

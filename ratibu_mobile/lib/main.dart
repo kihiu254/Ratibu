@@ -41,6 +41,7 @@ import 'package:ratibu_mobile/screens/opportunities_screen.dart';
 import 'package:ratibu_mobile/screens/features_screen.dart';
 import 'package:ratibu_mobile/screens/pricing_screen.dart';
 import 'package:ratibu_mobile/screens/legal_screen.dart';
+import 'package:ratibu_mobile/screens/personal_savings_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -80,9 +81,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             final isOtp = state.matchedLocation == '/otp-verification';
             final isKyc = state.matchedLocation == '/kyc-form';
             final isOnboardingSuccess = state.matchedLocation == '/onboarding-success';
+            final legalAccepted = s.user.userMetadata?['terms_accepted_at'] != null &&
+                s.user.userMetadata?['privacy_accepted_at'] != null;
             if (!s.otpVerified) {
               if (isOtp || isOnboardingSuccess || isOnboarding || isLoggingIn || isRegistering) return null;
               return '/otp-verification?email=${s.user.email ?? ''}';
+            }
+            if (!legalAccepted) {
+              if (isOnboarding) return null;
+              return '/onboarding';
             }
             if (isKyc) return null;
             if (isOtp || isOnboardingSuccess) return '/kyc-form';
@@ -180,6 +187,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     GoRoute(
       path: '/profile',
       builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
+      path: '/personal-savings',
+      builder: (context, state) => const PersonalSavingsScreen(),
     ),
     GoRoute(
       path: '/notifications',

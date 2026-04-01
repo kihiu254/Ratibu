@@ -95,6 +95,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.savings, color: Colors.greenAccent),
+              title: const Text('Personal Savings', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/personal-savings');
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.emoji_events, color: Colors.amber),
               title: const Text('Rewards', style: TextStyle(color: Colors.white)),
               onTap: () {

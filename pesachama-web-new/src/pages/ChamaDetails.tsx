@@ -102,13 +102,17 @@ export default function ChamaDetails() {
   async function fetchMeetings() {
     const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
     const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('meetings')
       .select('*')
       .eq('chama_id', id)
       .gte('date', start.toISOString())
       .lt('date', end.toISOString())
       .order('date', { ascending: true })
+    if (error) {
+      toast.error('Failed to load meetings', error.message)
+      return
+    }
     setMeetings(data || [])
   }
 
@@ -124,24 +128,47 @@ export default function ChamaDetails() {
 
   async function fetchAllocations() {
     const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
-    const { data } = await supabase
+    let { data, error } = await supabase
       .from('chama_allocation_schedule')
       .select('*, user:users(first_name,last_name)')
       .eq('chama_id', id)
       .eq('allocation_month', monthStart.toISOString().slice(0,10))
       .order('allocation_day', { ascending: true })
+    if (error) {
+      toast.error('Failed to load allocations', error.message)
+      return
+    }
+    if ((!data || data.length === 0) && id) {
+      const { error: generateError } = await supabase.rpc('generate_monthly_allocations', {
+        _chama_id: id,
+        _month: monthStart.toISOString().slice(0,10)
+      })
+      if (!generateError) {
+        const refreshed = await supabase
+          .from('chama_allocation_schedule')
+          .select('*, user:users(first_name,last_name)')
+          .eq('chama_id', id)
+          .eq('allocation_month', monthStart.toISOString().slice(0,10))
+          .order('allocation_day', { ascending: true })
+        data = refreshed.data
+      }
+    }
     setAllocations(data || [])
   }
 
   async function fetchSwapRequests() {
     const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('allocation_swap_requests')
       .select('*, requester:users!allocation_swap_requests_requester_id_fkey(first_name,last_name), target:users!allocation_swap_requests_target_user_id_fkey(first_name,last_name)')
       .eq('chama_id', id)
       .eq('month', monthStart.toISOString().slice(0,10))
       .order('created_at', { ascending: false })
       .limit(20)
+    if (error) {
+      toast.error('Failed to load swap requests', error.message)
+      return
+    }
     setSwapRequests(data || [])
   }
 

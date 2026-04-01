@@ -49,6 +49,7 @@ class _SwapsScreenState extends ConsumerState<SwapsScreen> {
     setState(() => _loadingData = true);
     try {
       final service = ref.read(chamaServiceProvider);
+      await service.generateAllocations(_selectedChamaId!, _selectedMonth);
       final allocations = await service.getAllocations(_selectedChamaId!, _selectedMonth);
       final swaps = await service.getSwapRequests(_selectedChamaId!, _selectedMonth);
       setState(() {

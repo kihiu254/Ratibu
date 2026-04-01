@@ -21,6 +21,24 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
+type SavingsPurpose = 'rent' | 'daily_payments' | 'bill_payment' | 'withdrawal' | 'custom'
+type AllocationType = 'percentage' | 'fixed_amount'
+type SavingsStatus = 'active' | 'paused' | 'completed'
+
+interface SavingsTarget {
+  id: string
+  name: string
+  purpose: SavingsPurpose
+  destination_label: string | null
+  target_amount: number
+  current_amount: number
+  auto_allocate: boolean
+  allocation_type: AllocationType
+  allocation_value: number
+  status: SavingsStatus
+  notes: string | null
+}
+
 export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -41,6 +59,21 @@ export default function Profile() {
   })
   const [selectedChamaId, setSelectedChamaId] = useState<string | null>(null)
   const [userChamas, setUserChamas] = useState<any[]>([])
+  const [savingsTargets, setSavingsTargets] = useState<SavingsTarget[]>([])
+  const [loadingSavingsTargets, setLoadingSavingsTargets] = useState(false)
+  const [creatingSavingsTarget, setCreatingSavingsTarget] = useState(false)
+  const [showSavingsTargetForm, setShowSavingsTargetForm] = useState(false)
+  const [newSavingsTarget, setNewSavingsTarget] = useState({
+    name: '',
+    purpose: 'rent' as SavingsPurpose,
+    destination_label: '',
+    target_amount: 0,
+    current_amount: 0,
+    auto_allocate: true,
+    allocation_type: 'percentage' as AllocationType,
+    allocation_value: 100,
+    notes: ''
+  })
   const [profile, setProfile] = useState({
     first_name: '',
     last_name: '',
@@ -112,6 +145,8 @@ export default function Profile() {
         .order('created_at', { ascending: false })
         .limit(20)
       setPenalties(penaltyEvents || [])
+
+      await fetchSavingsTargets(user.id)
     } catch (err: any) {
       console.error('Error fetching profile:', err.message)
     } finally {
@@ -136,6 +171,97 @@ export default function Profile() {
   useEffect(() => {
     if (selectedChamaId) fetchRules(selectedChamaId)
   }, [selectedChamaId])
+
+  async function fetchSavingsTargets(userId: string) {
+    try {
+      setLoadingSavingsTargets(true)
+      const { data, error } = await supabase
+        .from('user_savings_targets')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setSavingsTargets((data || []) as SavingsTarget[])
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load savings targets')
+    } finally {
+      setLoadingSavingsTargets(false)
+    }
+  }
+
+  async function handleCreateSavingsTarget(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user) return
+
+    try {
+      setCreatingSavingsTarget(true)
+      const { error } = await supabase
+        .from('user_savings_targets')
+        .insert({
+          user_id: user.id,
+          name: newSavingsTarget.name.trim(),
+          purpose: newSavingsTarget.purpose,
+          destination_label: newSavingsTarget.destination_label.trim() || null,
+          target_amount: Number(newSavingsTarget.target_amount),
+          current_amount: Number(newSavingsTarget.current_amount) || 0,
+          auto_allocate: newSavingsTarget.auto_allocate,
+          allocation_type: newSavingsTarget.allocation_type,
+          allocation_value: Number(newSavingsTarget.allocation_value),
+          notes: newSavingsTarget.notes.trim() || null,
+        })
+
+      if (error) throw error
+
+      setNewSavingsTarget({
+        name: '',
+        purpose: 'rent',
+        destination_label: '',
+        target_amount: 0,
+        current_amount: 0,
+        auto_allocate: true,
+        allocation_type: 'percentage',
+        allocation_value: 100,
+        notes: ''
+      })
+      setShowSavingsTargetForm(false)
+      await fetchSavingsTargets(user.id)
+      toast.success('Savings target created')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create savings target')
+    } finally {
+      setCreatingSavingsTarget(false)
+    }
+  }
+
+  async function handleSavingsTargetStatusChange(id: string, status: SavingsStatus) {
+    try {
+      const { error } = await supabase
+        .from('user_savings_targets')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', id)
+
+      if (error) throw error
+
+      setSavingsTargets((current) => current.map((target) =>
+        target.id === id ? { ...target, status } : target
+      ))
+      toast.success(`Savings target ${status}`)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update savings target')
+    }
+  }
+
+  const formatSavingsPurpose = (purpose: SavingsPurpose) => {
+    switch (purpose) {
+      case 'daily_payments':
+        return 'Daily payments'
+      case 'bill_payment':
+        return 'Bill payment'
+      default:
+        return purpose.charAt(0).toUpperCase() + purpose.slice(1)
+    }
+  }
 
   async function handleCreateRule(e: React.FormEvent) {
     e.preventDefault()
@@ -432,6 +558,186 @@ export default function Profile() {
 
         {/* Referral + Penalties */}
         <div className="lg:col-span-2 space-y-8">
+          <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Coins className="w-5 h-5 text-[#00C853]" />
+                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Personal Savings Targets</h3>
+              </div>
+              <button
+                onClick={() => setShowSavingsTargetForm(!showSavingsTargetForm)}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#00C853]/10 text-[#00C853] text-xs font-black uppercase tracking-widest"
+              >
+                {showSavingsTargetForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {showSavingsTargetForm ? 'Close' : 'Add Target'}
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Configure personal targets and define whether funds should ultimately support rent, daily payments, bills, or withdrawals.
+            </p>
+
+            {showSavingsTargetForm && (
+              <form onSubmit={handleCreateSavingsTarget} className="p-4 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
+                <input
+                  value={newSavingsTarget.name}
+                  onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  placeholder="Savings target name"
+                  required
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select
+                    value={newSavingsTarget.purpose}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, purpose: e.target.value as SavingsPurpose }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  >
+                    <option value="rent">Rent</option>
+                    <option value="daily_payments">Daily payments</option>
+                    <option value="bill_payment">Bill payment</option>
+                    <option value="withdrawal">Withdrawal reserve</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <input
+                    value={newSavingsTarget.destination_label}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, destination_label: e.target.value }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    placeholder="Destination label e.g. House rent"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={newSavingsTarget.target_amount || ''}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, target_amount: Number(e.target.value) }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    placeholder="Target amount (KES)"
+                    required
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newSavingsTarget.current_amount || ''}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, current_amount: Number(e.target.value) }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    placeholder="Current saved (KES)"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select
+                    value={newSavingsTarget.allocation_type}
+                    onChange={(e) => setNewSavingsTarget(prev => ({
+                      ...prev,
+                      allocation_type: e.target.value as AllocationType,
+                      allocation_value: e.target.value === 'percentage' ? 100 : prev.allocation_value
+                    }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  >
+                    <option value="percentage">Allocate by percentage</option>
+                    <option value="fixed_amount">Allocate by fixed amount</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={newSavingsTarget.allocation_value || ''}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, allocation_value: Number(e.target.value) }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    placeholder={newSavingsTarget.allocation_type === 'percentage' ? 'Allocation %' : 'Allocation amount (KES)'}
+                    required
+                  />
+                </div>
+                <textarea
+                  value={newSavingsTarget.notes}
+                  onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  placeholder="Notes for this savings target"
+                  rows={2}
+                />
+                <label className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={newSavingsTarget.auto_allocate}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, auto_allocate: e.target.checked }))}
+                  />
+                  Enable automatic allocation toward this target
+                </label>
+                <button
+                  type="submit"
+                  disabled={creatingSavingsTarget}
+                  className="w-full py-3 bg-[#00C853] text-white rounded-xl font-black"
+                >
+                  {creatingSavingsTarget ? 'Creating...' : 'Create Savings Target'}
+                </button>
+              </form>
+            )}
+
+            {loadingSavingsTargets ? (
+              <div className="text-sm text-slate-500">Loading savings targets...</div>
+            ) : savingsTargets.length === 0 ? (
+              <div className="text-sm text-slate-500">No savings targets yet. Create one for rent, daily payments, bill payments, or a withdrawal reserve.</div>
+            ) : (
+              <div className="grid gap-3">
+                {savingsTargets.map((target) => {
+                  const progress = Math.min((Number(target.current_amount) / Number(target.target_amount)) * 100, 100)
+                  return (
+                    <div key={target.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+                      <div className="flex items-center justify-between gap-4 mb-3">
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">{target.name}</p>
+                          <p className="text-xs text-slate-500">
+                            Route to {target.destination_label || formatSavingsPurpose(target.purpose)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                            target.status === 'completed'
+                              ? 'bg-green-500/10 text-green-600'
+                              : target.status === 'paused'
+                                ? 'bg-amber-500/10 text-amber-600'
+                                : 'bg-blue-500/10 text-blue-600'
+                          }`}>
+                            {target.status}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleSavingsTargetStatusChange(target.id, target.status === 'active' ? 'paused' : 'active')}
+                            className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-200/70 dark:bg-slate-700"
+                          >
+                            {target.status === 'active' ? 'Pause' : 'Activate'}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">KES {Number(target.current_amount).toLocaleString()}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">KES {Number(target.target_amount).toLocaleString()}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-3">
+                        <div className="h-full bg-[#00C853]" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800">
+                          {target.auto_allocate ? 'Auto allocation on' : 'Manual tracking'}
+                        </span>
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800">
+                          {target.allocation_type === 'percentage'
+                            ? `${Number(target.allocation_value)}% per allocation`
+                            : `KES ${Number(target.allocation_value).toLocaleString()} per allocation`}
+                        </span>
+                      </div>
+                      {target.notes && (
+                        <p className="mt-3 text-xs text-slate-500">{target.notes}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">

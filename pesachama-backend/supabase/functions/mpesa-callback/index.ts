@@ -11,112 +11,104 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const payload = await req.json();
+  const payload = await req.json().catch(() => null);
+  const callback = payload?.Body?.stkCallback;
 
-  // M-Pesa Callback Payload Structure (Simplified for simulation)
-  // { "Body": { "stkCallback": { "CheckoutRequestID": "...", "ResultCode": 0, "CallbackMetadata": { "Item": [...] } } } }
+  if (!callback?.CheckoutRequestID) {
+    return jsonResponse({ error: "Invalid callback payload" }, 400);
+  }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  // Extract CheckoutRequestID from callback
-  const checkoutRequestId = payload.Body.stkCallback.CheckoutRequestID;
-  const resultCode = payload.Body.stkCallback.ResultCode;
+  const checkoutRequestId = callback.CheckoutRequestID;
+  const resultCode = callback.ResultCode;
 
   console.log(
     `Processing callback for CheckoutRequestID: ${checkoutRequestId}, ResultCode: ${resultCode}`,
   );
 
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data: transaction, error: fetchError } = await supabase
+    .from("transactions")
+    .select("id, status, metadata")
+    .eq("metadata->>checkout_request_id", checkoutRequestId)
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error("Failed to fetch transaction:", fetchError);
+    return jsonResponse({ error: fetchError.message }, 500);
+  }
+
+  if (!transaction) {
+    console.warn("Transaction not found for checkout request:", checkoutRequestId);
+    return jsonResponse({ message: "Callback acknowledged without matching transaction" });
+  }
+
   if (resultCode === 0) {
-    // Payment Successful
-    const callbackMetadata = payload.Body.stkCallback.CallbackMetadata?.Item ||
-      [];
-    const mpesaReceipt = callbackMetadata.find((i: any) =>
-      i.Name === "MpesaReceiptNumber"
-    )?.Value;
-    const phoneNumber = callbackMetadata.find((i: any) =>
-      i.Name === "PhoneNumber"
-    )?.Value;
-
-    // Find the transaction with this checkout_request_id in metadata
-    // We use a JSON containment check or just search.
-    // Since we can't easily query inside JSONB array with simple syntax in some client versions,
-    // best is if we had a column. But we put it in metadata.
-    // We can use the arrow operator ->> for text comparison if supported by client filter,
-    // or we might need to rely on the fact we store it.
-
-    // Supabase JS filter for JSON: .eq('metadata->>checkout_request_id', checkoutRequestId) usually works
-
-    const { data: transaction, error: fetchError } = await supabase
-      .from("transactions")
-      .select("id")
-      .eq("metadata->>checkout_request_id", checkoutRequestId)
-      .single();
-
-    if (fetchError || !transaction) {
-      console.error("Transaction not found for ID:", checkoutRequestId);
-      return new Response(JSON.stringify({ error: "Transaction not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (transaction.status === "completed") {
+      return jsonResponse({ message: "Callback already processed" });
     }
 
-    // Update Transaction
+    const callbackMetadata = callback.CallbackMetadata?.Item || [];
+    const mpesaReceipt = callbackMetadata.find((item: any) =>
+      item.Name === "MpesaReceiptNumber"
+    )?.Value;
+    const phoneNumber = callbackMetadata.find((item: any) =>
+      item.Name === "PhoneNumber"
+    )?.Value;
+
     const { error: updateError } = await supabase
       .from("transactions")
       .update({
         status: "completed",
-        mpesa_transaction_id: mpesaReceipt, // Storing receipt in correct column
+        mpesa_transaction_id: mpesaReceipt,
         updated_at: new Date().toISOString(),
-        payment_method: "mpesa", // Ensure this is set
+        payment_method: "mpesa",
+        metadata: {
+          ...(transaction.metadata ?? {}),
+          callback_phone_number: phoneNumber ?? null,
+          callback_processed_at: new Date().toISOString(),
+          result_code: resultCode,
+        },
       })
       .eq("id", transaction.id);
 
     if (updateError) {
       console.error("Failed to update transaction:", updateError);
-      return new Response(JSON.stringify({ error: updateError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: updateError.message }, 500);
     }
+  } else if (transaction.status !== "completed") {
+    const resultDesc = callback.ResultDesc || "Payment failed";
 
-    console.log(`Payment confirmed for transaction ${transaction.id}`);
-  } else {
-    // Payment Failed/Cancelled
-    const resultDesc = payload.Body.stkCallback.ResultDesc;
-
-    // Find transaction
-    const { data: transaction } = await supabase
+    const { error: failureUpdateError } = await supabase
       .from("transactions")
-      .select("id")
-      .eq("metadata->>checkout_request_id", checkoutRequestId)
-      .single();
+      .update({
+        status: "failed",
+        description: `Failed: ${resultDesc}`,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          ...(transaction.metadata ?? {}),
+          callback_processed_at: new Date().toISOString(),
+          result_code: resultCode,
+          result_description: resultDesc,
+        },
+      })
+      .eq("id", transaction.id);
 
-    if (transaction) {
-      await supabase
-        .from("transactions")
-        .update({
-          status: "failed",
-          description: `Failed: ${resultDesc}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", transaction.id);
-
-      console.log(
-        `Payment failed for transaction ${transaction.id}: ${resultDesc}`,
-      );
-    } else {
-      console.warn(
-        `Payment failed for unknown transaction ${checkoutRequestId}`,
-      );
+    if (failureUpdateError) {
+      console.error("Failed to record failed callback:", failureUpdateError);
+      return jsonResponse({ error: failureUpdateError.message }, 500);
     }
   }
 
-  return new Response(JSON.stringify({ message: "Callback received" }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return jsonResponse({ message: "Callback received" });
 });

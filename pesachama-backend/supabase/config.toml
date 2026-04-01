@@ -389,7 +389,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.ussd-handler]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/ussd-handler/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -411,7 +411,7 @@ entrypoint = "./functions/trigger-stk-push/index.ts"
 
 [functions.mpesa-callback]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/mpesa-callback/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

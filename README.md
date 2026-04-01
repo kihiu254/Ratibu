@@ -1,87 +1,82 @@
-# Ratibu - Modern Chama Management Platform
+# Ratibu
 
-**Ratibu** is a comprehensive digital ecosystem designed to empower informal
-investment groups (Chamas) with transparency, security, and growth tools. It
-bridges the gap between traditional group savings and modern financial
-technology.
+Ratibu is a multi-platform chama management workspace with web, mobile, and
+Supabase backend code in one repository. The active apps cover onboarding, KYC,
+group management, meetings, contributions, referrals, notifications, and
+M-Pesa-powered payment flows.
 
-## 🚀 Features
+## Workspace Layout
 
-### for Chamas & Investment Groups
+- `pesachama-web-new/`: React 19 + Vite web app for landing pages, dashboard,
+  onboarding, and admin tools.
+- `pesachama-backend/`: Supabase project with SQL migrations and Edge Functions
+  for OTP, M-Pesa, USSD, payouts, meetings, and automation tasks.
+- `ratibu_mobile/`: Flutter mobile app using Riverpod, GoRouter, Supabase, and
+  Firebase Messaging.
+- `documentation/`: architecture notes, migration guides, API docs, and setup
+  references.
+- `pesachama_mobile/`: legacy mobile folder kept only for historical context.
 
-- **Digital Records**: Move away from paper books to secure, cloud-based
-  ledgers.
-- **Automated Contributions**: Integration with M-Pesa for seamless deposits and
-  withdrawals.
-- **Meeting Management**: Schedule meetings, track attendance, and record
-  minutes globally.
-- **Loan Management**: Manage member loans, interest rates, and repayment
-  schedules automatically.
-- **Transparency**: Every member can see their contributions and group financial
-  health in real-time.
+## Core Capabilities
 
-### Technology Stack
+- Chama discovery, creation, and member management
+- Digital contribution tracking and payment prompts
+- M-Pesa STK push, callbacks, QR generation, and standing orders
+- KYC onboarding and OTP verification
+- Meetings, referrals, rewards, penalties, and admin operations
+- Web push and mobile notifications
 
-- **Frontend**: React (Vite), Tailwind CSS, Framer Motion
-- **Backend**: Supabase (PostgreSQL, Edge Functions, Auth, Storage)
-- **Mobile**: Flutter (iOS & Android)
-- **Payments**: Safaricom M-Pesa (Daraja API) with USSD fallbacks.
+## Tech Stack
 
-## 📂 Project Structure
+- Web: React, TypeScript, Vite, Tailwind CSS, Framer Motion, React Router
+- Mobile: Flutter, Riverpod, GoRouter, Supabase Flutter, Firebase Messaging
+- Backend: Supabase Auth, Postgres, Storage, Realtime, Edge Functions
+- Payments: Safaricom Daraja API and USSD integrations
 
-- `pesachama-web-new/` - The web dashboard and landing page (React).
-- `pesachama-backend/` - Supabase configurations, Edge Functions
-  (`trigger-stk-push`, `ussd-handler`), and SQL migrations.
-- `ratibu_mobile/` - The cross-platform mobile application (Flutter).
+## Quick Start
 
-## 🛠️ Getting Started
+### Requirements
 
-### Prerequisites
-
-- Node.js (v18+)
-- Flutter SDK
+- Node.js 20+
+- npm 10+
+- Flutter 3.x
 - Supabase CLI
-- Git
 
-### Installation
+### Web
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/kihiu254/Ratibu.git
-   cd Ratibu
-   ```
+```bash
+cd pesachama-web-new
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-2. **Web Dashboard Setup**
-   ```bash
-   cd pesachama-web-new
-   npm install
-   npm run dev
-   ```
+### Backend
 
-3. **Mobile App Setup**
-   ```bash
-   cd ratibu_mobile
-   flutter pub get
-   flutter run
-   ```
+```bash
+cd pesachama-backend
+npm install
+supabase start
+```
 
-4. **Backend Setup** Ensure you have Supabase CLI linked to your project.
-   ```bash
-   cd pesachama-backend
-   supabase start
-   ```
+### Mobile
 
-## 🤝 Contribution
+```bash
+cd ratibu_mobile
+flutter pub get
+flutter run
+```
 
-Developed by **GuruCrafts Agency**.
+## Recommended Next Steps
 
-**Developer Contact**: [1kihiupaul@gmail.com](mailto:1kihiupaul@gmail.com)
+- Read `documentation/architecture.md` for the current system layout.
+- Use `pesachama-web-new/.env.example` as the source of truth for web
+  environment variables.
+- Review `documentation/MPESA_INTEGRATION_GUIDE.md` before configuring payment
+  secrets in a real environment.
 
-**Global Support**:
+## Notes
 
-- Email: [ratibumail@gmail.com](mailto:ratibumail@gmail.com)
-- Phone: [+254 112 081 866](tel:+254112081866)
-
-## 📄 License
-
-© 2026 Ratibu Ecosystems. All Rights Reserved.
+- Generated analysis logs from Flutter should stay out of version control.
+- External callback functions must not require Supabase JWT verification.
+- Never commit real payment credentials or service secrets to this repository.

@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
             if (member) {
               // Trigger STK Push
-              await fetch(`${SUPABASE_URL}/functions/v1/trigger-stk-push`, {
+              const paymentResponse = await fetch(`${SUPABASE_URL}/functions/v1/trigger-stk-push`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -117,8 +117,15 @@ Deno.serve(async (req: Request) => {
                 }),
               });
 
-              response =
-                `END STK Push sent to ${phoneNumber}. Please enter your PIN to complete contribution of KES ${amount}.`;
+              if (!paymentResponse.ok) {
+                const errorText = await paymentResponse.text();
+                console.error("USSD contribution failed:", errorText);
+                response =
+                  "END We could not start your payment right now. Please try again later.";
+              } else {
+                response =
+                  `END STK Push sent to ${phoneNumber}. Please enter your PIN to complete contribution of KES ${amount}.`;
+              }
             } else {
               response =
                 "END You do not belong to any Chama. Please join one on the app.";

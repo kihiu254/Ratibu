@@ -171,8 +171,8 @@ export default function MembershipKYC() {
               className="space-y-8"
             >
               <div>
-                <h1 className="text-3xl font-black mb-2">Member Category</h1>
-                <p className="text-slate-500">Pick the categories that best describe your profession or role.</p>
+                <h1 className="text-4xl font-black mb-3">Member Category</h1>
+                <p className="text-base font-medium text-slate-500">Pick the categories that best describe your profession or role.</p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -227,8 +227,8 @@ export default function MembershipKYC() {
               className="space-y-8"
             >
               <div>
-                <h1 className="text-3xl font-black mb-2">Personal Details</h1>
-                <p className="text-slate-500">Provide your official identification and next of kin details.</p>
+                <h1 className="text-4xl font-black mb-3">Personal Details</h1>
+                <p className="text-base font-medium text-slate-500">Provide your official identification and next of kin details.</p>
               </div>
 
               <div className="space-y-6">

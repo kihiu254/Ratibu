@@ -11,41 +11,127 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const normalizePhoneNumber = (value: string) => {
+  const trimmed = value.replace(/\s+/g, "");
+  if (/^2547\d{8}$/.test(trimmed)) return trimmed;
+  if (/^07\d{8}$/.test(trimmed)) return `254${trimmed.slice(1)}`;
+  if (/^\+2547\d{8}$/.test(trimmed)) return trimmed.slice(1);
+  return null;
+};
+
+const getBearerToken = (header: string | null) => {
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+};
+
+async function authenticateRequest(
+  supabase: ReturnType<typeof createClient>,
+  authHeader: string | null,
+  userId: string,
+) {
+  const token = getBearerToken(authHeader);
+
+  if (!token) {
+    throw new Error("Missing bearer token");
+  }
+
+  if (token === SUPABASE_SERVICE_ROLE_KEY) {
+    return { source: "internal" as const };
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+
+  if (error || !data.user) {
+    throw new Error("Unauthorized request");
+  }
+
+  if (data.user.id !== userId) {
+    throw new Error("Authenticated user does not match requested userId");
+  }
+
+  return { source: "user" as const, userId: data.user.id };
+}
+
 Deno.serve(async (req) => {
   console.log(`${req.method} request to trigger-stk-push`);
 
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // Debug: Log headers to check for Authorization
   const authHeader = req.headers.get("Authorization");
-  console.log("Request Headers:", Object.fromEntries(req.headers.entries()));
-  console.log("Has Auth Header:", !!authHeader);
+  const payload = await req.json().catch(() => null);
+
+  if (!payload) {
+    return jsonResponse({ error: "Invalid JSON payload" }, 400);
+  }
+
+  const { amount, phoneNumber, userId, chamaId, requestId, type } = payload;
+
+  if (!amount || !phoneNumber || !userId || !chamaId) {
+    return jsonResponse({ error: "Missing required fields" }, 400);
+  }
+
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return jsonResponse({ error: "Amount must be a positive number" }, 400);
+  }
+
+  const formattedPhone = normalizePhoneNumber(String(phoneNumber));
+  if (!formattedPhone) {
+    return jsonResponse(
+      { error: "Phone number must be in 07XXXXXXXX or 2547XXXXXXXX format" },
+      400,
+    );
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  let transactionId: string | null = null;
 
   try {
-    const { amount, phoneNumber, userId, chamaId, requestId, type } = await req
-      .json();
+    await authenticateRequest(supabase, authHeader, String(userId));
 
-    if (!amount || !phoneNumber || !userId || !chamaId) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    if (requestId) {
+      const { data: existingTransaction, error: existingError } = await supabase
+        .from("transactions")
+        .select("id, status, metadata")
+        .eq("user_id", userId)
+        .eq("chama_id", chamaId)
+        .eq("metadata->>payment_request_id", String(requestId))
+        .in("status", ["pending", "completed"])
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("Failed checking existing transaction:", existingError);
+      }
+
+      const existingCheckoutId = existingTransaction?.metadata
+        ?.checkout_request_id;
+
+      if (existingTransaction && (existingTransaction.status === "completed" ||
+        existingCheckoutId)) {
+        return jsonResponse({
+          message: existingTransaction.status === "completed"
+            ? "Payment already completed for this request"
+            : "STK push already initiated for this request",
+          transactionId: existingTransaction.id,
+          checkoutRequestId: existingCheckoutId ?? null,
+          deduplicated: true,
+        });
+      }
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // 1. Create a pending transaction record
     const { data: transaction, error: dbError } = await supabase
       .from("transactions")
       .insert([
         {
-          amount,
+          amount: numericAmount,
           user_id: userId,
           chama_id: chamaId,
           type: type || "deposit",
@@ -54,7 +140,11 @@ Deno.serve(async (req) => {
           description: type === "contribution"
             ? "Contribution Payment"
             : "M-Pesa Deposit",
-          metadata: requestId ? { payment_request_id: requestId } : {},
+          metadata: {
+            ...(requestId ? { payment_request_id: requestId } : {}),
+            phone_number: formattedPhone,
+            initiated_at: new Date().toISOString(),
+          },
         },
       ])
       .select()
@@ -62,13 +152,11 @@ Deno.serve(async (req) => {
 
     if (dbError) {
       console.error("DB Error:", dbError);
-      return new Response(JSON.stringify({ error: dbError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: dbError.message }, 500);
     }
 
-    // 2. Trigger M-Pesa STK Push (Real)
+    transactionId = transaction.id;
+
     const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
     const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
     const passkey = Deno.env.get("MPESA_PASSKEY");
@@ -76,12 +164,6 @@ Deno.serve(async (req) => {
     const mpesaEnv = Deno.env.get("MPESA_ENV") || "sandbox";
 
     if (!consumerKey || !consumerSecret || !passkey || !shortcode) {
-      console.error("Missing M-Pesa Env Vars:", {
-        hasConsumerKey: !!consumerKey,
-        hasConsumerSecret: !!consumerSecret,
-        hasPasskey: !!passkey,
-        hasShortcode: !!shortcode,
-      });
       throw new Error("Missing M-Pesa environment variables");
     }
 
@@ -89,9 +171,7 @@ Deno.serve(async (req) => {
       ? "https://api.safaricom.co.ke"
       : "https://sandbox.safaricom.co.ke";
 
-    // A. Get Access Token
     const auth = btoa(`${consumerKey}:${consumerSecret}`);
-    console.log("Authenticating with M-Pesa...");
     const authResp = await fetch(
       `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
       {
@@ -101,14 +181,11 @@ Deno.serve(async (req) => {
 
     if (!authResp.ok) {
       const errorText = await authResp.text();
-      console.error("M-Pesa Auth Error:", errorText);
       throw new Error(`Auth Failed: ${authResp.status} ${errorText}`);
     }
 
     const { access_token } = await authResp.json();
-    console.log("Auth successful.");
 
-    // B. Generate Password & Timestamp
     const date = new Date();
     const timestamp = date.getFullYear().toString() +
       (date.getMonth() + 1).toString().padStart(2, "0") +
@@ -118,13 +195,6 @@ Deno.serve(async (req) => {
       date.getSeconds().toString().padStart(2, "0");
 
     const password = btoa(`${shortcode}${passkey}${timestamp}`);
-
-    // C. Send STK Push Request
-    // Ensure phone number is in 2547... format
-    const formattedPhone = phoneNumber.startsWith("0")
-      ? `254${phoneNumber.slice(1)}`
-      : phoneNumber;
-
     const callbackUrl = `${SUPABASE_URL}/functions/v1/mpesa-callback`;
 
     const stkPayload = {
@@ -132,16 +202,14 @@ Deno.serve(async (req) => {
       Password: password,
       Timestamp: timestamp,
       TransactionType: "CustomerPayBillOnline",
-      Amount: Math.ceil(Number(amount)),
+      Amount: Math.ceil(numericAmount),
       PartyA: formattedPhone,
       PartyB: shortcode,
       PhoneNumber: formattedPhone,
       CallBackURL: callbackUrl,
-      AccountReference: "Ratibu", // Limited chars
+      AccountReference: "Ratibu",
       TransactionDesc: "Chama Deposit",
     };
-
-    console.log("Sending STK Push Payload:", JSON.stringify(stkPayload));
 
     const stkResp = await fetch(
       `${baseUrl}/mpesa/stkpush/v1/processrequest`,
@@ -155,21 +223,13 @@ Deno.serve(async (req) => {
       },
     );
 
-    // Check if response is JSON
     const contentType = stkResp.headers.get("content-type");
-    let stkData;
-    if (contentType && contentType.includes("application/json")) {
-      stkData = await stkResp.json();
-    } else {
+    if (!contentType?.includes("application/json")) {
       const text = await stkResp.text();
-      console.error("M-Pesa Raw Response:", text); // Log raw text for debugging
       throw new Error(`M-Pesa Non-JSON Response: ${text}`);
     }
 
-    console.log("STK Push Response:", JSON.stringify(stkData)); // Log full JSON
-
-    // Safaricom Sandbox sometimes returns ResponseCode 0 even if it fails later,
-    // but usually non-zero is an immediate error.
+    const stkData = await stkResp.json();
     if (stkData.ResponseCode && stkData.ResponseCode !== "0") {
       throw new Error(
         stkData.errorMessage ||
@@ -179,7 +239,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update transaction with checkout request ID
     const { error: updateError } = await supabase
       .from("transactions")
       .update({
@@ -192,29 +251,35 @@ Deno.serve(async (req) => {
       .eq("id", transaction.id);
 
     if (updateError) {
-      console.error("Failed to update transaction:", updateError);
-      // Don't throw here, prioritize returning success to user
+      console.error("Failed to update transaction metadata:", updateError);
     }
 
-    return new Response(
-      JSON.stringify({
-        message: "STK Push Initiated",
-        checkoutRequestId: stkData.CheckoutRequestID,
-        merchantRequestId: stkData.MerchantRequestID,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return jsonResponse({
+      message: "STK Push Initiated",
+      transactionId: transaction.id,
+      checkoutRequestId: stkData.CheckoutRequestID,
+      merchantRequestId: stkData.MerchantRequestID,
+    });
   } catch (err: any) {
     console.error("STK Push Critical Error:", err);
-    return new Response(
-      JSON.stringify({
-        error: err.message || "Unknown Error",
-        details: err.toString(), // Send full error string
-      }),
+
+    if (transactionId) {
+      await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          description: `Failed: ${err.message || "Unknown Error"}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", transactionId);
+    }
+
+    return jsonResponse(
       {
-        status: 400, // Return 400 so client knows it's a logic/upstream error, not server crash
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        error: err.message || "Unknown Error",
+        details: err.toString(),
       },
+      400,
     );
   }
 });

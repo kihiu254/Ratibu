@@ -44,15 +44,15 @@ Run the following commands in your terminal (or set them in the Supabase
 Dashboard under Settings > Edge Functions > Secrets):
 
 ```bash
-# Sandbox Credentials (Provided)
-supabase secrets set MPESA_CONSUMER_KEY="nBmLvdWI8Hs8L0Mx1jvttkCq4tcs7wmBdYkRDBGX5X2ve9RW"
-supabase secrets set MPESA_CONSUMER_SECRET="mCneDHOXPHRCe9llIYzOr9c6yw9EGrAiWkl8jXBDUYTljqyA6XUozw2UHHdX8Gi0"
-supabase secrets set MPESA_PASSKEY="bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
-supabase secrets set MPESA_BUSINESS_SHORTCODE="174379"
+# Sandbox Credentials
+supabase secrets set MPESA_CONSUMER_KEY="your-consumer-key"
+supabase secrets set MPESA_CONSUMER_SECRET="your-consumer-secret"
+supabase secrets set MPESA_PASSKEY="your-passkey"
+supabase secrets set MPESA_BUSINESS_SHORTCODE="your-shortcode"
 supabase secrets set MPESA_ENV="sandbox"
 # B2C / Withdrawal Credentials
-supabase secrets set MPESA_INITIATOR_PASSWORD="jVU*zEC5RW29iRT"
-supabase secrets set MPESA_SECURITY_CREDENTIAL="jyKimUoLwVI5VlbyQx/3VTurnlC44L1iHHR5CLG9PIokzo+COvnPrsex5F8eiXoLTXxpVtYsVHgMT8QhIQxWupbNZEWCRbGc1F0hLnc/PK3bmpdMtgvQbYO8w+jqpo2i20TFRBdbplctvS4Z6J+5b4IcLhAIZyBJEt5SgrwmRytE6u/04TiBm0vuIjPPOuI4uy+koWc3nbgJwp+cl2eAi2oKT9ND3ogJcyLxlA0N2E0t7fR689BpcgTYLX2CsMwk6qb6PGg8DXpLbV6A+hMJ5I7HNGgUxB54AnPsT/seiKW+IK11lzX5tBlTNYQ9FH35KO1nBy/i2OD22wl5ORpggQ=="
+supabase secrets set MPESA_INITIATOR_PASSWORD="your-initiator-password"
+supabase secrets set MPESA_SECURITY_CREDENTIAL="your-security-credential"
 ```
 
 **2. Update `trigger-stk-push` Function:**

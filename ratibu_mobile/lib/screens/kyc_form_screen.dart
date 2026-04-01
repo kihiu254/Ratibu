@@ -234,9 +234,9 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
                   const Text(
                     'Member Verification',
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 22,
                     ),
                   ),
                 ],
@@ -343,12 +343,12 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
               children: [
                 const Text(
                   'Select your member category',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Pick the categories that best describe your role.',
-                  style: TextStyle(color: Colors.white54),
+                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 24),
                 Wrap(
