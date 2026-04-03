@@ -3,6 +3,7 @@ import {
   Search, Filter, Trash2, Eye, User, Loader2, XCircle, Mail,
   X, CheckCircle, Clock, AlertCircle, ShieldCheck, FileText
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
 
@@ -47,7 +48,7 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
       toast.success(`KYC status updated to ${status}`)
       onStatusChange(user.id, status)
       onClose()
-    } catch (e) {
+    } catch {
       toast.error('Failed to update KYC status')
     } finally {
       setUpdating(false)
@@ -76,7 +77,12 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
               <p className="text-sm text-slate-500 flex items-center gap-1"><Mail className="w-3 h-3" /> {user.email}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+          <button
+            onClick={onClose}
+            aria-label="Close user details"
+            title="Close user details"
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+          >
             <X className="w-5 h-5 text-slate-400" />
           </button>
         </div>
@@ -233,7 +239,7 @@ export default function AdminUsers() {
   }
 
   const kycBadge = (status?: string) => {
-    const map: Record<string, { icon: any, cls: string, label: string }> = {
+    const map: Record<string, { icon: LucideIcon, cls: string, label: string }> = {
       approved:    { icon: CheckCircle,  cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   label: 'Approved' },
       pending:     { icon: Clock,        cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', label: 'Pending' },
       rejected:    { icon: AlertCircle,  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',           label: 'Rejected' },
@@ -275,7 +281,9 @@ export default function AdminUsers() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* KYC filter */}
+          <label htmlFor="admin-users-kyc-filter" className="sr-only">Filter users by KYC status</label>
           <select
+            id="admin-users-kyc-filter"
             value={kycFilter}
             onChange={e => setKycFilter(e.target.value)}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853] transition-all"
@@ -296,7 +304,11 @@ export default function AdminUsers() {
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-6 py-3 w-full md:w-64 outline-none focus:border-[#00C853] transition-all"
             />
           </div>
-          <button className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+          <button
+            aria-label="Filter users"
+            title="Filter users"
+            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+          >
             <Filter className="w-5 h-5 text-slate-400" />
           </button>
         </div>
@@ -322,7 +334,13 @@ export default function AdminUsers() {
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold overflow-hidden flex-shrink-0">
                         {user.avatar_url
-                          ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                          ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={`${user.first_name || 'User'} ${user.last_name || ''} profile`.trim()}
+                              className="w-full h-full object-cover"
+                            />
+                          )
                           : (user.first_name?.[0] || <User className="w-5 h-5" />)
                         }
                       </div>
@@ -361,7 +379,12 @@ export default function AdminUsers() {
                           <button onClick={() => handleDelete(user.id)} className="text-xs font-bold text-red-500 px-2 hover:underline">
                             Confirm
                           </button>
-                          <button onClick={() => setDeleteConfirm(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                          <button
+                            onClick={() => setDeleteConfirm(null)}
+                            aria-label="Cancel user deletion"
+                            title="Cancel user deletion"
+                            className="p-1 text-slate-400 hover:text-slate-600"
+                          >
                             <XCircle className="w-4 h-4" />
                           </button>
                         </div>

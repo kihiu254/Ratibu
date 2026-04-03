@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Search, Download, RefreshCw, ArrowUpRight, ArrowDownLeft, CheckCircle, Clock, XCircle, Calendar, Filter } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
 
@@ -29,7 +30,7 @@ interface RawTx {
   chamas?: { name?: string } | null
 }
 
-const TYPE_ICON: Record<string, { icon: any; color: string; bg: string }> = {
+const TYPE_ICON: Record<string, { icon: LucideIcon; color: string; bg: string }> = {
   deposit:      { icon: ArrowDownLeft, color: 'text-green-600',  bg: 'bg-green-100 dark:bg-green-900/30' },
   contribution: { icon: ArrowDownLeft, color: 'text-blue-600',   bg: 'bg-blue-100 dark:bg-blue-900/30' },
   repayment:    { icon: ArrowDownLeft, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
@@ -37,7 +38,7 @@ const TYPE_ICON: Record<string, { icon: any; color: string; bg: string }> = {
   loan:         { icon: ArrowUpRight,  color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30' },
   transfer:     { icon: ArrowUpRight,  color: 'text-slate-500',  bg: 'bg-slate-100 dark:bg-slate-800' },
 }
-const STATUS_MAP: Record<string, { cls: string; icon: any; label: string }> = {
+const STATUS_MAP: Record<string, { cls: string; icon: LucideIcon; label: string }> = {
   completed: { icon: CheckCircle, cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', label: 'Completed' },
   success:   { icon: CheckCircle, cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', label: 'Success' },
   pending:   { icon: Clock,       cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', label: 'Pending' },
@@ -119,10 +120,10 @@ export default function AdminTransactions() {
           <p className="text-slate-500">{filtered.length} records · KES {totalVol.toLocaleString()} volume</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => exportCsv(filtered)} className="flex items-center gap-2 px-4 py-3 text-xs font-bold text-[#00C853] bg-[#00C853]/10 hover:bg-[#00C853]/20 rounded-xl transition-all">
+          <button aria-label="Export transactions as CSV" title="Export transactions as CSV" onClick={() => exportCsv(filtered)} className="flex items-center gap-2 px-4 py-3 text-xs font-bold text-[#00C853] bg-[#00C853]/10 hover:bg-[#00C853]/20 rounded-xl transition-all">
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          <button onClick={fetch} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+          <button aria-label="Refresh transactions" title="Refresh transactions" onClick={fetch} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
             <RefreshCw className="w-4 h-4 text-slate-400" />
           </button>
         </div>
@@ -146,25 +147,29 @@ export default function AdminTransactions() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative">
+          <label htmlFor="admin-transactions-search" className="sr-only">Search transactions</label>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+          <input id="admin-transactions-search" type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-4 py-3 text-sm outline-none focus:border-[#00C853] transition-all w-56" />
         </div>
-        <select value={typeF} onChange={e => setTypeF(e.target.value)}
+        <label htmlFor="admin-transactions-type-filter" className="sr-only">Filter by transaction type</label>
+        <select id="admin-transactions-type-filter" value={typeF} onChange={e => setTypeF(e.target.value)}
           className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853]">
           {types.map(t => <option key={t} value={t}>{t === 'all' ? 'All Types' : t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
         </select>
-        <select value={statusF} onChange={e => setStatusF(e.target.value)}
+        <label htmlFor="admin-transactions-status-filter" className="sr-only">Filter by transaction status</label>
+        <select id="admin-transactions-status-filter" value={statusF} onChange={e => setStatusF(e.target.value)}
           className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853]">
           {statuses.map(s => <option key={s} value={s}>{s === 'all' ? 'All Status' : s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
         </select>
         <div className="relative">
+          <label htmlFor="admin-transactions-date-filter" className="sr-only">Filter by transaction date</label>
           <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="date" value={dateF} onChange={e => setDateF(e.target.value)}
+          <input id="admin-transactions-date-filter" type="date" value={dateF} onChange={e => setDateF(e.target.value)}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-4 py-3 text-sm font-bold outline-none focus:border-[#00C853]" />
         </div>
         {(typeF !== 'all' || statusF !== 'all' || dateF || search) && (
-          <button onClick={() => { setTypeF('all'); setStatusF('all'); setDateF(''); setSearch('') }}
+          <button aria-label="Clear transaction filters" title="Clear transaction filters" onClick={() => { setTypeF('all'); setStatusF('all'); setDateF(''); setSearch('') }}
             className="flex items-center gap-1 px-4 py-3 text-xs font-bold text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
             <Filter className="w-3.5 h-3.5" /> Clear
           </button>

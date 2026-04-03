@@ -201,7 +201,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       final refreshedProfile = await supabase
           .from('users')
           .select('terms_accepted_at, privacy_accepted_at')
-          .eq('id', currentUser?.id)
+          .eq('id', currentUser!.id)
           .maybeSingle();
       final legalAccepted = refreshedProfile?['terms_accepted_at'] != null &&
           refreshedProfile?['privacy_accepted_at'] != null;

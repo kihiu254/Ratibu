@@ -3,6 +3,7 @@ import {
   Activity, Search, Loader2, ArrowUpRight, ArrowDownLeft, RefreshCw,
   CheckCircle, Clock, XCircle, Filter, Download, Calendar
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
 
@@ -37,7 +38,7 @@ interface RawTransaction {
   chamas?: { name?: string } | null
 }
 
-const TYPE_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
+const TYPE_CONFIG: Record<string, { icon: LucideIcon; color: string; bg: string }> = {
   deposit:      { icon: ArrowDownLeft,  color: 'text-green-600',  bg: 'bg-green-100 dark:bg-green-900/30' },
   withdrawal:   { icon: ArrowUpRight,   color: 'text-red-500',    bg: 'bg-red-100 dark:bg-red-900/30' },
   contribution: { icon: ArrowDownLeft,  color: 'text-blue-600',  bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -46,7 +47,7 @@ const TYPE_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
   transfer:     { icon: RefreshCw,      color: 'text-slate-600',  bg: 'bg-slate-100 dark:bg-slate-800' },
 }
 
-const STATUS_CONFIG: Record<string, { icon: any; cls: string; label: string }> = {
+const STATUS_CONFIG: Record<string, { icon: LucideIcon; cls: string; label: string }> = {
   completed: { icon: CheckCircle, cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', label: 'Completed' },
   pending:   { icon: Clock,       cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', label: 'Pending' },
   failed:    { icon: XCircle,     cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', label: 'Failed' },
@@ -204,8 +205,10 @@ export default function AdminActivities() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative">
+          <label htmlFor="activities-search" className="sr-only">Search activities</label>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
+            id="activities-search"
             type="text"
             placeholder="Search by name, chama, reference..."
             value={searchQuery}
@@ -214,7 +217,9 @@ export default function AdminActivities() {
           />
         </div>
 
+        <label htmlFor="activities-type-filter" className="sr-only">Filter by transaction type</label>
         <select
+          id="activities-type-filter"
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
           className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853] transition-all"
@@ -224,7 +229,9 @@ export default function AdminActivities() {
           ))}
         </select>
 
+        <label htmlFor="activities-status-filter" className="sr-only">Filter by transaction status</label>
         <select
+          id="activities-status-filter"
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
           className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853] transition-all"
@@ -235,8 +242,10 @@ export default function AdminActivities() {
         </select>
 
         <div className="relative">
+          <label htmlFor="activities-date-filter" className="sr-only">Filter by transaction date</label>
           <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
+            id="activities-date-filter"
             type="date"
             value={dateFilter}
             onChange={e => setDateFilter(e.target.value)}

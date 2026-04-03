@@ -1,67 +1,43 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { Bell, Info, AlertTriangle, CheckCircle, XCircle, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatDistanceToNow } from 'date-fns'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface Notification {
   id: string
+  user_id: string
   title: string
   message: string
   type: 'info' | 'warning' | 'success' | 'error'
   is_read: boolean
   created_at: string
+  link?: string | null
 }
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const userIdRef = useRef<string | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   const unreadCount = notifications.filter(n => !n.is_read).length
 
-  useEffect(() => {
-    fetchNotifications()
-
-    // Subscribe to real-time notifications
-    const channel = supabase
-      .channel('public:notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-        },
-      (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev])
-          
-          // Play notification sound
-          try {
-            // Ideally use a real file, but for now lets try a simple beep concept or rely on a standard URL if internet is available.
-            // Using a hosted sound file is better.
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
-            audio.play().catch(e => console.log('Audio play blocked:', e))
-          } catch (e) {
-            console.error('Error playing sound:', e)
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [])
-
-  async function fetchNotifications() {
+  const fetchNotifications = useCallback(async (currentUserId?: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const resolvedUserId = currentUserId ?? userIdRef.current
+      if (!resolvedUserId) {
+        setNotifications([])
+        return
+      }
 
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
+        .eq('user_id', resolvedUserId)
         .order('created_at', { ascending: false })
         .limit(20)
 
@@ -72,6 +48,104 @@ export default function NotificationCenter() {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const cleanupChannel = useCallback(() => {
+    const activeChannel = channelRef.current
+    if (!activeChannel) return
+
+    channelRef.current = null
+
+    try {
+      activeChannel.unsubscribe()
+    } catch {
+      // Ignore local teardown errors during reconnects.
+    }
+  }, [])
+
+  const subscribeToNotifications = useCallback((currentUserId: string) => {
+    cleanupChannel()
+
+    channelRef.current = supabase
+      .channel(`notifications:${currentUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        () => {
+          void fetchNotifications(currentUserId)
+          playNotificationSound()
+        }
+      )
+      .subscribe()
+  }, [cleanupChannel, fetchNotifications])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function initialize() {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!isMounted) return
+
+      if (!user) {
+        setUserId(null)
+        setNotifications([])
+        setLoading(false)
+        return
+      }
+
+      setUserId(user.id)
+      userIdRef.current = user.id
+      await fetchNotifications(user.id)
+      subscribeToNotifications(user.id)
+    }
+
+    void initialize()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user?.id ?? null
+      setUserId(nextUserId)
+      userIdRef.current = nextUserId
+
+      if (!nextUserId) {
+        setNotifications([])
+        setLoading(false)
+        cleanupChannel()
+        return
+      }
+
+      void fetchNotifications(nextUserId)
+      subscribeToNotifications(nextUserId)
+    })
+
+    const refreshOnFocus = () => {
+      if (userIdRef.current) {
+        void fetchNotifications(userIdRef.current)
+      }
+    }
+
+    window.addEventListener('focus', refreshOnFocus)
+
+    return () => {
+      isMounted = false
+      window.removeEventListener('focus', refreshOnFocus)
+      authListener.subscription.unsubscribe()
+      cleanupChannel()
+    }
+  }, [cleanupChannel, fetchNotifications, subscribeToNotifications])
+
+  function playNotificationSound() {
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
+      audio.play().catch(e => console.log('Audio play blocked:', e))
+    } catch (e) {
+      console.error('Error playing sound:', e)
+    }
   }
 
   async function markAsRead(id: string) {
@@ -80,6 +154,7 @@ export default function NotificationCenter() {
         .from('notifications')
         .update({ is_read: true })
         .eq('id', id)
+        .eq('user_id', userId)
 
       if (error) throw error
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
@@ -119,6 +194,8 @@ export default function NotificationCenter() {
     <div className="relative">
       <button 
         onClick={() => setOpen(!open)}
+        aria-label={open ? 'Close notifications' : 'Open notifications'}
+        title={open ? 'Close notifications' : 'Open notifications'}
         className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
       >
         <Bell className="w-5 h-5" />
@@ -133,9 +210,11 @@ export default function NotificationCenter() {
         {open && (
           <>
             {/* Backdrop */}
-            <div 
-              className="fixed inset-0 z-40 outline-none" 
+            <button
+              type="button"
+              className="fixed inset-0 z-40 outline-none"
               onClick={() => setOpen(false)}
+              aria-label="Close notifications"
             />
             
             <motion.div
@@ -155,7 +234,12 @@ export default function NotificationCenter() {
                       Mark all as read
                     </button>
                   )}
-                  <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <button
+                    onClick={() => setOpen(false)}
+                    aria-label="Close notifications panel"
+                    title="Close notifications panel"
+                    className="text-slate-400 hover:text-slate-600"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -175,10 +259,11 @@ export default function NotificationCenter() {
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {notifications.map((n) => (
-                      <div 
-                        key={n.id} 
+                      <button
+                        type="button"
+                        key={n.id}
                         onClick={() => !n.is_read && markAsRead(n.id)}
-                        className={`p-4 flex gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer relative ${!n.is_read && 'bg-[#00C853]/5'}`}
+                        className={`w-full p-4 flex gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer relative text-left ${!n.is_read && 'bg-[#00C853]/5'}`}
                       >
                         <div className="flex-shrink-0 mt-1">
                           {getIcon(n.type)}
@@ -197,7 +282,7 @@ export default function NotificationCenter() {
                         {!n.is_read && (
                           <div className="w-2 h-2 rounded-full bg-[#00C853] absolute right-4 top-5" />
                         )}
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

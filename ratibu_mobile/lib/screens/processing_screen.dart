@@ -11,11 +11,12 @@ class ProcessingScreen extends StatefulWidget {
   State<ProcessingScreen> createState() => _ProcessingScreenState();
 }
 
-class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerProviderStateMixin {
+class _ProcessingScreenState extends State<ProcessingScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   String _statusMessage = 'Starting Ratibu...';
-  
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +82,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = (screenWidth * 0.6).clamp(220.0, 300.0) as double;
+    final logoSize = (screenWidth * 0.82).clamp(280.0, 380.0);
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       body: FadeTransition(

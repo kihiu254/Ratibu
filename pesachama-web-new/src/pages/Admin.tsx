@@ -124,7 +124,7 @@ export default function Admin() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Recent Onboarding</h2>
-            <button className="text-[#00C853] text-xs font-bold flex items-center gap-2 hover:gap-3 transition-all">
+            <button aria-label="View user directory" title="View user directory" className="text-[#00C853] text-xs font-bold flex items-center gap-2 hover:gap-3 transition-all">
               View Directory <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -145,7 +145,7 @@ export default function Admin() {
                     <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider ${user.system_role === 'super_admin' ? 'bg-[#00C853] text-black' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                       {user.system_role || 'user'}
                     </span>
-                    <button className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                    <button aria-label={`More actions for ${user.first_name} ${user.last_name}`} title={`More actions for ${user.first_name} ${user.last_name}`} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
                       <MoreVertical className="w-4 h-4" />
                     </button>
                   </div>
@@ -159,7 +159,7 @@ export default function Admin() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">New Chamas</h2>
-            <button className="text-[#00C853] text-xs font-bold flex items-center gap-2 hover:gap-3 transition-all">
+            <button aria-label="Open global chama registry" title="Open global chama registry" className="text-[#00C853] text-xs font-bold flex items-center gap-2 hover:gap-3 transition-all">
               Global Registry <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -180,7 +180,7 @@ export default function Admin() {
                     <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500`}>
                       {chama.category || 'Group'}
                     </span>
-                    <button className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                    <button aria-label={`More actions for ${chama.name}`} title={`More actions for ${chama.name}`} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
                       <MoreVertical className="w-4 h-4" />
                     </button>
                   </div>

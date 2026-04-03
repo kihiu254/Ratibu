@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Lock, Mail, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react'
@@ -6,22 +6,15 @@ import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const savedEmail = localStorage.getItem('remember_me_email') ?? ''
+  const [email, setEmail] = useState(savedEmail)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
+  const [rememberMe, setRememberMe] = useState(Boolean(savedEmail))
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('remember_me_email')
-    if (savedEmail) {
-      setEmail(savedEmail)
-      setRememberMe(true)
-    }
-  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 
+let hasInitializedNotifications = false
+
 const urlB64ToUint8Array = (base64String: string) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -15,14 +17,17 @@ const urlB64ToUint8Array = (base64String: string) => {
 
 async function registerServiceWorker(vapidKey?: string) {
   if (!('serviceWorker' in navigator)) return
+  if (!import.meta.env.PROD) {
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(registrations.map((registration) => registration.unregister()))
+    return
+  }
 
   try {
     const registration = await navigator.serviceWorker.register('/service-worker.js')
-    console.log('Service Worker Registered', registration)
 
     if (!('PushManager' in window)) return
     if (!vapidKey) {
-      console.info('Push subscription skipped: missing VAPID public key')
       return
     }
 
@@ -32,7 +37,7 @@ async function registerServiceWorker(vapidKey?: string) {
       applicationServerKey: urlB64ToUint8Array(vapidKey),
     })
 
-    console.log('Push subscription:', subscription)
+    void subscription
   } catch (error) {
     console.error('Service worker or push setup failed', error)
   }
@@ -56,6 +61,9 @@ export function useBrowserNotifications() {
   const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
 
   useEffect(() => {
+    if (hasInitializedNotifications) return
+    hasInitializedNotifications = true
+
     void registerServiceWorker(vapidKey)
     void requestNotificationPermission()
 
@@ -68,9 +76,7 @@ export function useBrowserNotifications() {
       }
     }
 
-    const handleOffline = () => {
-      console.log('App is offline')
-    }
+    const handleOffline = () => undefined
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)

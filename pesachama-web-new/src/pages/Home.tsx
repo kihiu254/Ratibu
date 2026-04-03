@@ -22,7 +22,7 @@ const Hero = () => {
             </div>
             
             {/* Background Grid & Overlays */}
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none z-1" />
+            <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 pointer-events-none z-1" />
             <div className="absolute inset-0 bg-white/5 dark:bg-midnight/40 z-1" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.3)_0%,transparent_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(2,6,23,0.7)_0%,transparent_100%)] z-1 transition-all duration-500" />
  

@@ -10,6 +10,10 @@ class SavingsTarget {
   final double allocationValue;
   final String status;
   final String? notes;
+  final bool isLocked;
+  final int? lockPeriodMonths;
+  final DateTime? lockUntil;
+  final DateTime? lockStartedAt;
 
   const SavingsTarget({
     required this.id,
@@ -23,6 +27,10 @@ class SavingsTarget {
     required this.allocationValue,
     required this.status,
     required this.notes,
+    this.isLocked = false,
+    this.lockPeriodMonths,
+    this.lockUntil,
+    this.lockStartedAt,
   });
 
   factory SavingsTarget.fromMap(Map<String, dynamic> map) {
@@ -38,12 +46,31 @@ class SavingsTarget {
       allocationValue: (map['allocation_value'] as num?)?.toDouble() ?? 0,
       status: map['status'] as String? ?? 'active',
       notes: map['notes'] as String?,
+      isLocked: map['is_locked'] as bool? ?? false,
+      lockPeriodMonths: map['lock_period_months'] as int?,
+      lockUntil: map['lock_until'] != null
+          ? DateTime.tryParse(map['lock_until'] as String)
+          : null,
+      lockStartedAt: map['lock_started_at'] != null
+          ? DateTime.tryParse(map['lock_started_at'] as String)
+          : null,
     );
   }
 
   double get progressPercent {
     if (targetAmount <= 0) return 0;
-    final value = (currentAmount / targetAmount) * 100;
-    return value > 100 ? 100 : value;
+    return ((currentAmount / targetAmount) * 100).clamp(0, 100);
+  }
+
+  /// Whether the lock period is still active
+  bool get isCurrentlyLocked {
+    if (!isLocked || lockUntil == null) return false;
+    return DateTime.now().isBefore(lockUntil!);
+  }
+
+  /// Days remaining in lock period
+  int get lockDaysRemaining {
+    if (!isCurrentlyLocked) return 0;
+    return lockUntil!.difference(DateTime.now()).inDays;
   }
 }

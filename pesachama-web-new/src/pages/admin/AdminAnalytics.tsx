@@ -3,6 +3,7 @@ import {
   TrendingUp, Users, Target, CreditCard, ArrowUpRight, ArrowDownLeft,
   Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 interface Stats {
@@ -21,10 +22,13 @@ interface Stats {
 }
 
 interface DayStat { day: string; amount: number; count: number }
+interface TransactionRow { amount: number; type: string; status: string; created_at: string }
+interface TopChama { id: string; name: string; balance: number | null; member_count: number | null }
+type KycBarColor = 'bg-green-500' | 'bg-yellow-400' | 'bg-red-500'
 
 function StatCard({ label, value, sub, icon: Icon, color, trend }: {
   label: string; value: string | number; sub?: string;
-  icon: any; color: string; trend?: number
+  icon: LucideIcon; color: string; trend?: number
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 hover:shadow-md transition-all">
@@ -50,18 +54,41 @@ function StatCard({ label, value, sub, icon: Icon, color, trend }: {
 
 function KycDonutBar({ pending, approved, rejected }: { pending: number; approved: number; rejected: number }) {
   const total = pending + approved + rejected || 1
-  const bars = [
+  const bars: Array<{ label: string; value: number; color: KycBarColor; pct: number }> = [
     { label: 'Approved', value: approved, color: 'bg-green-500', pct: Math.round(approved / total * 100) },
     { label: 'Pending',  value: pending,  color: 'bg-yellow-400', pct: Math.round(pending / total * 100) },
     { label: 'Rejected', value: rejected, color: 'bg-red-500',   pct: Math.round(rejected / total * 100) },
   ]
+  const segmentColors = {
+    'bg-green-500': '#22c55e',
+    'bg-yellow-400': '#facc15',
+    'bg-red-500': '#ef4444',
+  } as const
+  let xOffset = 0
   return (
     <div className="space-y-3">
-      <div className="h-3 w-full rounded-full overflow-hidden flex gap-0.5">
-        {bars.map(b => (
-          <div key={b.label} className={`${b.color} h-full transition-all`} style={{ width: `${b.pct}%` }} />
-        ))}
-      </div>
+      <svg
+        viewBox="0 0 100 12"
+        preserveAspectRatio="none"
+        className="h-3 w-full overflow-hidden rounded-full"
+        role="img"
+        aria-label="KYC status distribution"
+      >
+        {bars.map((bar) => {
+          const rect = (
+            <rect
+              key={bar.label}
+              x={xOffset}
+              y="0"
+              width={bar.pct}
+              height="12"
+              fill={segmentColors[bar.color]}
+            />
+          )
+          xOffset += bar.pct
+          return rect
+        })}
+      </svg>
       <div className="flex gap-6">
         {bars.map(b => (
           <div key={b.label} className="flex items-center gap-2">
@@ -80,10 +107,22 @@ function MiniBar({ data }: { data: DayStat[] }) {
     <div className="flex items-end gap-1 h-20">
       {data.slice(-14).map((d, i) => (
         <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-          <div
-            className="w-full bg-[#00C853]/20 group-hover:bg-[#00C853] rounded-t transition-all"
-            style={{ height: `${(d.amount / max) * 100}%`, minHeight: 4 }}
-          />
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="w-full h-full"
+            role="img"
+            aria-label={`Daily volume for ${d.day}: KES ${d.amount.toLocaleString()}`}
+          >
+            <rect
+              x="0"
+              y={Math.max(0, 100 - Math.max(4, Math.round((d.amount / max) * 100)))}
+              width="100"
+              height={Math.max(4, Math.round((d.amount / max) * 100))}
+              rx="6"
+              fill="rgba(0, 200, 83, 0.2)"
+            />
+          </svg>
           <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
             KES {d.amount.toLocaleString()}
           </div>
@@ -97,7 +136,7 @@ export default function AdminAnalytics() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [dailyData, setDailyData] = useState<DayStat[]>([])
   const [loading, setLoading] = useState(true)
-  const [topChamas, setTopChamas] = useState<any[]>([])
+  const [topChamas, setTopChamas] = useState<TopChama[]>([])
 
   useEffect(() => {
     fetchAll()
@@ -131,7 +170,7 @@ export default function AdminAnalytics() {
         supabase.from('chamas').select('id, name, balance, member_count').order('balance', { ascending: false }).limit(5),
       ])
 
-      const completedTx = (txData || []).filter(t => t.status === 'completed' || t.status === 'success')
+      const completedTx = ((txData || []) as TransactionRow[]).filter((t) => t.status === 'completed' || t.status === 'success')
       const totalVolume = completedTx.reduce((s, t) => s + Number(t.amount), 0)
       const depositVolume = completedTx.filter(t => ['deposit', 'contribution', 'repayment'].includes(t.type)).reduce((s, t) => s + Number(t.amount), 0)
       const withdrawalVolume = completedTx.filter(t => ['withdrawal', 'loan'].includes(t.type)).reduce((s, t) => s + Number(t.amount), 0)
@@ -152,7 +191,7 @@ export default function AdminAnalytics() {
       })
 
       setDailyData(Object.values(dayMap))
-      setTopChamas(chamasData || [])
+      setTopChamas((chamasData || []) as TopChama[])
       setStats({
         totalUsers: totalUsers || 0,
         kycPending: kycPending || 0,
@@ -266,7 +305,8 @@ export default function AdminAnalytics() {
           </div>
           <div className="space-y-3">
             {topChamas.map((c, i) => {
-              const maxBal = topChamas[0]?.balance || 1
+              const maxBal = Number(topChamas[0]?.balance ?? 0) || 1
+              const balance = Number(c.balance ?? 0)
               return (
                 <div key={c.id} className="flex items-center gap-4">
                   <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-black text-slate-500">
@@ -275,13 +315,25 @@ export default function AdminAnalytics() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-bold text-slate-900 dark:text-white">{c.name}</p>
-                      <p className="text-sm font-black text-[#00C853]">KES {Number(c.balance || 0).toLocaleString()}</p>
+                      <p className="text-sm font-black text-[#00C853]">KES {balance.toLocaleString()}</p>
                     </div>
                     <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#00C853] rounded-full transition-all"
-                        style={{ width: `${(c.balance / maxBal) * 100}%` }}
-                      />
+                      <svg
+                        viewBox="0 0 100 6"
+                        preserveAspectRatio="none"
+                        className="h-full w-full"
+                        role="img"
+                        aria-label={`${c.name} balance bar`}
+                      >
+                        <rect
+                          x="0"
+                          y="0"
+                          width={(balance / maxBal) * 100}
+                          height="6"
+                          rx="3"
+                          fill="#00C853"
+                        />
+                      </svg>
                     </div>
                   </div>
                 </div>

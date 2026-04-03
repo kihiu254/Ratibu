@@ -20,6 +20,14 @@ export default function CreateChama() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
+  const getCreateChamaError = (message: string) => {
+    const lower = message.toLowerCase()
+    if (lower.includes('a chama with this name already exists')) {
+      return 'A chama with this name already exists. Choose a different name.'
+    }
+    return message
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -41,15 +49,16 @@ export default function CreateChama() {
           description: formData.description,
           created_by: user.id,
           contribution_amount: parseFloat(formData.contributionAmount),
-          contribution_frequency: formData.meetingFrequency, // and renaming this as per schema
+          contribution_frequency: formData.meetingFrequency,
           category: formData.category,
+          member_limit: 30,
         },
       ])
       .select()
       .single()
 
     if (chamaError) {
-      setError(chamaError.message)
+      setError(getCreateChamaError(chamaError.message))
       setLoading(false)
       return
     }
@@ -109,6 +118,10 @@ export default function CreateChama() {
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Create New Chama</h2>
             <p className="text-slate-600 dark:text-slate-400">Set up your savings group and invite members</p>
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-[#00C853]/10 border border-[#00C853]/20 rounded-lg">
+              <Users className="h-4 w-4 text-[#00C853] flex-shrink-0" />
+              <p className="text-sm text-[#00C853] font-medium">Maximum 30 members per chama</p>
+            </div>
           </div>
 
           <form onSubmit={handleCreate} className="space-y-6">
@@ -120,10 +133,11 @@ export default function CreateChama() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-1 md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Chama Name</label>
+                <label htmlFor="chama-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Chama Name</label>
                 <div className="relative">
                   <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                   <input
+                    id="chama-name"
                     name="name"
                     type="text"
                     value={formData.name}
@@ -136,10 +150,11 @@ export default function CreateChama() {
               </div>
 
               <div className="col-span-1 md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Description</label>
+                <label htmlFor="chama-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Description</label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-3 h-5 w-5 text-slate-400 dark:text-slate-500" />
                   <textarea
+                    id="chama-description"
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
@@ -151,10 +166,11 @@ export default function CreateChama() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Meeting Frequency</label>
+                <label htmlFor="chama-meeting-frequency" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Meeting Frequency</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                   <select
+                    id="chama-meeting-frequency"
                     name="meetingFrequency"
                     value={formData.meetingFrequency}
                     onChange={handleChange}
@@ -168,10 +184,11 @@ export default function CreateChama() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Contribution Amount</label>
+                <label htmlFor="chama-contribution-amount" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Contribution Amount</label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                   <input
+                    id="chama-contribution-amount"
                     name="contributionAmount"
                     type="number"
                     value={formData.contributionAmount}
@@ -184,10 +201,11 @@ export default function CreateChama() {
               </div>
 
               <div className="col-span-1 md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Chama Category</label>
+                <label htmlFor="chama-category" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Chama Category</label>
                 <div className="relative">
                   <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                   <select
+                    id="chama-category"
                     name="category"
                     value={formData.category}
                     onChange={handleChange}

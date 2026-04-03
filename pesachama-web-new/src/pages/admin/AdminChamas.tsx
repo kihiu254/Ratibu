@@ -97,17 +97,21 @@ export default function AdminChamas() {
         
         <div className="flex items-center gap-3">
           <div className="relative group">
+            <label htmlFor="admin-chamas-search" className="sr-only">Search chamas</label>
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input 
+              id="admin-chamas-search"
               type="text" 
+              aria-label="Search chamas"
               placeholder="Search chamas..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-12 pr-6 py-3 w-full md:w-64 outline-none focus:border-[#00C853] transition-all"
             />
           </div>
-          <button className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+          <button type="button" aria-label="Filter chamas" title="Filter chamas" className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
             <Filter className="w-5 h-5 text-slate-400" />
+            <span className="sr-only">Filter chamas</span>
           </button>
         </div>
       </div>
@@ -160,35 +164,48 @@ export default function AdminChamas() {
                   <td className="py-4 px-6 text-right">
                     <div className="flex items-center justify-end gap-2">
                        <button 
+                         type="button"
                          onClick={() => navigate(`/admin/chamas/${chama.id}`)}
+                         aria-label={`View details for ${chama.name}`}
                          className="p-2 text-slate-400 hover:text-[#00C853] hover:bg-[#00C853]/10 rounded-lg transition-all"
                          title="View Details"
                        >
                          <Eye className="w-4 h-4" />
+                         <span className="sr-only">{`View details for ${chama.name}`}</span>
                        </button>
                        
                        {deleteConfirm === chama.id ? (
                          <div className="flex items-center gap-2 bg-red-500/10 p-1 rounded-lg">
                            <button 
+                             type="button"
                              onClick={() => handleDelete(chama.id)}
+                             aria-label={`Confirm deletion of ${chama.name}`}
+                             title={`Confirm deletion of ${chama.name}`}
                              className="text-xs font-bold text-red-500 px-2 hover:underline"
                            >
                              Confirm
                            </button>
                            <button 
+                             type="button"
                              onClick={() => setDeleteConfirm(null)}
+                             aria-label="Cancel chama deletion"
+                             title="Cancel chama deletion"
                              className="p-1 text-slate-400 hover:text-slate-600"
                            >
                              <XCircle className="w-4 h-4" />
+                             <span className="sr-only">Cancel chama deletion</span>
                            </button>
                          </div>
                        ) : (
                          <button 
+                           type="button"
                            onClick={() => setDeleteConfirm(chama.id)}
+                           aria-label={`Delete ${chama.name}`}
                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                            title="Delete Chama"
                          >
                            <Trash2 className="w-4 h-4" />
+                           <span className="sr-only">{`Delete ${chama.name}`}</span>
                          </button>
                        )}
                     </div>

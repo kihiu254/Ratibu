@@ -34,6 +34,27 @@ interface ChamaAdmin {
   chama_id: string
 }
 
+interface PromoteUser {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  system_role: string
+}
+
+interface ChamaAdminRow {
+  user_id: string
+  role: string
+  chama_id: string
+  users: { email: string; first_name: string; last_name: string }[] | { email: string; first_name: string; last_name: string } | null
+  chamas: { name: string }[] | { name: string } | null
+}
+
+function firstRelation<T>(value: T[] | T | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
 export default function AdminRoles() {
   const [systemAdmins, setSystemAdmins] = useState<SystemAdmin[]>([])
   const [chamaAdmins, setChamaAdmins] = useState<ChamaAdmin[]>([])
@@ -41,7 +62,7 @@ export default function AdminRoles() {
   const [updating, setUpdating] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showPromoteModal, setShowPromoteModal] = useState(false)
-  const [usersToPromote, setUsersToPromote] = useState<any[]>([])
+  const [usersToPromote, setUsersToPromote] = useState<PromoteUser[]>([])
   const [userSearch, setUserSearch] = useState('')
 
   useEffect(() => {
@@ -76,15 +97,20 @@ export default function AdminRoles() {
 
       if (chamaError) throw chamaError
 
-      const mappedChamaAdmins = (chamaData || []).map((item: any) => ({
-        user_id: item.user_id,
-        user_email: item.users?.email,
-        user_first: item.users?.first_name,
-        user_last: item.users?.last_name,
-        chama_name: item.chamas?.name,
-        role: item.role,
-        chama_id: item.chama_id
-      }))
+      const mappedChamaAdmins = ((chamaData || []) as ChamaAdminRow[]).map((item) => {
+        const userInfo = firstRelation(item.users)
+        const chamaInfo = firstRelation(item.chamas)
+
+        return {
+          user_id: item.user_id,
+          user_email: userInfo?.email || '',
+          user_first: userInfo?.first_name || '',
+          user_last: userInfo?.last_name || '',
+          chama_name: chamaInfo?.name || '',
+          role: item.role,
+          chama_id: item.chama_id,
+        }
+      })
 
       setChamaAdmins(mappedChamaAdmins)
 
@@ -107,7 +133,7 @@ export default function AdminRoles() {
         .limit(5)
       
       if (error) throw error
-      setUsersToPromote(data || [])
+      setUsersToPromote((data || []) as PromoteUser[])
     } catch {
       toast.error('Search failed')
     }
@@ -208,6 +234,7 @@ export default function AdminRoles() {
                     {user.system_role !== 'super_admin' && (
                       <button 
                         onClick={() => updateSystemRole(user.id, 'user')}
+                        aria-label={`Demote ${user.first_name} ${user.last_name} to user`}
                         className="p-2 text-slate-400 hover:text-red-500 transition-colors"
                         title="Demote to User"
                       >
@@ -274,7 +301,12 @@ export default function AdminRoles() {
             <div className="p-8 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Add System Admin</h2>
-                <button onClick={() => setShowPromoteModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <button
+                  onClick={() => setShowPromoteModal(false)}
+                  aria-label="Close add admin dialog"
+                  title="Close add admin dialog"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                >
                   <UserPlus className="w-6 h-6 text-slate-400 rotate-45" />
                 </button>
               </div>

@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
 
 export default function OTPVerification() {
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -33,7 +38,7 @@ export default function OTPVerification() {
       }
     }
     getUser()
-  }, [])
+  }, [navigate])
 
   const handleChange = (element: HTMLInputElement, index: number) => {
     if (isNaN(Number(element.value))) return false
@@ -100,9 +105,9 @@ export default function OTPVerification() {
         .maybeSingle()
       const legalAccepted = Boolean(refreshedProfile?.terms_accepted_at && refreshedProfile?.privacy_accepted_at)
       navigate(legalAccepted ? '/membership-kyc' : '/onboarding')
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error verifying OTP:', error)
-      toast.error(error.message || 'Verification failed. Please check the code.')
+      toast.error(getErrorMessage(error, 'Verification failed. Please check the code.'))
     } finally {
       setLoading(false)
     }
@@ -137,9 +142,9 @@ export default function OTPVerification() {
       }
       toast.success('New security code sent!')
       setOtp(['', '', '', '', '', ''])
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error resending OTP:', error)
-      toast.error('Failed to resend code')
+      toast.error(getErrorMessage(error, 'Failed to resend code'))
     } finally {
       setResending(false)
     }
@@ -155,6 +160,8 @@ export default function OTPVerification() {
         >
           <button 
             onClick={() => navigate(-1)}
+            aria-label="Go back"
+            title="Go back"
             className="p-2 mb-6 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -171,11 +178,16 @@ export default function OTPVerification() {
           </div>
 
           <form onSubmit={handleVerify} className="space-y-8">
+            <fieldset>
+              <legend className="sr-only">Enter the 6-digit verification code</legend>
             <div className="flex justify-between gap-2">
               {otp.map((data, index) => (
                 <input
                   key={index}
                   type="text"
+                  inputMode="numeric"
+                  aria-label={`Verification code digit ${index + 1}`}
+                  title={`Verification code digit ${index + 1}`}
                   maxLength={1}
                   value={data}
                   onChange={e => handleChange(e.target, index)}
@@ -184,10 +196,13 @@ export default function OTPVerification() {
                 />
               ))}
             </div>
+            </fieldset>
 
             <button
               type="submit"
               disabled={loading}
+              aria-label={loading ? 'Verifying code and proceeding' : 'Verify code and proceed'}
+              title={loading ? 'Verifying code and proceeding' : 'Verify code and proceed'}
               className="w-full py-4 bg-[#00C853] hover:bg-green-600 text-white font-black rounded-2xl shadow-xl shadow-green-500/20 transition-all disabled:opacity-50 flex items-center justify-center"
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'VERIFY & PROCEED'}

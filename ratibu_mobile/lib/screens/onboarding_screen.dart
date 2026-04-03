@@ -20,21 +20,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<OnboardingPage> _pages = [
     OnboardingPage(
       title: 'Save Together',
-      description: 'Join Chamas and save money with your friends and family efficiently.',
+      description:
+          'Join Chamas and save money with your friends and family efficiently.',
       imagePath: 'assets/images/logo_square.png',
       icon: Icons.group_add_outlined,
       color: const Color(0xFF00C853),
     ),
     OnboardingPage(
       title: 'Total Transparency',
-      description: 'Track every contribution and expense with our real-time ledger system.',
+      description:
+          'Track every contribution and expense with our real-time ledger system.',
       imagePath: 'assets/images/logo_square.png',
       icon: Icons.account_balance_wallet_outlined,
       color: Colors.orange,
     ),
     OnboardingPage(
       title: 'Financial Growth',
-      description: 'Invest your group savings and watch your wealth grow together.',
+      description:
+          'Invest your group savings and watch your wealth grow together.',
       imagePath: 'assets/images/logo_square.png',
       icon: Icons.trending_up,
       color: Colors.blue,
@@ -64,28 +67,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     try {
       final profile = await Supabase.instance.client
           .from('users')
-          .select('kyc_status, otp_verified_at, terms_accepted_at, privacy_accepted_at')
+          .select(
+              'kyc_status, otp_verified_at, terms_accepted_at, privacy_accepted_at')
           .eq('id', user.id)
           .maybeSingle();
 
       if (!_acceptedTerms || !_acceptedPrivacy) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please accept the Terms and Conditions and Privacy Policy before continuing.')),
+          const SnackBar(
+              content: Text(
+                  'Please accept the Terms and Conditions and Privacy Policy before continuing.')),
         );
         return;
       }
 
-      if (profile?['terms_accepted_at'] == null || profile?['privacy_accepted_at'] == null) {
+      if (profile?['terms_accepted_at'] == null ||
+          profile?['privacy_accepted_at'] == null) {
         final now = DateTime.now().toIso8601String();
-        await Supabase.instance.client
-            .from('users')
-            .update({
-              'terms_accepted_at': now,
-              'privacy_accepted_at': now,
-              'updated_at': now,
-            })
-            .eq('id', user.id);
+        await Supabase.instance.client.from('users').update({
+          'terms_accepted_at': now,
+          'privacy_accepted_at': now,
+          'updated_at': now,
+        }).eq('id', user.id);
         await Supabase.instance.client.auth.updateUser(
           UserAttributes(
             data: {
@@ -96,8 +100,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         );
       }
 
-      final localOtpVerified = prefs.getBool('otp_verified_${user.id}') ?? false;
-      final otpVerified = profile?['otp_verified_at'] != null || localOtpVerified;
+      final localOtpVerified =
+          prefs.getBool('otp_verified_${user.id}') ?? false;
+      final otpVerified =
+          profile?['otp_verified_at'] != null || localOtpVerified;
       final kycStatus = profile?['kyc_status'] ?? 'not_started';
 
       if (!mounted) return;
@@ -121,7 +127,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = (screenWidth * 0.7).clamp(200.0, 320.0) as double;
+    final logoSize = (screenWidth * 0.88).clamp(280.0, 400.0);
     return Scaffold(
       backgroundColor: const Color(0xFF020617), // Midnight background
       body: Stack(
@@ -133,7 +139,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             itemBuilder: (context, index) {
               final page = _pages[index];
               return Padding(
-                padding: const EdgeInsets.fromLTRB(40, 40, 40, 200),
+                padding: const EdgeInsets.fromLTRB(28, 32, 28, 188),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -147,7 +153,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 28),
                     Text(
                       page.title,
                       style: const TextStyle(
@@ -202,8 +208,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           width: _currentPage == index ? 24 : 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: _currentPage == index 
-                                ? const Color(0xFF00C853) 
+                            color: _currentPage == index
+                                ? const Color(0xFF00C853)
                                 : Colors.white24,
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -222,24 +228,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         children: [
                           CheckboxListTile(
                             value: _acceptedTerms,
-                            onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                            onChanged: (value) =>
+                                setState(() => _acceptedTerms = value ?? false),
                             contentPadding: EdgeInsets.zero,
                             controlAffinity: ListTileControlAffinity.leading,
                             activeColor: const Color(0xFF00C853),
                             title: GestureDetector(
-                              onTap: () => context.push('/legal/Terms%20of%20Service'),
-                              child: const Text('I accept the Terms and Conditions', style: TextStyle(color: Colors.white)),
+                              onTap: () =>
+                                  context.push('/legal/Terms%20of%20Service'),
+                              child: const Text(
+                                  'I accept the Terms and Conditions',
+                                  style: TextStyle(color: Colors.white)),
                             ),
                           ),
                           CheckboxListTile(
                             value: _acceptedPrivacy,
-                            onChanged: (value) => setState(() => _acceptedPrivacy = value ?? false),
+                            onChanged: (value) => setState(
+                                () => _acceptedPrivacy = value ?? false),
                             contentPadding: EdgeInsets.zero,
                             controlAffinity: ListTileControlAffinity.leading,
                             activeColor: const Color(0xFF00C853),
                             title: GestureDetector(
-                              onTap: () => context.push('/legal/Privacy%20Policy'),
-                              child: const Text('I accept the Privacy Policy', style: TextStyle(color: Colors.white)),
+                              onTap: () =>
+                                  context.push('/legal/Privacy%20Policy'),
+                              child: const Text('I accept the Privacy Policy',
+                                  style: TextStyle(color: Colors.white)),
                             ),
                           ),
                         ],
@@ -251,7 +264,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: _currentPage == _pages.length - 1
-                            ? (_isCompleting || !_acceptedTerms || !_acceptedPrivacy ? null : _completeOnboarding)
+                            ? (_isCompleting ||
+                                    !_acceptedTerms ||
+                                    !_acceptedPrivacy
+                                ? null
+                                : _completeOnboarding)
                             : () => _pageController.nextPage(
                                   duration: const Duration(milliseconds: 300),
                                   curve: Curves.easeInOut,
@@ -264,15 +281,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                         child: Text(
-                          _currentPage == _pages.length - 1 ? 'Get Started' : 'Next',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          _currentPage == _pages.length - 1
+                              ? 'Get Started'
+                              : 'Next',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
                     if (_currentPage < _pages.length - 1)
                       TextButton(
-                        onPressed: _isCompleting || !_acceptedTerms || !_acceptedPrivacy ? null : _completeOnboarding,
-                        child: const Text('Skip', style: TextStyle(color: Colors.white54)),
+                        onPressed: _isCompleting ||
+                                !_acceptedTerms ||
+                                !_acceptedPrivacy
+                            ? null
+                            : _completeOnboarding,
+                        child: const Text('Skip',
+                            style: TextStyle(color: Colors.white54)),
                       ),
                   ],
                 ),

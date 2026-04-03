@@ -23,6 +23,10 @@ const CATEGORIES = [
   "Fundis", "Conductors", "Others"
 ]
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Failed to submit KYC'
+}
+
 export default function MembershipKYC() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -130,8 +134,8 @@ export default function MembershipKYC() {
 
       toast.success('KYC submitted! Our team will review your documents.')
       navigate('/dashboard')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to submit KYC')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -198,8 +202,9 @@ export default function MembershipKYC() {
                   animate={{ opacity: 1, height: 'auto' }}
                   className="space-y-2"
                 >
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Please specify your category</label>
+                  <label htmlFor="category-other" className="text-sm font-bold text-slate-700 dark:text-slate-300">Please specify your category</label>
                   <input
+                    id="category-other"
                     type="text"
                     value={personalDetails.categoryOther}
                     onChange={(e) => setPersonalDetails(prev => ({ ...prev, categoryOther: e.target.value }))}
@@ -234,10 +239,11 @@ export default function MembershipKYC() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold flex items-center gap-2">
+                    <label htmlFor="kyc-first-name" className="text-sm font-bold flex items-center gap-2">
                       First Name
                     </label>
                     <input
+                      id="kyc-first-name"
                       type="text"
                       value={personalDetails.firstName}
                       onChange={(e) => setPersonalDetails(prev => ({ ...prev, firstName: e.target.value }))}
@@ -246,10 +252,11 @@ export default function MembershipKYC() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold flex items-center gap-2">
+                    <label htmlFor="kyc-middle-name" className="text-sm font-bold flex items-center gap-2">
                       Middle Name
                     </label>
                     <input
+                      id="kyc-middle-name"
                       type="text"
                       value={personalDetails.middleName}
                       onChange={(e) => setPersonalDetails(prev => ({ ...prev, middleName: e.target.value }))}
@@ -258,10 +265,11 @@ export default function MembershipKYC() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold flex items-center gap-2">
+                    <label htmlFor="kyc-last-name" className="text-sm font-bold flex items-center gap-2">
                       Last Name
                     </label>
                     <input
+                      id="kyc-last-name"
                       type="text"
                       value={personalDetails.lastName}
                       onChange={(e) => setPersonalDetails(prev => ({ ...prev, lastName: e.target.value }))}
@@ -273,11 +281,12 @@ export default function MembershipKYC() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold flex items-center gap-2">
+                    <label htmlFor="kyc-id-number" className="text-sm font-bold flex items-center gap-2">
                       <CreditCard className="w-4 h-4 text-[#00C853]" />
                       ID Number
                     </label>
                     <input
+                      id="kyc-id-number"
                       type="text"
                       value={personalDetails.idNumber}
                       onChange={(e) => setPersonalDetails(prev => ({ ...prev, idNumber: e.target.value }))}
@@ -286,11 +295,12 @@ export default function MembershipKYC() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold flex items-center gap-2">
+                    <label htmlFor="kyc-kra-pin" className="text-sm font-bold flex items-center gap-2">
                       <Hash className="w-4 h-4 text-[#00C853]" />
                       KRA PIN
                     </label>
                     <input
+                      id="kyc-kra-pin"
                       type="text"
                       value={personalDetails.kraPin}
                       onChange={(e) => setPersonalDetails(prev => ({ ...prev, kraPin: e.target.value }))}
@@ -308,8 +318,9 @@ export default function MembershipKYC() {
                   
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500">Full Name</label>
+                      <label htmlFor="next-of-kin-name" className="text-xs font-bold text-slate-500">Full Name</label>
                       <input
+                        id="next-of-kin-name"
                         type="text"
                         value={personalDetails.nextOfKinName}
                         onChange={(e) => setPersonalDetails(prev => ({ ...prev, nextOfKinName: e.target.value }))}
@@ -319,8 +330,9 @@ export default function MembershipKYC() {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Phone Number</label>
+                        <label htmlFor="next-of-kin-phone" className="text-xs font-bold text-slate-500">Phone Number</label>
                         <input
+                          id="next-of-kin-phone"
                           type="tel"
                           value={personalDetails.nextOfKinPhone}
                           onChange={(e) => setPersonalDetails(prev => ({ ...prev, nextOfKinPhone: e.target.value }))}
@@ -328,8 +340,9 @@ export default function MembershipKYC() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Relation</label>
+                        <label htmlFor="next-of-kin-relation" className="text-xs font-bold text-slate-500">Relation</label>
                         <input
+                          id="next-of-kin-relation"
                           type="text"
                           value={personalDetails.nextOfKinRelation}
                           onChange={(e) => setPersonalDetails(prev => ({ ...prev, nextOfKinRelation: e.target.value }))}
@@ -374,7 +387,11 @@ export default function MembershipKYC() {
 
               <div className="space-y-6">
                 {/* ID Front */}
-                <div onClick={() => fileRefs.idFront.current?.click()} className="p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl cursor-pointer hover:border-[#00C853] transition-colors relative h-40 flex flex-col items-center justify-center overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => fileRefs.idFront.current?.click()}
+                  className="w-full p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl cursor-pointer hover:border-[#00C853] transition-colors relative h-40 flex flex-col items-center justify-center overflow-hidden"
+                >
                   {files.idFront ? (
                     <div className="text-center">
                        <CheckCircle2 className="w-8 h-8 text-[#00C853] mb-2 mx-auto" />
@@ -387,11 +404,23 @@ export default function MembershipKYC() {
                       <p className="text-xs text-slate-400 mt-1">Click to upload or take a photo</p>
                     </>
                   )}
-                  <input type="file" ref={fileRefs.idFront} onChange={(e) => handleFileChange(e, 'idFront')} className="hidden" accept="image/*" />
-                </div>
+                  <input
+                    type="file"
+                    ref={fileRefs.idFront}
+                    onChange={(e) => handleFileChange(e, 'idFront')}
+                    className="hidden"
+                    accept="image/*"
+                    aria-label="Upload front of ID"
+                    title="Upload front of ID"
+                  />
+                </button>
 
                 {/* ID Back */}
-                <div onClick={() => fileRefs.idBack.current?.click()} className="p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl cursor-pointer hover:border-[#00C853] transition-colors relative h-40 flex flex-col items-center justify-center overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => fileRefs.idBack.current?.click()}
+                  className="w-full p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl cursor-pointer hover:border-[#00C853] transition-colors relative h-40 flex flex-col items-center justify-center overflow-hidden"
+                >
                   {files.idBack ? (
                     <div className="text-center">
                        <CheckCircle2 className="w-8 h-8 text-[#00C853] mb-2 mx-auto" />
@@ -404,11 +433,23 @@ export default function MembershipKYC() {
                       <p className="text-xs text-slate-400 mt-1">Click to upload or take a photo</p>
                     </>
                   )}
-                  <input type="file" ref={fileRefs.idBack} onChange={(e) => handleFileChange(e, 'idBack')} className="hidden" accept="image/*" />
-                </div>
+                  <input
+                    type="file"
+                    ref={fileRefs.idBack}
+                    onChange={(e) => handleFileChange(e, 'idBack')}
+                    className="hidden"
+                    accept="image/*"
+                    aria-label="Upload back of ID"
+                    title="Upload back of ID"
+                  />
+                </button>
 
                 {/* Selfie */}
-                <div onClick={() => fileRefs.selfie.current?.click()} className="p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl cursor-pointer hover:border-[#00C853] transition-colors relative h-40 flex flex-col items-center justify-center overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => fileRefs.selfie.current?.click()}
+                  className="w-full p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl cursor-pointer hover:border-[#00C853] transition-colors relative h-40 flex flex-col items-center justify-center overflow-hidden"
+                >
                   {files.selfie ? (
                     <div className="text-center">
                        <CheckCircle2 className="w-8 h-8 text-[#00C853] mb-2 mx-auto" />
@@ -421,8 +462,16 @@ export default function MembershipKYC() {
                       <p className="text-xs text-slate-400 mt-1">Ensure your face is clearly visible</p>
                     </>
                   )}
-                  <input type="file" ref={fileRefs.selfie} onChange={(e) => handleFileChange(e, 'selfie')} className="hidden" accept="image/*" />
-                </div>
+                  <input
+                    type="file"
+                    ref={fileRefs.selfie}
+                    onChange={(e) => handleFileChange(e, 'selfie')}
+                    className="hidden"
+                    accept="image/*"
+                    aria-label="Upload selfie photo"
+                    title="Upload selfie photo"
+                  />
+                </button>
               </div>
 
               <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-2xl flex gap-3">

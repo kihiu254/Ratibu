@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { toast } from '../utils/toast'
 import { supabase } from '../lib/supabase'
+import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
 import { 
   User, 
   Mail, 
@@ -39,14 +41,56 @@ interface SavingsTarget {
   notes: string | null
 }
 
+interface GamificationStats {
+  points?: number
+  referral_points?: number
+  penalty_points?: number
+  total_contributions?: number
+}
+
+interface PenaltyEvent {
+  id: string
+  event_type: string
+  created_at: string
+  points_penalty: number
+}
+
+interface PenaltyRule {
+  id: string
+  name: string
+  description: string
+  points_penalty: number
+  monetary_penalty: number
+}
+
+interface UserChama {
+  id: string
+  name: string
+  role: string
+}
+
+interface ChamaMembershipRow {
+  chama: UserChama | UserChama[] | null
+  role: string
+}
+
+function firstChama(value: ChamaMembershipRow['chama']): UserChama | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong'
+}
+
 export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [user, setUser] = useState<any>(null)
-  const [stats, setStats] = useState<any>(null)
-  const [penalties, setPenalties] = useState<any[]>([])
-  const [rules, setRules] = useState<any[]>([])
+  const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [stats, setStats] = useState<GamificationStats | null>(null)
+  const [penalties, setPenalties] = useState<PenaltyEvent[]>([])
+  const [rules, setRules] = useState<PenaltyRule[]>([])
   const [loadingRules, setLoadingRules] = useState(false)
   const [creatingRule, setCreatingRule] = useState(false)
   const [showRuleForm, setShowRuleForm] = useState(false)
@@ -58,7 +102,7 @@ export default function Profile() {
     monetary_penalty: 0
   })
   const [selectedChamaId, setSelectedChamaId] = useState<string | null>(null)
-  const [userChamas, setUserChamas] = useState<any[]>([])
+  const [userChamas, setUserChamas] = useState<UserChama[]>([])
   const [savingsTargets, setSavingsTargets] = useState<SavingsTarget[]>([])
   const [loadingSavingsTargets, setLoadingSavingsTargets] = useState(false)
   const [creatingSavingsTarget, setCreatingSavingsTarget] = useState(false)
@@ -88,11 +132,7 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
-
-  async function fetchProfile() {
+  const fetchProfile = useCallback(async () => {
     try {
       setLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
@@ -107,14 +147,20 @@ export default function Profile() {
         .select('*')
         .eq('user_id', user.id)
         .single()
-      setStats(userStats)
+      setStats((userStats || null) as GamificationStats | null)
 
       const { data: chamas } = await supabase
         .from('chama_members')
         .select('chama:chamas(id,name), role')
         .eq('user_id', user.id)
-      setUserChamas(chamas?.map((c: any) => ({ ...c.chama, role: c.role })) || [])
-      if (chamas && chamas.length > 0) setSelectedChamaId((chamas[0].chama as any).id)
+      const mappedChamas = ((chamas || []) as ChamaMembershipRow[])
+        .map((membership) => {
+          const chama = firstChama(membership.chama)
+          return chama ? { ...chama, role: membership.role } : null
+        })
+        .filter((chama): chama is UserChama => Boolean(chama))
+      setUserChamas(mappedChamas)
+      if (mappedChamas.length > 0) setSelectedChamaId(mappedChamas[0].id)
 
       const { data, error } = await supabase
         .from('users')
@@ -147,12 +193,16 @@ export default function Profile() {
       setPenalties(penaltyEvents || [])
 
       await fetchSavingsTargets(user.id)
-    } catch (err: any) {
-      console.error('Error fetching profile:', err.message)
+    } catch (err: unknown) {
+      console.error('Error fetching profile:', getErrorMessage(err))
     } finally {
       setLoading(false)
     }
-  }
+  }, [navigate])
+
+  useEffect(() => {
+    void fetchProfile()
+  }, [fetchProfile])
 
   async function fetchRules(chamaId: string) {
     try {
@@ -162,7 +212,7 @@ export default function Profile() {
         .select('*')
         .eq('chama_id', chamaId)
         .order('created_at', { ascending: false })
-      setRules(data || [])
+      setRules((data || []) as PenaltyRule[])
     } finally {
       setLoadingRules(false)
     }
@@ -181,10 +231,17 @@ export default function Profile() {
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        if (isMissingOrUnauthorizedSavingsTargets(error)) {
+          setSavingsTargets([])
+          return
+        }
+
+        throw error
+      }
       setSavingsTargets((data || []) as SavingsTarget[])
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load savings targets')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || 'Failed to load savings targets')
     } finally {
       setLoadingSavingsTargets(false)
     }
@@ -211,6 +268,10 @@ export default function Profile() {
           notes: newSavingsTarget.notes.trim() || null,
         })
 
+      if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
+        toast.error('Personal savings is not available until the latest database changes are applied.')
+        return
+      }
       if (error) throw error
 
       setNewSavingsTarget({
@@ -227,8 +288,8 @@ export default function Profile() {
       setShowSavingsTargetForm(false)
       await fetchSavingsTargets(user.id)
       toast.success('Savings target created')
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create savings target')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || 'Failed to create savings target')
     } finally {
       setCreatingSavingsTarget(false)
     }
@@ -247,8 +308,8 @@ export default function Profile() {
         target.id === id ? { ...target, status } : target
       ))
       toast.success(`Savings target ${status}`)
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update savings target')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || 'Failed to update savings target')
     }
   }
 
@@ -265,7 +326,7 @@ export default function Profile() {
 
   async function handleCreateRule(e: React.FormEvent) {
     e.preventDefault()
-    if (!selectedChamaId) return
+    if (!selectedChamaId || !user) return
     try {
       setCreatingRule(true)
       const { error } = await supabase
@@ -284,8 +345,8 @@ export default function Profile() {
       setShowRuleForm(false)
       fetchRules(selectedChamaId)
       toast.success('Rule created')
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create rule')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || 'Failed to create rule')
     } finally {
       setCreatingRule(false)
     }
@@ -293,6 +354,7 @@ export default function Profile() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!user) return
     setSaving(true)
     setMessage(null)
 
@@ -307,8 +369,8 @@ export default function Profile() {
 
       if (error) throw error
       setMessage({ type: 'success', text: 'Profile updated successfully!' })
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message })
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: getErrorMessage(err) })
     } finally {
       setSaving(false)
     }
@@ -316,6 +378,7 @@ export default function Profile() {
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
+      if (!user) return
       if (!e.target.files || e.target.files.length === 0) return
       
       const file = e.target.files[0]
@@ -348,8 +411,8 @@ export default function Profile() {
       if (updateError) throw updateError
       
       setMessage({ type: 'success', text: 'Avatar updated!' })
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message })
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: getErrorMessage(err) })
     } finally {
       setSaving(false)
     }
@@ -363,11 +426,15 @@ export default function Profile() {
     )
   }
 
+  if (!user) return null
+
   return (
     <div className="max-w-4xl mx-auto pb-20">
       <div className="flex items-center gap-4 mb-8">
         <button 
           onClick={() => navigate(-1)}
+          aria-label="Go back"
+          title="Go back"
           className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -389,6 +456,8 @@ export default function Profile() {
               </div>
               <button 
                 onClick={() => fileInputRef.current?.click()}
+                aria-label="Upload profile photo"
+                title="Upload profile photo"
                 className="absolute bottom-0 right-0 p-2 bg-[#00C853] text-white rounded-full shadow-lg hover:scale-110 transition-transform"
               >
                 <Camera className="w-4 h-4" />
@@ -399,6 +468,8 @@ export default function Profile() {
                 onChange={handleAvatarUpload} 
                 className="hidden" 
                 accept="image/*"
+                aria-label="Choose profile photo"
+                title="Choose profile photo"
               />
             </div>
             <h3 className="font-bold text-slate-900 dark:text-white text-lg">
@@ -459,6 +530,8 @@ export default function Profile() {
                            navigator.clipboard.writeText(profile.referral_code)
                            toast.success('Code copied!')
                         }}
+                        aria-label="Copy referral code"
+                        title="Copy referral code"
                         className="p-2 hover:bg-[#00C853]/10 rounded-lg transition-colors"
                      >
                         <CheckCircle2 className="w-4 h-4 text-[#00C853]" />
@@ -498,8 +571,9 @@ export default function Profile() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">First Name</label>
+                  <label htmlFor="profile-first-name" className="text-sm font-bold text-slate-700 dark:text-slate-300">First Name</label>
                   <input
+                    id="profile-first-name"
                     type="text"
                     value={profile.first_name}
                     onChange={e => setProfile({...profile, first_name: e.target.value})}
@@ -508,8 +582,9 @@ export default function Profile() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Last Name</label>
+                  <label htmlFor="profile-last-name" className="text-sm font-bold text-slate-700 dark:text-slate-300">Last Name</label>
                   <input
+                    id="profile-last-name"
                     type="text"
                     value={profile.last_name}
                     onChange={e => setProfile({...profile, last_name: e.target.value})}
@@ -518,10 +593,11 @@ export default function Profile() {
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Phone Number</label>
+                  <label htmlFor="profile-phone" className="text-sm font-bold text-slate-700 dark:text-slate-300">Phone Number</label>
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
+                      id="profile-phone"
                       type="tel"
                       value={profile.phone}
                       onChange={e => setProfile({...profile, phone: e.target.value})}
@@ -531,8 +607,9 @@ export default function Profile() {
                   </div>
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Bio</label>
+                  <label htmlFor="profile-bio" className="text-sm font-bold text-slate-700 dark:text-slate-300">Bio</label>
                   <textarea
+                    id="profile-bio"
                     rows={4}
                     value={profile.bio}
                     onChange={e => setProfile({...profile, bio: e.target.value})}
@@ -579,7 +656,9 @@ export default function Profile() {
 
             {showSavingsTargetForm && (
               <form onSubmit={handleCreateSavingsTarget} className="p-4 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
+                <label htmlFor="savings-target-name" className="sr-only">Savings target name</label>
                 <input
+                  id="savings-target-name"
                   value={newSavingsTarget.name}
                   onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -587,7 +666,9 @@ export default function Profile() {
                   required
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label htmlFor="savings-purpose" className="sr-only">Savings target purpose</label>
                   <select
+                    id="savings-purpose"
                     value={newSavingsTarget.purpose}
                     onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, purpose: e.target.value as SavingsPurpose }))}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -598,7 +679,9 @@ export default function Profile() {
                     <option value="withdrawal">Withdrawal reserve</option>
                     <option value="custom">Custom</option>
                   </select>
+                  <label htmlFor="savings-destination-label" className="sr-only">Savings destination label</label>
                   <input
+                    id="savings-destination-label"
                     value={newSavingsTarget.destination_label}
                     onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, destination_label: e.target.value }))}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -606,7 +689,9 @@ export default function Profile() {
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label htmlFor="savings-target-amount" className="sr-only">Savings target amount</label>
                   <input
+                    id="savings-target-amount"
                     type="number"
                     min="1"
                     step="0.01"
@@ -616,7 +701,9 @@ export default function Profile() {
                     placeholder="Target amount (KES)"
                     required
                   />
+                  <label htmlFor="savings-current-amount" className="sr-only">Current savings amount</label>
                   <input
+                    id="savings-current-amount"
                     type="number"
                     min="0"
                     step="0.01"
@@ -627,7 +714,9 @@ export default function Profile() {
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label htmlFor="savings-allocation-type" className="sr-only">Savings allocation type</label>
                   <select
+                    id="savings-allocation-type"
                     value={newSavingsTarget.allocation_type}
                     onChange={(e) => setNewSavingsTarget(prev => ({
                       ...prev,
@@ -639,7 +728,9 @@ export default function Profile() {
                     <option value="percentage">Allocate by percentage</option>
                     <option value="fixed_amount">Allocate by fixed amount</option>
                   </select>
+                  <label htmlFor="savings-allocation-value" className="sr-only">Savings allocation value</label>
                   <input
+                    id="savings-allocation-value"
                     type="number"
                     min="1"
                     step="0.01"
@@ -650,7 +741,9 @@ export default function Profile() {
                     required
                   />
                 </div>
+                <label htmlFor="savings-notes" className="sr-only">Savings target notes</label>
                 <textarea
+                  id="savings-notes"
                   value={newSavingsTarget.notes}
                   onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -716,7 +809,22 @@ export default function Profile() {
                         <span className="font-semibold text-slate-900 dark:text-white">KES {Number(target.target_amount).toLocaleString()}</span>
                       </div>
                       <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-3">
-                        <div className="h-full bg-[#00C853]" style={{ width: `${progress}%` }} />
+                        <svg
+                          viewBox="0 0 100 8"
+                          preserveAspectRatio="none"
+                          className="h-full w-full"
+                          role="img"
+                          aria-label={`${target.name} savings progress`}
+                        >
+                          <rect
+                            x="0"
+                            y="0"
+                            width={progress}
+                            height="8"
+                            rx="4"
+                            fill="#00C853"
+                          />
+                        </svg>
                       </div>
                       <div className="flex flex-wrap gap-2 text-xs">
                         <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800">
@@ -772,7 +880,7 @@ export default function Profile() {
                 <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Penalty Rules</h3>
               </div>
               {['admin', 'treasurer', 'secretary'].includes(
-                userChamas.find(c => c.id === selectedChamaId)?.role
+                userChamas.find(c => c.id === selectedChamaId)?.role ?? ''
               ) && (
                 <button
                   onClick={() => setShowRuleForm(!showRuleForm)}
@@ -786,7 +894,9 @@ export default function Profile() {
 
             <div className="flex items-center gap-3 mb-4">
               <span className="text-xs font-bold text-slate-500">Chama</span>
+              <label htmlFor="profile-chama-select" className="sr-only">Select chama</label>
               <select
+                id="profile-chama-select"
                 value={selectedChamaId || ''}
                 onChange={(e) => setSelectedChamaId(e.target.value)}
                 className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm"
@@ -799,14 +909,18 @@ export default function Profile() {
 
             {showRuleForm && (
               <form onSubmit={handleCreateRule} className="p-4 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
+                <label htmlFor="penalty-rule-name" className="sr-only">Penalty rule name</label>
                 <input
+                  id="penalty-rule-name"
                   value={newRule.name}
                   onChange={(e) => setNewRule(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                   placeholder="Rule name (e.g. Late contribution)"
                   required
                 />
+                <label htmlFor="penalty-rule-description" className="sr-only">Penalty rule description</label>
                 <textarea
+                  id="penalty-rule-description"
                   value={newRule.description}
                   onChange={(e) => setNewRule(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -814,7 +928,9 @@ export default function Profile() {
                   rows={2}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <label htmlFor="penalty-event-type" className="sr-only">Penalty event type</label>
                   <select
+                    id="penalty-event-type"
                     value={newRule.event_type}
                     onChange={(e) => setNewRule(prev => ({ ...prev, event_type: e.target.value }))}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -824,14 +940,18 @@ export default function Profile() {
                     <option value="missed_payment">Missed Payment</option>
                     <option value="other">Other</option>
                   </select>
+                  <label htmlFor="penalty-points" className="sr-only">Penalty points amount</label>
                   <input
+                    id="penalty-points"
                     type="number"
                     value={newRule.points_penalty}
                     onChange={(e) => setNewRule(prev => ({ ...prev, points_penalty: Number(e.target.value) }))}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                     placeholder="Points penalty"
                   />
+                  <label htmlFor="penalty-monetary" className="sr-only">Penalty amount in Kenyan shillings</label>
                   <input
+                    id="penalty-monetary"
                     type="number"
                     value={newRule.monetary_penalty}
                     onChange={(e) => setNewRule(prev => ({ ...prev, monetary_penalty: Number(e.target.value) }))}

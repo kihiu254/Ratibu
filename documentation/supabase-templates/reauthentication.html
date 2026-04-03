@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification Code - Ratibu</title>
+    <title>Reset Your Password - Ratibu</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
@@ -50,18 +50,20 @@
             color: rgba(255, 255, 255, 0.8);
             margin-bottom: 32px;
         }
-        .otp-code {
+        .btn {
             display: inline-block;
-            background-color: rgba(255, 255, 255, 0.05);
-            border: 2px dashed #00C853;
-            color: #00C853;
-            font-family: monospace;
-            font-size: 32px;
+            background-color: #B91C1C;
+            color: #ffffff;
             font-weight: 700;
-            letter-spacing: 8px;
-            padding: 16px 32px;
-            border-radius: 12px;
-            margin-bottom: 32px;
+            font-size: 16px;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            background-color: #db2714;
+            transform: translateY(-1px);
         }
         .footer {
             margin-top: 40px;
@@ -77,10 +79,9 @@
             <img src="{{ .SiteURL }}/ratibu-logo.png" alt="Ratibu Logo" class="logo">
         </div>
         <div class="card">
-            <h1>Verification Required</h1>
-            <p>Please use the following code to verify your action on Ratibu. This code will expire in 10 minutes.</p>
-            <div class="otp-code">{{ .Token }}</div>
-            <p style="font-size: 14px; color: rgba(255,255,255,0.5);">If you didn't request this code, your account security may be compromised. Please contact support immediately.</p>
+            <h1>Reset Password</h1>
+            <p>We received a request to reset your password. If you didn't make this request, you can safely ignore this email.</p>
+            <a href="{{ .ConfirmationURL }}" class="btn">Reset Password</a>
         </div>
         <div class="footer">
             &copy; 2026 Ratibu. All rights reserved.<br>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -44,11 +44,8 @@ export default function AdminChamaDetails() {
   const [loading, setLoading] = useState(true)
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (id) fetchChamaDetails()
-  }, [id])
-
-  async function fetchChamaDetails() {
+  const fetchChamaDetails = useCallback(async () => {
+    if (!id) return
     try {
       setLoading(true)
       
@@ -78,7 +75,11 @@ export default function AdminChamaDetails() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, navigate])
+
+  useEffect(() => {
+    void fetchChamaDetails()
+  }, [fetchChamaDetails])
 
   async function handleRemoveMember(userId: string) {
     try {
@@ -115,6 +116,8 @@ export default function AdminChamaDetails() {
       <div>
         <button 
           onClick={() => navigate('/admin/chamas')}
+          aria-label="Back to chamas"
+          title="Back to chamas"
           className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Chamas
@@ -153,7 +156,11 @@ export default function AdminChamaDetails() {
                  <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold overflow-hidden">
                        {member.users.avatar_url ? (
-                         <img src={member.users.avatar_url} alt="" className="w-full h-full object-cover" />
+                         <img
+                           src={member.users.avatar_url}
+                           alt={`${member.users.first_name || 'Member'} ${member.users.last_name || ''} profile`.trim()}
+                           className="w-full h-full object-cover"
+                         />
                        ) : (
                          member.users.first_name[0]
                        )}
@@ -173,12 +180,16 @@ export default function AdminChamaDetails() {
                         <span className="text-xs text-red-500 font-bold">Remove?</span>
                         <button 
                           onClick={() => handleRemoveMember(member.user_id)}
+                          aria-label={`Confirm removal of ${member.users.first_name} ${member.users.last_name}`}
+                          title={`Confirm removal of ${member.users.first_name} ${member.users.last_name}`}
                           className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
                         >
                           Yes
                         </button>
                         <button 
                           onClick={() => setRemoveMemberId(null)}
+                          aria-label="Cancel member removal"
+                          title="Cancel member removal"
                           className="p-1 text-slate-400 hover:text-slate-600"
                         >
                           <XCircle className="w-4 h-4" />
@@ -187,6 +198,8 @@ export default function AdminChamaDetails() {
                    ) : (
                       <button 
                         onClick={() => setRemoveMemberId(member.user_id)}
+                        aria-label={`Remove ${member.users.first_name} ${member.users.last_name}`}
+                        title={`Remove ${member.users.first_name} ${member.users.last_name}`}
                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all flex items-center gap-2 group"
                       >
                          <span className="text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Remove</span>

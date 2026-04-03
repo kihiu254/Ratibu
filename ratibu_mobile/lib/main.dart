@@ -42,8 +42,11 @@ import 'package:ratibu_mobile/screens/features_screen.dart';
 import 'package:ratibu_mobile/screens/pricing_screen.dart';
 import 'package:ratibu_mobile/screens/legal_screen.dart';
 import 'package:ratibu_mobile/screens/personal_savings_screen.dart';
+import 'package:ratibu_mobile/screens/accounts_screen.dart';
+import 'package:ratibu_mobile/screens/statement_screen.dart';
 
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -67,8 +70,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         loading: (s) => null,
         unauthenticated: (s) {
           if (isLoggingIn || isRegistering || isOnboarding || isProcessing) return null;
-          // Mark onboarding as seen so returning users skip the slides
-          SharedPreferences.getInstance().then((p) => p.setBool('onboarding_complete', true));
+          SharedPreferences.getInstance()
+              .then((p) => p.setBool('onboarding_complete', true));
           return '/login';
         },
         awaiting2FA: (s) {
@@ -76,15 +79,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/2fa?email=${s.user.email}';
         },
         authenticated: (s) {
-          // Strict KYC Guard — ensure OTP verification before KYC
           if (s.kycStatus == 'not_started') {
             final isOtp = state.matchedLocation == '/otp-verification';
             final isKyc = state.matchedLocation == '/kyc-form';
             final isOnboardingSuccess = state.matchedLocation == '/onboarding-success';
-            final legalAccepted = s.user.userMetadata?['terms_accepted_at'] != null &&
-                s.user.userMetadata?['privacy_accepted_at'] != null;
+            final legalAccepted =
+                s.user.userMetadata?['terms_accepted_at'] != null &&
+                    s.user.userMetadata?['privacy_accepted_at'] != null;
             if (!s.otpVerified) {
-              if (isOtp || isOnboardingSuccess || isOnboarding || isLoggingIn || isRegistering) return null;
+              if (isOtp || isOnboardingSuccess || isOnboarding || isLoggingIn || isRegistering) {
+                return null;
+              }
               return '/otp-verification?email=${s.user.email ?? ''}';
             }
             if (!legalAccepted) {
@@ -96,7 +101,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             return '/kyc-form';
           }
 
-          // Prevent re-entering KYC flow once submitted
           if (state.matchedLocation == '/kyc-form' ||
               state.matchedLocation == '/onboarding-success' ||
               state.matchedLocation == '/otp-verification') {
@@ -121,156 +125,171 @@ final routerProvider = Provider<GoRouter>((ref) {
           return TwoFactorScreen(email: email);
         },
       ),
-    GoRoute(
-      path: '/onboarding',
-      builder: (context, state) => const OnboardingScreen(),
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginScreen(),
-    ),
-    GoRoute(
-      path: '/register',
-      builder: (context, state) => const RegisterScreen(),
-    ),
-    GoRoute(
-      path: '/processing',
-      builder: (context, state) => const ProcessingScreen(),
-    ),
-    GoRoute(
-      path: '/dashboard',
-      builder: (context, state) => const DashboardScreen(),
-    ),
-    GoRoute(
-      path: '/deposit',
-      builder: (context, state) => const DepositScreen(),
-    ),
-    GoRoute(
-      path: '/create-chama',
-      builder: (context, state) => const CreateChamaScreen(),
-    ),
-    GoRoute(
-      path: '/chama/:id',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return ChamaDetailsScreen(chamaId: id);
-      },
-    ),
-    GoRoute(
-      path: '/chama/:id/create-prompt',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return CreatePaymentPromptScreen(chamaId: id);
-      },
-    ),
-    GoRoute(
-      path: '/chama/:id/create-meeting',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return CreateMeetingScreen(chamaId: id);
-      },
-    ),
-    GoRoute(
-      path: '/chama/:id/automate',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return StandingOrderSetupScreen(chamaId: id);
-      },
-    ),
-    GoRoute(
-      path: '/chama/:id/deposit',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return DepositScreen(chamaId: id);
-      },
-    ),
-    GoRoute(
-      path: '/profile',
-      builder: (context, state) => const ProfileScreen(),
-    ),
-    GoRoute(
-      path: '/personal-savings',
-      builder: (context, state) => const PersonalSavingsScreen(),
-    ),
-    GoRoute(
-      path: '/notifications',
-      builder: (context, state) => const NotificationsScreen(),
-    ),
-    GoRoute(
-      path: '/join-chama',
-      builder: (context, state) => const JoinChamaScreen(),
-    ),
-    GoRoute(
-      path: '/leaderboard',
-      builder: (context, state) => const LeaderboardScreen(),
-    ),
-    GoRoute(
-      path: '/referrals',
-      builder: (context, state) => const ReferralsScreen(),
-    ),
-    GoRoute(
-      path: '/updates',
-      builder: (context, state) => const UpdatesScreen(),
-    ),
-    GoRoute(
-      path: '/rewards',
-      builder: (context, state) => const RewardsScreen(),
-    ),
-    GoRoute(
-      path: '/penalties',
-      builder: (context, state) => const PenaltiesScreen(),
-    ),
-    GoRoute(
-      path: '/meetings',
-      builder: (context, state) => const MeetingsScreen(),
-    ),
-    GoRoute(
-      path: '/swaps',
-      builder: (context, state) => const SwapsScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding-success',
-      builder: (context, state) {
-        final email = state.uri.queryParameters['email'];
-        return OnboardingSuccessScreen(email: email);
-      },
-    ),
-    GoRoute(
-      path: '/otp-verification',
-      builder: (context, state) {
-        final email = state.uri.queryParameters['email'];
-        return OtpVerificationScreen(email: email);
-      },
-    ),
-    GoRoute(
-      path: '/kyc-form',
-      builder: (context, state) => const KycFormScreen(),
-    ),
-    GoRoute(
-      path: '/products',
-      builder: (context, state) => const ProductsScreen(),
-    ),
-    GoRoute(
-      path: '/opportunities',
-      builder: (context, state) => const OpportunitiesScreen(),
-    ),
-    GoRoute(
-      path: '/features',
-      builder: (context, state) => const FeaturesScreen(),
-    ),
-    GoRoute(
-      path: '/pricing',
-      builder: (context, state) => const PricingScreen(),
-    ),
-    GoRoute(
-      path: '/legal/:type',
-      builder: (context, state) {
-        final type = state.pathParameters['type'] ?? 'Legal Information';
-        return LegalScreen(documentType: type);
-      }
-    ),
-  ],
-);
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/processing',
+        builder: (context, state) => const ProcessingScreen(),
+      ),
+      GoRoute(
+        path: '/dashboard',
+        builder: (context, state) => const DashboardScreen(),
+      ),
+      GoRoute(
+        path: '/deposit',
+        builder: (context, state) => DepositScreen(
+          savingsTargetId: state.uri.queryParameters['savingsTargetId'],
+          initialAmount: state.uri.queryParameters['amount'],
+        ),
+      ),
+      GoRoute(
+        path: '/create-chama',
+        builder: (context, state) => const CreateChamaScreen(),
+      ),
+      GoRoute(
+        path: '/chama/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ChamaDetailsScreen(chamaId: id);
+        },
+      ),
+      GoRoute(
+        path: '/chama/:id/create-prompt',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CreatePaymentPromptScreen(chamaId: id);
+        },
+      ),
+      GoRoute(
+        path: '/chama/:id/create-meeting',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CreateMeetingScreen(chamaId: id);
+        },
+      ),
+      GoRoute(
+        path: '/chama/:id/automate',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return StandingOrderSetupScreen(chamaId: id);
+        },
+      ),
+      GoRoute(
+        path: '/chama/:id/deposit',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return DepositScreen(chamaId: id);
+        },
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/personal-savings',
+        builder: (context, state) => const PersonalSavingsScreen(),
+      ),
+      GoRoute(
+        path: '/accounts',
+        builder: (context, state) => const AccountsScreen(),
+      ),
+      GoRoute(
+        path: '/statement',
+        builder: (context, state) => StatementScreen(
+          accountType: state.uri.queryParameters['accountType'] ?? 'chama',
+          accountId: state.uri.queryParameters['accountId'],
+          accountName: state.uri.queryParameters['accountName'] ?? 'Account',
+        ),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/join-chama',
+        builder: (context, state) => const JoinChamaScreen(),
+      ),
+      GoRoute(
+        path: '/leaderboard',
+        builder: (context, state) => const LeaderboardScreen(),
+      ),
+      GoRoute(
+        path: '/referrals',
+        builder: (context, state) => const ReferralsScreen(),
+      ),
+      GoRoute(
+        path: '/updates',
+        builder: (context, state) => const UpdatesScreen(),
+      ),
+      GoRoute(
+        path: '/rewards',
+        builder: (context, state) => const RewardsScreen(),
+      ),
+      GoRoute(
+        path: '/penalties',
+        builder: (context, state) => const PenaltiesScreen(),
+      ),
+      GoRoute(
+        path: '/meetings',
+        builder: (context, state) => const MeetingsScreen(),
+      ),
+      GoRoute(
+        path: '/swaps',
+        builder: (context, state) => const SwapsScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding-success',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'];
+          return OnboardingSuccessScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: '/otp-verification',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'];
+          return OtpVerificationScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: '/kyc-form',
+        builder: (context, state) => const KycFormScreen(),
+      ),
+      GoRoute(
+        path: '/products',
+        builder: (context, state) => const ProductsScreen(),
+      ),
+      GoRoute(
+        path: '/opportunities',
+        builder: (context, state) => const OpportunitiesScreen(),
+      ),
+      GoRoute(
+        path: '/features',
+        builder: (context, state) => const FeaturesScreen(),
+      ),
+      GoRoute(
+        path: '/pricing',
+        builder: (context, state) => const PricingScreen(),
+      ),
+      GoRoute(
+        path: '/legal/:type',
+        builder: (context, state) {
+          final type = state.pathParameters['type'] ?? 'Legal Information';
+          return LegalScreen(documentType: type);
+        },
+      ),
+    ],
+  );
 });
 
 void main() {
@@ -288,26 +307,23 @@ void main() {
       anonKey: SupabaseConfig.supabaseAnonKey,
     );
 
-    // Initialize Firebase Messaging
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    
-    // Initialize Local Notifications
-    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/launcher_icon');
-    const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
-    
+
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/launcher_icon');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+
     await flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Logic for notification tap, could use ref.read(routerProvider) if in a widget
-      },
+      onDidReceiveNotificationResponse: (NotificationResponse response) {},
     );
 
-    // Request Permissions (Android 13+)
     await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
 
-    // Pre-create High Importance Channel for Android
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'ratibu_alerts_v5',
       'Ratibu Alerts & Pop-ups',
@@ -316,19 +332,17 @@ void main() {
     );
 
     await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    // Set up global error handling
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
       debugPrint('FLUTTER ERROR: ${details.exception}');
       debugPrint('STACK TRACE: ${details.stack}');
     };
 
-    runApp(const ProviderScope(
-      child: MyApp(),
-    ));
+    runApp(const ProviderScope(child: MyApp()));
   }, (error, stack) {
     debugPrint('ZONED ERROR: $error');
     debugPrint('STACK TRACE: $stack');
@@ -348,28 +362,25 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeFCM();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeFCM());
   }
 
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
-
     return MaterialApp.router(
       title: 'Ratibu Mobile',
       routerConfig: router,
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF020617), // Midnight from web
+        scaffoldBackgroundColor: const Color(0xFF020617),
         fontFamily: GoogleFonts.outfit().fontFamily,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00C853), // Ratibu Green
+          seedColor: const Color(0xFF00C853),
           primary: const Color(0xFF00C853),
-          secondary: const Color(0xFF06b6d4), // Cyan from web
-          surface: const Color(0xFF0f172a), // Slate 900
+          secondary: const Color(0xFF06b6d4),
+          surface: const Color(0xFF0f172a),
           brightness: Brightness.dark,
         ),
         textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
@@ -381,13 +392,14 @@ class _MyAppState extends ConsumerState<MyApp> {
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
           ),
         ),
       ),
     );
   }
-  
+
   Future<void> _initializeFCM() async {
     try {
       if (_fcmInitialized) return;

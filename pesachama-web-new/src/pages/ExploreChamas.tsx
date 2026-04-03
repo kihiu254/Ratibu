@@ -5,8 +5,23 @@ import { Search, Users, Loader2, CheckCircle2, Star } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Button from '../components/Button'
 
+interface ChamaSummary {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  total_members: number | null
+  contribution_frequency?: string | null
+  join_points?: number | null
+  created_at: string
+}
+
+interface ChamaMemberRow {
+  chama_id: string
+}
+
 export default function ExploreChamas() {
-  const [chamas, setChamas] = useState<any[]>([])
+  const [chamas, setChamas] = useState<ChamaSummary[]>([])
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -46,8 +61,8 @@ export default function ExploreChamas() {
 
       if (membersError) throw membersError
       
-      setJoinedIds(new Set(members.map(m => m.chama_id)))
-      setChamas(allChamas || [])
+      setJoinedIds(new Set((members as ChamaMemberRow[] | null)?.map((member) => member.chama_id) || []))
+      setChamas((allChamas || []) as ChamaSummary[])
     } catch (err) {
       console.error('Error fetching data:', err)
     } finally {

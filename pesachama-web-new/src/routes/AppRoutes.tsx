@@ -15,15 +15,20 @@ import Home from '../pages/Home'
 import Legal from '../pages/Legal'
 import Login from '../pages/Login'
 import MembershipKYC from '../pages/MembershipKYC'
+import Meetings from '../pages/Meetings'
 import Onboarding from '../pages/Onboarding'
 import Opportunities from '../pages/Opportunities'
 import OTPVerification from '../pages/OTPVerification'
+import Penalties from '../pages/Penalties'
+import Swaps from '../pages/Swaps'
 import Pricing from '../pages/Pricing'
 import Products from '../pages/Products'
 import Profile from '../pages/Profile'
 import Register from '../pages/Register'
 import Rewards from '../pages/Rewards'
 import PersonalSavings from '../pages/PersonalSavings'
+import Accounts from '../pages/Accounts'
+import Statement from '../pages/Statement'
 import AdminActivities from '../pages/admin/AdminActivities'
 import AdminAnalytics from '../pages/admin/AdminAnalytics'
 import AdminChamaDetails from '../pages/admin/AdminChamaDetails'
@@ -47,14 +52,10 @@ const PublicLayout = () => (
 const ReferralRedirect = () => {
   const { code } = useParams()
   const navigate = useNavigate()
-
-  useEffect(() => {
-    navigate(code ? `/register?ref=${code}` : '/')
-  }, [code, navigate])
-
+  useEffect(() => { navigate(code ? `/register?ref=${code}` : '/') }, [code, navigate])
   return (
     <div className="min-h-screen flex items-center justify-center bg-midnight">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00C853]"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00C853]" />
     </div>
   )
 }
@@ -65,7 +66,6 @@ export function AppRoutes() {
       <Routes>
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/create-chama" element={<CreateChama />} />
           <Route path="/product/*" element={<Products />} />
           <Route path="/products" element={<Products />} />
           <Route path="/opportunities" element={<Opportunities />} />
@@ -82,9 +82,15 @@ export function AppRoutes() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/chamas" element={<Chamas />} />
+          <Route path="/create-chama" element={<CreateChama />} />
           <Route path="/explore" element={<ExploreChamas />} />
-          <Route path="/rewards" element={<Rewards />} />
+          <Route path="/accounts" element={<Accounts />} />
+          <Route path="/statement" element={<Statement />} />
           <Route path="/personal-savings" element={<PersonalSavings />} />
+          <Route path="/rewards" element={<Rewards />} />
+          <Route path="/meetings" element={<Meetings />} />
+          <Route path="/penalties" element={<Penalties />} />
+          <Route path="/swaps" element={<Swaps />} />
           <Route path="/chama/:id" element={<ChamaDetails />} />
           <Route path="/activity" element={<div className="p-8 text-slate-900 dark:text-white">Activity Log (Coming Soon)</div>} />
           <Route path="/profile" element={<Profile />} />

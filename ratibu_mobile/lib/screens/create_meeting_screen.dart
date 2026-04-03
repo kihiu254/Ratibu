@@ -7,11 +7,11 @@ import '../utils/notification_helper.dart';
 
 class CreateMeetingScreen extends ConsumerStatefulWidget {
   final String chamaId;
-
   const CreateMeetingScreen({super.key, required this.chamaId});
 
   @override
-  ConsumerState<CreateMeetingScreen> createState() => _CreateMeetingScreenState();
+  ConsumerState<CreateMeetingScreen> createState() =>
+      _CreateMeetingScreenState();
 }
 
 class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
@@ -19,8 +19,7 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _venueController = TextEditingController();
-  final _videoLinkController = TextEditingController(); // For Google Meet/Zoom
-  
+
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   bool _isLoading = false;
@@ -31,9 +30,18 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _venueController.dispose();
-    _videoLinkController.dispose();
     super.dispose();
   }
+
+  /// Generates a deterministic Jitsi room name from chamaId + date
+  String _generateJitsiRoom() {
+    final date = _selectedDate ?? DateTime.now();
+    final slug = 'ratibu-${widget.chamaId.substring(0, 8)}-'
+        '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
+    return slug;
+  }
+
+  String get _jitsiUrl => 'https://meet.jit.si/${_generateJitsiRoom()}';
 
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
@@ -41,45 +49,57 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
       initialDate: DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00C853),
-              onPrimary: Colors.white,
-              surface: Color(0xFF1e293b),
-              onSurface: Colors.white,
-            ),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF00C853),
+            onPrimary: Colors.white,
+            surface: Color(0xFF1e293b),
+            onSurface: Colors.white,
           ),
-          child: child!,
-        );
-      },
+        ),
+        child: child!,
+      ),
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-    }
+    if (picked != null) setState(() => _selectedDate = picked);
   }
 
   Future<void> _selectTime(BuildContext context) async {
     final picked = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 10, minute: 0),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00C853),
-              onPrimary: Colors.white,
-              surface: Color(0xFF1e293b),
-              onSurface: Colors.white,
-            ),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF00C853),
+            onPrimary: Colors.white,
+            surface: Color(0xFF1e293b),
+            onSurface: Colors.white,
           ),
-          child: child!,
-        );
-      },
+        ),
+        child: child!,
+      ),
     );
-    if (picked != null) {
-      setState(() => _selectedTime = picked);
+    if (picked != null) setState(() => _selectedTime = picked);
+  }
+
+  Future<void> _scheduleLocalReminders(
+      DateTime meetingTime, String title) async {
+    final reminders = [
+      const Duration(hours: 24),
+      const Duration(hours: 2),
+      const Duration(minutes: 30),
+    ];
+    final labels = ['24 hours', '2 hours', '30 minutes'];
+    for (int i = 0; i < reminders.length; i++) {
+      final notifyAt = meetingTime.subtract(reminders[i]);
+      if (notifyAt.isAfter(DateTime.now())) {
+        await NotificationHelper.scheduleOfflineNotification(
+          title: '⏰ Meeting in ${labels[i]}',
+          message: '"$title" starts in ${labels[i]}.',
+          scheduledTime: notifyAt,
+        );
+      }
     }
   }
 
@@ -93,9 +113,8 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
     }
 
     setState(() => _isLoading = true);
-
     try {
-      final DateTime meetingDateTime = DateTime(
+      final meetingDateTime = DateTime(
         _selectedDate!.year,
         _selectedDate!.month,
         _selectedDate!.day,
@@ -103,29 +122,37 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
         _selectedTime!.minute,
       );
 
-      await ref.read(chamaServiceProvider).createMeeting(
-        chamaId: widget.chamaId,
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        date: meetingDateTime,
-        venue: _isVirtual ? 'Online' : _venueController.text.trim(),
-        videoLink: _isVirtual ? _videoLinkController.text.trim() : null,
-      );
+      // Auto-generate Jitsi room URL for virtual meetings
+      final videoLink = _isVirtual ? _jitsiUrl : null;
 
-      // Refresh meetings list
+      await ref.read(chamaServiceProvider).createMeeting(
+            chamaId: widget.chamaId,
+            title: _titleController.text.trim(),
+            description: _descriptionController.text.trim(),
+            date: meetingDateTime,
+            venue: _isVirtual
+                ? 'Online (Ratibu Meet)'
+                : _venueController.text.trim(),
+            videoLink: videoLink,
+          );
+
+      await _scheduleLocalReminders(
+          meetingDateTime, _titleController.text.trim());
       ref.invalidate(chamaMeetingsProvider(widget.chamaId));
 
       if (mounted) {
         NotificationHelper.sendNotification(
           title: 'Meeting Scheduled!',
-          message: 'A new meeting for your Chama has been scheduled successfully.',
+          message: 'Meeting "${_titleController.text}" has been scheduled.',
           type: 'info',
         );
-
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Meeting scheduled successfully!')),
+          const SnackBar(
+            content: Text('Meeting scheduled!'),
+            backgroundColor: Color(0xFF00C853),
+          ),
         );
-        context.pop(); // Return to details
+        context.pop();
       }
     } catch (e) {
       if (mounted) {
@@ -143,10 +170,11 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Schedule Meeting'),
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: const Color(0xFF0f172a),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color(0xFF0f172a),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -154,27 +182,22 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'New Meeting',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('New Meeting',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text(
-                'Schedule a gathering for this Chama.',
-                style: TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 32),
+              const Text('Schedule a gathering for this Chama.',
+                  style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 28),
 
               // Title
               TextFormField(
                 controller: _titleController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _inputDecoration('Meeting Title', Icons.title),
-                validator: (value) => value == null || value.isEmpty ? 'Required' : null,
+                decoration: _dec('Meeting Title', Icons.title),
+                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
 
@@ -182,126 +205,146 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
               TextFormField(
                 controller: _descriptionController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _inputDecoration('Agenda / Description', Icons.description),
+                decoration: _dec('Agenda / Description', Icons.description),
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
 
-              // Date & Time Row
+              // Date & Time
               Row(
                 children: [
                   Expanded(
-                    child: InkWell(
+                    child: _picker(
+                      icon: Icons.calendar_today,
+                      label: _selectedDate == null
+                          ? 'Select Date'
+                          : DateFormat('MMM d, y').format(_selectedDate!),
+                      hasValue: _selectedDate != null,
                       onTap: () => _selectDate(context),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2C2C2C),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today, color: Color(0xFF00C853), size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              _selectedDate == null
-                                  ? 'Select Date'
-                                  : DateFormat('MMM d, y').format(_selectedDate!),
-                              style: TextStyle(
-                                color: _selectedDate == null ? Colors.grey : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: InkWell(
+                    child: _picker(
+                      icon: Icons.access_time,
+                      label: _selectedTime == null
+                          ? 'Select Time'
+                          : _selectedTime!.format(context),
+                      hasValue: _selectedTime != null,
                       onTap: () => _selectTime(context),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2C2C2C),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.access_time, color: Color(0xFF00C853), size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              _selectedTime == null
-                                  ? 'Select Time'
-                                  : _selectedTime!.format(context),
-                              style: TextStyle(
-                                color: _selectedTime == null ? Colors.grey : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
 
-              // Virtual Toggle
-              SwitchListTile(
-                title: const Text('Virtual Meeting (Google Meet/Zoom)', style: TextStyle(color: Colors.white)),
-                value: _isVirtual,
-                activeThumbColor: const Color(0xFF00C853),
-                contentPadding: EdgeInsets.zero,
-                onChanged: (val) => setState(() => _isVirtual = val),
+              // Virtual toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1e293b),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isVirtual
+                        ? const Color(0xFF00C853).withValues(alpha: 0.4)
+                        : Colors.white10,
+                  ),
+                ),
+                child: SwitchListTile(
+                  title: const Text('Virtual Meeting',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    _isVirtual
+                        ? 'Powered by Ratibu Meet. Opens in your browser or meeting app.'
+                        : 'Toggle to enable a virtual meeting link',
+                    style: TextStyle(
+                      color:
+                          _isVirtual ? const Color(0xFF00C853) : Colors.white38,
+                      fontSize: 12,
+                    ),
+                  ),
+                  value: _isVirtual,
+                  activeColor: const Color(0xFF00C853),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  onChanged: (val) => setState(() => _isVirtual = val),
+                ),
               ),
 
-              if (_isVirtual) ...[
-                TextFormField(
-                  controller: _videoLinkController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('Video Link URL', Icons.link),
-                  validator: (value) {
-                    if (_isVirtual && (value == null || value.isEmpty)) {
-                      return 'Required for virtual meetings';
-                    }
-                    return null;
-                  },
+              // Jitsi room preview
+              if (_isVirtual && _selectedDate != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C853).withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: const Color(0xFF00C853).withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.videocam,
+                          color: Color(0xFF00C853), size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Room auto-generated',
+                                style: TextStyle(
+                                    color: Color(0xFF00C853),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold)),
+                            Text(
+                              _jitsiUrl,
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 11),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ] else ...[
+              ],
+
+              // Physical venue
+              if (!_isVirtual) ...[
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _venueController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('Physical Venue', Icons.location_on),
-                  validator: (value) {
-                    if (!_isVirtual && (value == null || value.isEmpty)) {
-                      return 'Required for physical meetings';
-                    }
-                    return null;
-                  },
+                  decoration: _dec('Physical Venue', Icons.location_on),
+                  validator: (v) => !_isVirtual && (v == null || v.isEmpty)
+                      ? 'Required'
+                      : null,
                 ),
               ],
+
               const SizedBox(height: 32),
 
-              // Submit Button
               SizedBox(
-                height: 50,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C853),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
                       : const Text('Schedule Meeting',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -311,21 +354,59 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.grey),
-      prefixIcon: Icon(icon, color: const Color(0xFF00C853)),
-      filled: true,
-      fillColor: const Color(0xFF2C2C2C),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF00C853)),
+  Widget _picker({
+    required IconData icon,
+    required String label,
+    required bool hasValue,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1e293b),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFF00C853), size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: hasValue ? Colors.white : Colors.grey,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  InputDecoration _dec(String label, IconData icon) => InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey),
+        prefixIcon: Icon(icon, color: const Color(0xFF00C853)),
+        filled: true,
+        fillColor: const Color(0xFF1e293b),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white10),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF00C853)),
+        ),
+      );
 }

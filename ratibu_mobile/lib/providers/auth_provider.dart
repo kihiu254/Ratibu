@@ -165,14 +165,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
       
       final kycData = await _supabase
           .from('users')
-          .select('kyc_status, full_name, two_factor_enabled, otp_verified_at')
+          .select('kyc_status, first_name, last_name, two_factor_enabled, otp_verified_at')
           .eq('id', res.user!.id)
           .maybeSingle();
       
       // 2FA disabled in mobile security settings
       final is2FAEnabled = false;
       final kycStatus = kycData?['kyc_status'] ?? 'not_started';
-      final fullName = kycData?['full_name'] ?? 'Member';
+      final firstName = kycData?['first_name'] ?? '';
+      final fullName = firstName.isNotEmpty ? '$firstName ${kycData?['last_name'] ?? ''}'.trim() : 'Member';
       final prefs = await SharedPreferences.getInstance();
       final localOtpVerified = prefs.getBool('otp_verified_${res.user!.id}') ?? false;
       final otpVerified = kycData?['otp_verified_at'] != null || localOtpVerified;

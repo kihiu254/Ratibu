@@ -3,13 +3,23 @@ import { Plus, ArrowUpRight, ArrowDownLeft, Wallet } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
 import { formatDistanceToNow } from 'date-fns'
 
 interface DashboardStats {
   totalBalance: number
   activeChamas: number
   pendingPayments: number
-  recentTransactions: any[]
+  recentTransactions: TransactionSummary[]
+}
+
+interface TransactionSummary {
+  id: string
+  amount: number
+  type: string
+  status: string
+  created_at: string
+  description?: string | null
 }
 
 interface SavingsTarget {
@@ -96,11 +106,15 @@ export default function Dashboard() {
         recentTransactions: recentTransactions || []
       })
 
-      const { data: goals } = await supabase
+      const { data: goals, error: goalsError } = await supabase
         .from('user_savings_targets')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+
+      if (goalsError && !isMissingOrUnauthorizedSavingsTargets(goalsError)) {
+        throw goalsError
+      }
 
       setSavingsTargets((goals || []) as SavingsTarget[])
 

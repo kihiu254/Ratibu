@@ -4,6 +4,7 @@ import {
   AlertCircle, X, Download, Phone, MapPin, Users, CreditCard,
   Briefcase, Building, ShieldCheck, ImageOff
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
 
@@ -197,6 +198,7 @@ function DocImage({ url, label }: { url?: string | null; label: string }) {
       <div className="p-2 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
         <span className="text-xs font-bold text-slate-500">{label}</span>
         <button
+          type="button"
           onClick={() => downloadImage(url, `${label.replace(/\s+/g, '_')}.jpg`)}
           className="flex items-center gap-1 text-xs font-bold text-[#00C853] hover:text-green-600 transition-colors"
         >
@@ -217,7 +219,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function SectionTitle({ icon: Icon, title }: { icon: any; title: string }) {
+function SectionTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <h3 className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest mb-3">
       <Icon className="w-3.5 h-3.5" />
@@ -273,13 +275,21 @@ function KycModal({ user, onClose, onStatusChange }: {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => downloadKycSummary(user)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#00C853]/10 text-[#00C853] hover:bg-[#00C853]/20 transition-all"
             >
               <Download className="w-4 h-4" /> Download KYC
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close KYC details"
+              title="Close KYC details"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+            >
               <X className="w-5 h-5 text-slate-400" />
+              <span className="sr-only">Close KYC details</span>
             </button>
           </div>
         </div>
@@ -292,6 +302,7 @@ function KycModal({ user, onClose, onStatusChange }: {
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Update KYC Status:</span>
             {['approved', 'pending', 'rejected', 'not_started'].map(s => (
               <button
+                type="button"
                 key={s}
                 disabled={updating || user.kyc_status === s}
                 onClick={() => updateKycStatus(s)}
@@ -440,7 +451,7 @@ export default function AdminKycDocuments() {
 
   const kycBadge = (status?: string) => {
     const normalized = status === 'verified' ? 'approved' : (status ?? 'not_started')
-    const map: Record<string, { icon: any; cls: string; label: string }> = {
+    const map: Record<string, { icon: LucideIcon; cls: string; label: string }> = {
       approved:    { icon: CheckCircle, cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',   label: 'Approved' },
       pending:     { icon: Clock,       cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', label: 'Pending' },
       rejected:    { icon: AlertCircle, cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',           label: 'Rejected' },
@@ -478,7 +489,9 @@ export default function AdminKycDocuments() {
           <p className="text-slate-500">{filtered.length} of {records.length} members</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <label htmlFor="admin-kyc-status-filter" className="sr-only">Filter KYC documents by status</label>
           <select
+            id="admin-kyc-status-filter"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#00C853] transition-all"
@@ -490,9 +503,12 @@ export default function AdminKycDocuments() {
             <option value="not_started">Not Started</option>
           </select>
           <div className="relative">
+            <label htmlFor="admin-kyc-search" className="sr-only">Search KYC documents</label>
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
+              id="admin-kyc-search"
               type="text"
+              aria-label="Search KYC documents"
               placeholder="Search by name, email..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -571,7 +587,9 @@ export default function AdminKycDocuments() {
                   </td>
                   <td className="py-4 px-6 text-right">
                     <button
+                      type="button"
                       onClick={() => setSelected(user)}
+                      aria-label={`Review KYC for ${[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}`}
                       className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#00C853] bg-[#00C853]/10 hover:bg-[#00C853]/20 transition-all"
                     >
                       <Eye className="w-4 h-4" />

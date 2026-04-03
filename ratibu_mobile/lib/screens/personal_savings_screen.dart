@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/savings_target.dart';
 import '../services/savings_target_service.dart';
 
-class PersonalSavingsScreen extends StatefulWidget {
+class PersonalSavingsScreen extends ConsumerStatefulWidget {
   const PersonalSavingsScreen({super.key});
 
   @override
-  State<PersonalSavingsScreen> createState() => _PersonalSavingsScreenState();
+  ConsumerState<PersonalSavingsScreen> createState() => _PersonalSavingsScreenState();
 }
 
-class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
+class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
   final _service = SavingsTargetService();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -47,12 +49,14 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
   Future<void> _loadTargets() async {
     setState(() => _loading = true);
     try {
-      final targets = await _service.getSavingsTargets();
-      if (mounted) {
-        setState(() {
-          _targets = targets;
-        });
+      // Ensure session is available before querying
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
+        // Try recovering session
+        await Supabase.instance.client.auth.refreshSession();
       }
+      final targets = await _service.getSavingsTargets();
+      if (mounted) setState(() => _targets = targets);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -66,6 +70,18 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
 
   Future<void> _createTarget() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Ensure session before insert
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session expired. Please log in again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -101,7 +117,10 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
       await _loadTargets();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Savings plan created successfully!')),
+          const SnackBar(
+            content: Text('Savings plan created!'),
+            backgroundColor: Color(0xFF00C853),
+          ),
         );
       }
     } catch (e) {
@@ -113,6 +132,130 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _showTransactionSheet(SavingsTarget target, String type) async {
+    final amountController = TextEditingController();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1e293b),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        bool processing = false;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) => Padding(
+            padding: EdgeInsets.only(
+              left: 24, right: 24, top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${type == 'deposit' ? 'Deposit to' : 'Withdraw from'} ${target.name}',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Current balance: KES ${target.currentAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: amountController,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDecoration('Amount (KES)'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: processing
+                      ? null
+                      : () async {
+                          final amount = double.tryParse(amountController.text.trim());
+                          if (amount == null || amount <= 0) return;
+                          if (type == 'withdraw' && amount > target.currentAmount) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Amount exceeds available balance')),
+                            );
+                            return;
+                          }
+                          setModalState(() => processing = true);
+                          try {
+                            final next = type == 'deposit'
+                                ? target.currentAmount + amount
+                                : (target.currentAmount - amount)
+                                    .clamp(0, double.infinity)
+                                    .toDouble();
+                            await _service.updateCurrentAmount(
+                              targetId: target.id,
+                              newAmount: next,
+                            );
+                            if (!mounted || !context.mounted || !ctx.mounted) return;
+
+                            setState(() {
+                              final idx = _targets.indexWhere((t) => t.id == target.id);
+                              if (idx != -1) {
+                                _targets = List.of(_targets)..[idx] = SavingsTarget.fromMap({
+                                  'id': target.id,
+                                  'name': target.name,
+                                  'purpose': target.purpose,
+                                  'destination_label': target.destinationLabel,
+                                  'target_amount': target.targetAmount,
+                                  'current_amount': next,
+                                  'auto_allocate': target.autoAllocate,
+                                  'allocation_type': target.allocationType,
+                                  'allocation_value': target.allocationValue,
+                                  'status': target.status,
+                                  'notes': target.notes,
+                                });
+                              }
+                            });
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(type == 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded'),
+                              backgroundColor: const Color(0xFF00C853),
+                            ));
+                          } catch (e) {
+                            setModalState(() => processing = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Transaction failed: $e')),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: type == 'deposit' ? const Color(0xFF00C853) : Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    processing ? 'Processing...' : type == 'deposit' ? 'Confirm Deposit' : 'Confirm Withdrawal',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    amountController.dispose();
   }
 
   Future<void> _toggleStatus(SavingsTarget target) async {
@@ -133,16 +276,11 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
 
   String _formatPurpose(String purpose) {
     switch (purpose) {
-      case 'daily_payments':
-        return 'Daily payments';
-      case 'bill_payment':
-        return 'Bill payment';
-      case 'school_fees':
-        return 'School fees';
-      case 'emergency':
-        return 'Emergency fund';
-      default:
-        return '${purpose[0].toUpperCase()}${purpose.substring(1)}';
+      case 'daily_payments': return 'Daily payments';
+      case 'bill_payment': return 'Bill payment';
+      case 'school_fees': return 'School fees';
+      case 'emergency': return 'Emergency fund';
+      default: return '${purpose[0].toUpperCase()}${purpose.substring(1)}';
     }
   }
 
@@ -151,14 +289,18 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
       appBar: AppBar(
-        title: const Text('Personal Savings'),
+        title: const Text('Personal Savings',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           TextButton.icon(
             onPressed: () => setState(() => _showForm = !_showForm),
-            icon: const Icon(Icons.add, color: Color(0xFF00C853)),
-            label: Text(_showForm ? 'Close' : 'Add', style: const TextStyle(color: Color(0xFF00C853))),
+            icon: Icon(_showForm ? Icons.close : Icons.add,
+                color: const Color(0xFF00C853)),
+            label: Text(_showForm ? 'Close' : 'Add',
+                style: const TextStyle(color: Color(0xFF00C853))),
           ),
         ],
       ),
@@ -169,7 +311,7 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             const Text(
-              'Create savings plans for any viable goal and decide how future deposits should support them.',
+              'Create savings plans for any goal and decide how future deposits should support them.',
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
             const SizedBox(height: 16),
@@ -177,7 +319,8 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator(color: Color(0xFF00C853))),
+                child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF00C853))),
               )
             else if (_targets.isEmpty)
               Container(
@@ -189,12 +332,15 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
                 ),
                 child: const Column(
                   children: [
-                    Icon(Icons.savings_outlined, color: Color(0xFF00C853), size: 40),
+                    Icon(Icons.savings_outlined,
+                        color: Color(0xFF00C853), size: 40),
                     SizedBox(height: 12),
-                    Text('No savings plans yet.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('No savings plans yet.',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                     SizedBox(height: 8),
                     Text(
-                      'Start one for emergencies, school fees, investments, business growth, bills, rent, or any custom goal.',
+                      'Tap "Add" to create a plan for emergencies, school fees, rent, investments, or any custom goal.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white54),
                     ),
@@ -221,14 +367,13 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
       child: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildField(_nameController, 'Savings plan name'),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _purpose,
-              dropdownColor: const Color(0xFF0f172a),
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('Purpose'),
+            _buildDropdown<String>(
+              label: 'Purpose',
+              value: _purpose,
               items: const [
                 DropdownMenuItem(value: 'emergency', child: Text('Emergency fund')),
                 DropdownMenuItem(value: 'rent', child: Text('Rent')),
@@ -240,31 +385,30 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
                 DropdownMenuItem(value: 'withdrawal', child: Text('Withdrawal reserve')),
                 DropdownMenuItem(value: 'custom', child: Text('Custom')),
               ],
-              onChanged: (value) {
-                if (value != null) setState(() => _purpose = value);
-              },
+              onChanged: (v) { if (v != null) setState(() => _purpose = v); },
             ),
             const SizedBox(height: 12),
-            _buildField(_destinationController, 'Destination label'),
+            _buildField(_destinationController, 'Destination label (optional)',
+                requiredField: false),
             const SizedBox(height: 12),
-            _buildField(_targetAmountController, 'Target amount (KES)', keyboardType: TextInputType.number),
+            _buildField(_targetAmountController, 'Target amount (KES)',
+                keyboardType: TextInputType.number),
             const SizedBox(height: 12),
-            _buildField(_currentAmountController, 'Current saved (KES)', keyboardType: TextInputType.number),
+            _buildField(_currentAmountController, 'Current saved (KES)',
+                keyboardType: TextInputType.number),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _allocationType,
-              dropdownColor: const Color(0xFF0f172a),
-              style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('Allocation type'),
+            _buildDropdown<String>(
+              label: 'Allocation type',
+              value: _allocationType,
               items: const [
                 DropdownMenuItem(value: 'percentage', child: Text('Percentage')),
                 DropdownMenuItem(value: 'fixed_amount', child: Text('Fixed amount')),
               ],
-              onChanged: (value) {
-                if (value != null) {
+              onChanged: (v) {
+                if (v != null) {
                   setState(() {
-                    _allocationType = value;
-                    _allocationValueController.text = value == 'percentage' ? '100' : _allocationValueController.text;
+                    _allocationType = v;
+                    if (v == 'percentage') _allocationValueController.text = '100';
                   });
                 }
               },
@@ -272,27 +416,38 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
             const SizedBox(height: 12),
             _buildField(
               _allocationValueController,
-              _allocationType == 'percentage' ? 'Allocation %' : 'Allocation amount (KES)',
+              _allocationType == 'percentage'
+                  ? 'Allocation %'
+                  : 'Allocation amount (KES)',
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 12),
-            _buildField(_notesController, 'Notes', maxLines: 3, requiredField: false),
+            _buildField(_notesController, 'Notes (optional)',
+                maxLines: 3, requiredField: false),
+            const SizedBox(height: 4),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               activeThumbColor: const Color(0xFF00C853),
               value: _autoAllocate,
-              onChanged: (value) => setState(() => _autoAllocate = value),
-              title: const Text('Enable auto allocation', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Track how savings should move toward this plan', style: TextStyle(color: Colors.white54)),
+              onChanged: (v) => setState(() => _autoAllocate = v),
+              title: const Text('Enable auto allocation',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                  'Track how savings should move toward this plan',
+                  style: TextStyle(color: Colors.white54)),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _createTarget,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00C853)),
-                child: Text(_saving ? 'Saving...' : 'Save savings plan'),
+            ElevatedButton(
+              onPressed: _saving ? null : _createTarget,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C853),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
+              child: Text(_saving ? 'Saving...' : 'Save Savings Plan',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -318,15 +473,49 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(target.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(target.name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(target.destinationLabel?.isNotEmpty == true ? target.destinationLabel! : _formatPurpose(target.purpose), style: const TextStyle(color: Colors.white54)),
+                    Text(
+                      target.destinationLabel?.isNotEmpty == true
+                          ? target.destinationLabel!
+                          : _formatPurpose(target.purpose),
+                      style: const TextStyle(color: Colors.white54),
+                    ),
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: () => _toggleStatus(target),
-                child: Text(target.status == 'active' ? 'Pause' : 'Activate'),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Deposit',
+                    icon: const Icon(Icons.arrow_downward_rounded, color: Color(0xFF00C853)),
+                    onPressed: () => _showTransactionSheet(target, 'deposit'),
+                  ),
+                  IconButton(
+                    tooltip: 'Withdraw',
+                    icon: Icon(
+                      Icons.arrow_upward_rounded,
+                      color: target.currentAmount > 0 ? Colors.redAccent : Colors.white24,
+                    ),
+                    onPressed: target.currentAmount > 0
+                        ? () => _showTransactionSheet(target, 'withdraw')
+                        : null,
+                  ),
+                  TextButton(
+                    onPressed: () => _toggleStatus(target),
+                    child: Text(
+                      target.status == 'active' ? 'Pause' : 'Activate',
+                      style: TextStyle(
+                        color: target.status == 'active' ? Colors.orange : const Color(0xFF00C853),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -334,8 +523,11 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('KES ${target.currentAmount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white54)),
-              Text('KES ${target.targetAmount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text('KES ${target.currentAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.white54)),
+              Text('KES ${target.targetAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 8),
@@ -345,7 +537,8 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
               value: target.progressPercent / 100,
               minHeight: 8,
               backgroundColor: Colors.white12,
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF00C853)),
+              valueColor:
+                  const AlwaysStoppedAnimation(Color(0xFF00C853)),
             ),
           ),
           const SizedBox(height: 10),
@@ -357,7 +550,8 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
           ),
           if (target.notes != null && target.notes!.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(target.notes!, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text(target.notes!,
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ],
       ),
@@ -385,10 +579,28 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
     );
   }
 
+  Widget _buildDropdown<T>({
+    required String label,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      dropdownColor: const Color(0xFF0f172a),
+      isExpanded: true,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+      iconEnabledColor: Colors.white54,
+      decoration: _inputDecoration(label),
+      items: items,
+      onChanged: onChanged,
+    );
+  }
+
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.grey),
+      labelStyle: const TextStyle(color: Colors.white60),
       filled: true,
       fillColor: const Color(0xFF0f172a),
       border: OutlineInputBorder(
@@ -397,11 +609,15 @@ class _PersonalSavingsScreenState extends State<PersonalSavingsScreen> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white10),
+        borderSide: const BorderSide(color: Colors.white24),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFF00C853)),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red),
       ),
     );
   }

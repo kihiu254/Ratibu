@@ -4,8 +4,35 @@ import { supabase } from '../lib/supabase'
 import { Plus, Users, ArrowRight, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
+interface ChamaSummary {
+  id: string
+  name: string
+  description: string | null
+  balance: number | null
+  member_limit: number | null
+  contribution_frequency: string | null
+  created_at: string
+  total_members: number | null
+  category?: string | null
+  userRole: string
+  status: string
+}
+
+interface ChamaMemberRow {
+  chama: Array<Omit<ChamaSummary, 'userRole' | 'status'>> | Omit<ChamaSummary, 'userRole' | 'status'> | null
+  role: string
+  status: string
+}
+
+function firstChama(
+  chama: ChamaMemberRow['chama']
+): Omit<ChamaSummary, 'userRole' | 'status'> | null {
+  if (Array.isArray(chama)) return chama[0] ?? null
+  return chama
+}
+
 export default function Chamas() {
-  const [chamas, setChamas] = useState<any[]>([])
+  const [chamas, setChamas] = useState<ChamaSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('All')
   const navigate = useNavigate()
@@ -49,11 +76,16 @@ export default function Chamas() {
           return
       }
 
-      const activeChamas = members?.map((m: any) => ({
-        ...m.chama,
-        userRole: m.role,
-        status: m.status
-      })) || []
+      const activeChamas = (members as ChamaMemberRow[] | null)?.flatMap((member) => {
+        const chama = firstChama(member.chama)
+        if (!chama) return []
+
+        return [{
+          ...chama,
+        userRole: member.role,
+        status: member.status
+        }]
+      }) || []
 
       setChamas(activeChamas)
     } catch (err) {
@@ -128,12 +160,13 @@ export default function Chamas() {
             {chamas
               .filter(c => selectedCategory === 'All' || c.category === selectedCategory)
               .map((chama) => (
-                <motion.div
+                <motion.button
+                    type="button"
                     key={chama.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     whileHover={{ y: -5 }}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all overflow-hidden group cursor-pointer"
+                    className="w-full text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all overflow-hidden group cursor-pointer"
                     onClick={() => navigate(`/chama/${chama.id}`)}
                 >
                     <div className="p-6">
@@ -168,7 +201,7 @@ export default function Chamas() {
                              </div>
                         </div>
                     </div>
-                </motion.div>
+                </motion.button>
             ))}
         </div>
       )}

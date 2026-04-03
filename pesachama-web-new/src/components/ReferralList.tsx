@@ -2,8 +2,34 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Users, CheckCircle2, Clock, User } from 'lucide-react'
 
+interface ReferredUser {
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
+  email: string | null
+}
+
+interface ReferralRecord {
+  id: string
+  status: 'completed' | 'pending' | string
+  created_at: string
+  referred: ReferredUser | null
+}
+
+interface ReferralRow {
+  id: string
+  status: 'completed' | 'pending' | string
+  created_at: string
+  referred: ReferredUser | ReferredUser[] | null
+}
+
+function firstReferred(value: ReferralRow['referred']): ReferredUser | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
 export default function ReferralList() {
-  const [referrals, setReferrals] = useState<any[]>([])
+  const [referrals, setReferrals] = useState<ReferralRecord[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -33,7 +59,12 @@ export default function ReferralList() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setReferrals(data || [])
+      setReferrals(
+        ((data || []) as ReferralRow[]).map((referral) => ({
+          ...referral,
+          referred: firstReferred(referral.referred),
+        }))
+      )
     } catch (err) {
       console.error('Error fetching referrals:', err)
     } finally {
@@ -73,7 +104,11 @@ export default function ReferralList() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-transparent group-hover:border-[#00C853] transition-all">
                   {ref.referred?.avatar_url ? (
-                    <img src={ref.referred.avatar_url} className="w-full h-full object-cover" />
+                    <img
+                      src={ref.referred.avatar_url}
+                      alt={`${ref.referred.first_name || 'Referred user'} ${ref.referred.last_name || ''} profile`.trim()}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-400">
                       <User className="w-5 h-5" />

@@ -1,9 +1,74 @@
+import 'dart:io';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import '../utils/notification_helper.dart';
 
 class ChamaService {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  Future<void> _ensureConnected() async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity.contains(ConnectivityResult.none)) {
+      throw Exception('No internet connection. Reconnect and try again.');
+    }
+  }
+
+  String _friendlyError(Object error, String fallback) {
+    final message = error.toString().replaceFirst('Exception: ', '');
+    final lower = message.toLowerCase();
+
+    if (error is SocketException ||
+        lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('network') ||
+        lower.contains('internet')) {
+      return 'No internet connection. Reconnect and try again.';
+    }
+
+    if (lower.contains('uniq_meetings_chama_date')) {
+      return 'A meeting for this chama is already scheduled at that date and time. Choose a different time.';
+    }
+
+    if (lower.contains('a chama with this name already exists')) {
+      return 'A chama with this name already exists. Choose a different name.';
+    }
+
+    if (lower.contains('chama_allocation_schedule')) {
+      return 'That allocation schedule changed while the swap was being approved. Refresh and try again.';
+    }
+
+    if (lower.contains('duplicate key value violates unique constraint')) {
+      return 'This record already exists. Refresh and try again.';
+    }
+
+    return message.isEmpty ? fallback : message;
+  }
+
+  Future<void> _sendSwapEmail({
+    required String swapId,
+    required String event,
+  }) async {
+    try {
+      await _supabase.functions.invoke(
+        'send-swap-email',
+        body: {
+          'swapId': swapId,
+          'event': event,
+        },
+      );
+    } catch (e) {
+      if (e is FunctionException &&
+          (e.status == 404 || e.details.toString().contains('NOT_FOUND'))) {
+        debugPrint(
+          'Swap email function is not deployed for this Supabase project. Skipping email send.',
+        );
+        return;
+      }
+      debugPrint('Error sending swap email: $e');
+    }
+  }
 
   /// Fetches the list of Chamas that the current user belongs to.
   Future<List<Map<String, dynamic>>> getMyChamas() async {
@@ -34,49 +99,56 @@ class ChamaService {
     required String frequency,
     required String category,
   }) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('Not authenticated');
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
 
-    // 1. Create Chama
-    final chamaResponse = await _supabase.from('chamas').insert({
-      'name': name,
-      'description': description,
-      'created_by': user.id,
-      'contribution_amount': contributionAmount,
-      'contribution_frequency': frequency,
-      'category': category,
-      'member_limit': 50, // Default
-      'balance': 0,
-    }).select().single();
+      final chamaResponse = await _supabase
+          .from('chamas')
+          .insert({
+            'name': name,
+            'description': description,
+            'created_by': user.id,
+            'contribution_amount': contributionAmount,
+            'contribution_frequency': frequency,
+            'category': category,
+            'member_limit': 30,
+            'balance': 0,
+          })
+          .select()
+          .single();
 
-    final chamaId = chamaResponse['id'];
+      final chamaId = chamaResponse['id'];
 
-    // 2. Add Creator as Admin Member
-    await _supabase.from('chama_members').insert({
-      'chama_id': chamaId,
-      'user_id': user.id,
-      'role': 'admin',
-      'status': 'active',
-    });
+      await _supabase.from('chama_members').insert({
+        'chama_id': chamaId,
+        'user_id': user.id,
+        'role': 'admin',
+        'status': 'active',
+      });
+    } catch (e) {
+      throw Exception(_friendlyError(e, 'Failed to create chama.'));
+    }
   }
 
   /// Fetches details for a specific Chama, including members.
   Future<Map<String, dynamic>> getChamaDetails(String chamaId) async {
-      try {
-        final chamaNode = await _supabase.from('chamas').select().eq('id', chamaId).single();
-        
-        final membersNode = await _supabase
-            .from('chama_members')
-            .select('*, users(first_name, last_name, phone)')
-            .eq('chama_id', chamaId);
+    try {
+      final chamaNode =
+          await _supabase.from('chamas').select().eq('id', chamaId).single();
 
-        return {
-          'chama': chamaNode,
-          'members': membersNode,
-        };
-      } catch (e) {
-        throw Exception('Failed to load chama details: $e');
-      }
+      final membersNode = await _supabase
+          .from('chama_members')
+          .select('*, users(first_name, last_name, phone)')
+          .eq('chama_id', chamaId);
+
+      return {
+        'chama': chamaNode,
+        'members': membersNode,
+      };
+    } catch (e) {
+      throw Exception('Failed to load chama details: $e');
+    }
   }
 
   /// Fetches meetings for a specific Chama.
@@ -117,22 +189,31 @@ class ChamaService {
     required String venue,
     String? videoLink,
   }) async {
-    await _supabase.from('meetings').insert({
-      'chama_id': chamaId,
-      'title': title,
-      'description': description,
-      'date': date.toIso8601String(),
-      'venue': venue,
-      'video_link': videoLink,
-    });
-
-    // Notify Members via Email
     try {
+      await _ensureConnected();
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      await _supabase.from('meetings').insert({
+        'chama_id': chamaId,
+        'created_by': user.id,
+        'title': title,
+        'description': description,
+        'date': date.toIso8601String(),
+        'venue': venue,
+        'video_link': videoLink,
+      });
+    } catch (e) {
+      throw Exception(_friendlyError(e, 'Failed to schedule meeting.'));
+    }
+
+    try {
+      // Notify members via email without blocking the successful insert.
       final members = await _supabase
           .from('chama_members')
           .select('users:user_id(email)')
           .eq('chama_id', chamaId);
-      
+
       for (var member in members) {
         final email = member['users']?['email'];
         if (email != null) {
@@ -212,7 +293,9 @@ class ChamaService {
   }
 
   /// Fetches monthly allocation schedule.
-  Future<List<Map<String, dynamic>>> getAllocations(String chamaId, DateTime month) async {
+  Future<List<Map<String, dynamic>>> getAllocations(
+      String chamaId, DateTime month) async {
+    await _ensureConnected();
     final monthStart = DateTime(month.year, month.month, 1);
     final response = await _supabase
         .from('chama_allocation_schedule')
@@ -224,11 +307,14 @@ class ChamaService {
   }
 
   /// Fetches swap requests for a chama month.
-  Future<List<Map<String, dynamic>>> getSwapRequests(String chamaId, DateTime month) async {
+  Future<List<Map<String, dynamic>>> getSwapRequests(
+      String chamaId, DateTime month) async {
+    await _ensureConnected();
     final monthStart = DateTime(month.year, month.month, 1);
     final response = await _supabase
         .from('allocation_swap_requests')
-        .select('*, requester:users!allocation_swap_requests_requester_id_fkey(first_name,last_name), target:users!allocation_swap_requests_target_user_id_fkey(first_name,last_name)')
+        .select(
+            '*, requester:users!allocation_swap_requests_requester_id_fkey(first_name,last_name), target:users!allocation_swap_requests_target_user_id_fkey(first_name,last_name)')
         .eq('chama_id', chamaId)
         .eq('month', monthStart.toIso8601String().substring(0, 10))
         .order('created_at', ascending: false)
@@ -238,6 +324,7 @@ class ChamaService {
 
   /// Generates monthly allocations via RPC.
   Future<void> generateAllocations(String chamaId, DateTime month) async {
+    await _ensureConnected();
     final monthStart = DateTime(month.year, month.month, 1);
     await _supabase.rpc('generate_monthly_allocations', params: {
       '_chama_id': chamaId,
@@ -253,34 +340,92 @@ class ChamaService {
     required int myDay,
     required int targetDay,
   }) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('Not authenticated');
-    final monthStart = DateTime(month.year, month.month, 1);
-    await _supabase.from('allocation_swap_requests').insert({
-      'chama_id': chamaId,
-      'month': monthStart.toIso8601String().substring(0, 10),
-      'requester_id': user.id,
-      'requester_day': myDay,
-      'target_user_id': targetUserId,
-      'target_day': targetDay,
-    });
+    try {
+      await _ensureConnected();
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+      final monthStart = DateTime(month.year, month.month, 1);
+      final response = await _supabase
+          .from('allocation_swap_requests')
+          .insert({
+            'chama_id': chamaId,
+            'month': monthStart.toIso8601String().substring(0, 10),
+            'requester_id': user.id,
+            'requester_day': myDay,
+            'target_user_id': targetUserId,
+            'target_day': targetDay,
+          })
+          .select('id')
+          .single();
+
+      final swapId = response['id'] as String?;
+      if (swapId != null) {
+        await _sendSwapEmail(swapId: swapId, event: 'request_created');
+      }
+    } catch (e) {
+      throw Exception(_friendlyError(e, 'Failed to send swap request.'));
+    }
   }
 
   /// Approves a swap request via RPC.
   Future<void> approveSwap(String swapId) async {
-    await _supabase.rpc('approve_allocation_swap', params: {'_swap_id': swapId});
+    try {
+      await _ensureConnected();
+      await _supabase
+          .rpc('approve_allocation_swap', params: {'_swap_id': swapId});
+      await _sendSwapEmail(swapId: swapId, event: 'approved');
+    } catch (e) {
+      throw Exception(_friendlyError(e, 'Failed to approve swap.'));
+    }
   }
 
   /// Rejects a swap request.
   Future<void> rejectSwap(String swapId) async {
-    await _supabase.from('allocation_swap_requests').update({
-      'status': 'rejected',
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', swapId);
+    try {
+      await _ensureConnected();
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      await _supabase
+          .from('allocation_swap_requests')
+          .update({
+            'status': 'rejected',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', swapId)
+          .eq('target_user_id', user.id)
+          .eq('status', 'pending');
+
+      await _sendSwapEmail(swapId: swapId, event: 'rejected');
+    } catch (e) {
+      throw Exception(_friendlyError(e, 'Failed to reject swap.'));
+    }
+  }
+
+  /// Cancels a pending swap request created by the current user.
+  Future<void> cancelSwap(String swapId) async {
+    try {
+      await _ensureConnected();
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
+
+      await _supabase
+          .from('allocation_swap_requests')
+          .update({
+            'status': 'cancelled',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', swapId)
+          .eq('requester_id', user.id)
+          .eq('status', 'pending');
+    } catch (e) {
+      throw Exception(_friendlyError(e, 'Failed to cancel swap request.'));
+    }
   }
 
   /// Fetches meetings for a specific month.
-  Future<List<Map<String, dynamic>>> getChamaMeetingsByMonth(String chamaId, DateTime month) async {
+  Future<List<Map<String, dynamic>>> getChamaMeetingsByMonth(
+      String chamaId, DateTime month) async {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
     final response = await _supabase
@@ -331,7 +476,8 @@ class ChamaService {
     );
 
     if (response.status != 200) {
-      throw Exception(response.data['error'] ?? 'Failed to create standing order');
+      throw Exception(
+          response.data['error'] ?? 'Failed to create standing order');
     }
 
     return Map<String, dynamic>.from(response.data);

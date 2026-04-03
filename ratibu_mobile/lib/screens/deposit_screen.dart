@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/mpesa_service.dart';
 import '../providers/auth_provider.dart';
 import '../utils/notification_helper.dart';
 import '../widgets/qr_code_display.dart';
 
 class DepositScreen extends ConsumerStatefulWidget {
-  final String? chamaId; // Made optional to support generic "Deposit" later, but enforcing for now
+  final String? chamaId;
+  final String? savingsTargetId;
+  final String? initialAmount;
 
-  const DepositScreen({super.key, this.chamaId});
+  const DepositScreen({
+    super.key,
+    this.chamaId,
+    this.savingsTargetId,
+    this.initialAmount,
+  });
 
   @override
   ConsumerState<DepositScreen> createState() => _DepositScreenState();
@@ -23,23 +31,54 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   bool _isLoading = false;
   bool _isQrLoading = false;
   bool _isSuccess = false;
-  String _phoneOption = 'mine'; // 'mine' or 'other'
+  String _phoneOption = 'mine';
   String? _myNumber;
+  String? _savingsTargetName;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill phone number if available from user profile
-    final user = ref.read(authProvider).mapState(
-          authenticated: (state) => state.user,
-        );
-    // In a real app, you'd fetch the phone from the 'users' table metadata/profile
-     if (user?.phone != null) {
-       _myNumber = user!.phone;
-       _phoneController.text = _myNumber!.replaceFirst('+', '');
-     } else {
-       _phoneOption = 'other';
-     }
+    if (widget.initialAmount != null) {
+      _amountController.text = widget.initialAmount!;
+    }
+    _loadUserPhone();
+    if (widget.savingsTargetId != null) _loadSavingsTargetName();
+  }
+
+  Future<void> _loadUserPhone() async {
+    try {
+      final userId = ref.read(authProvider).mapState(
+            authenticated: (s) => s.user.id,
+          );
+      if (userId == null) return;
+      final profile = await Supabase.instance.client
+          .from('users')
+          .select('phone')
+          .eq('id', userId)
+          .maybeSingle();
+      final phone = profile?['phone'] as String?;
+      if (phone != null && phone.isNotEmpty) {
+        setState(() {
+          _myNumber = phone;
+          _phoneController.text = phone.replaceFirst('+', '');
+        });
+      } else {
+        setState(() => _phoneOption = 'other');
+      }
+    } catch (_) {
+      setState(() => _phoneOption = 'other');
+    }
+  }
+
+  Future<void> _loadSavingsTargetName() async {
+    try {
+      final row = await Supabase.instance.client
+          .from('user_savings_targets')
+          .select('name')
+          .eq('id', widget.savingsTargetId!)
+          .maybeSingle();
+      if (mounted) setState(() => _savingsTargetName = row?['name'] as String?);
+    } catch (_) {}
   }
 
   @override
@@ -49,152 +88,121 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
     super.dispose();
   }
 
+  String get _depositTarget {
+    if (_savingsTargetName != null) return _savingsTargetName!;
+    if (widget.chamaId != null) return 'Chama';
+    return 'Wallet';
+  }
+
   Future<void> _handleDeposit() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      try {
-        final amount = double.tryParse(_amountController.text.trim());
-        if (amount == null) throw 'Invalid amount format';
-        String phone;
-        
-        // DEBUG: Print user details to console
-        final user = ref.read(authProvider).mapState(
-            authenticated: (state) => state.user,
-        );
-        debugPrint('DEBUG - User Phone: ${user?.phone}');
-        debugPrint('DEBUG - User Metadata: ${user?.userMetadata}');
-        
-        if (_phoneOption == 'mine') {
-            var userPhone = user?.phone;
-            
-            // Fallback to metadata if top-level phone is empty
-            if (userPhone == null || userPhone.isEmpty) {
-               userPhone = user?.userMetadata?['phone'] as String?;
-            }
-
-            if (userPhone == null || userPhone.isEmpty) {
-               throw 'Profile missing phone number. Please select "Other Number".';
-            }
-            phone = userPhone.replaceFirst('+', '');
-        } else {
-             phone = _phoneController.text.trim();
-        }
-        
-        // Use user ID 
-        final userId = ref.read(authProvider).mapState(
-          authenticated: (state) => state.user.id,
-        );
-        
-        if (userId == null) throw 'User not authenticated';
-        
-        // For now, require chamaId. In future, we can allow "Wallet" deposits.
-        if (widget.chamaId == null) {
-          throw 'Please select a Chama to deposit to (Feature coming soon: Wallet Deposit)';
-        }
-
-        await _mpesaService.initiateStkPush(
-          phoneNumber: phone,
-          amount: amount,
-          userId: userId,
-          chamaId: widget.chamaId!, 
-        );
-
-        if (mounted) {
-          setState(() {
-            _isSuccess = true;
-          });
-
-          NotificationHelper.showToast(
-            context,
-            title: 'STK Push Sent!',
-            message: 'Follow the prompt on your phone to complete payment.',
-            type: 'success',
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+    try {
+      final amount = double.parse(_amountController.text.trim());
+      final userId = ref.read(authProvider).mapState(
+            authenticated: (s) => s.user.id,
           );
+      if (userId == null) throw 'User not authenticated';
 
-          // Send Email Notification
-          if (user?.email != null) {
-            NotificationHelper.sendEmail(
-              to: user!.email!,
-              subject: 'Deposit Initiated - Ratibu',
-              html: '''
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                  <h2 style="color: #00C853;">Deposit Initiated</h2>
-                  <p>You have initiated a deposit of <b>KES $amount</b> via M-Pesa.</p>
-                  <p>Please complete the transaction by entering your PIN on the STK push prompt sent to your phone.</p>
-                  <p>Once confirmed, your balance will be updated automatically.</p>
-                  <br>
-                  <p>Best regards,<br>The Ratibu Team</p>
-                </div>
-              ''',
-            );
-          }
-          
-          // Wait a bit then pop
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) context.pop();
-          });
+      String phone;
+      if (_phoneOption == 'mine') {
+        if (_myNumber == null || _myNumber!.isEmpty) {
+          throw 'Profile missing phone number. Please select "Other Number".';
         }
-      } catch (e) {
-        if (mounted) {
-          NotificationHelper.showToast(
-            context,
-            title: 'Deposit Failed',
-            message: e.toString(),
-            type: 'error',
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        phone = _myNumber!.replaceFirst('+', '');
+      } else {
+        phone = _phoneController.text.trim();
       }
+
+      if (widget.chamaId == null && widget.savingsTargetId == null) {
+        throw 'Please select a destination account from the Accounts page.';
+      }
+
+      await _mpesaService.initiateStkPush(
+        phoneNumber: phone,
+        amount: amount,
+        userId: userId,
+        chamaId: widget.chamaId,
+        savingsTargetId: widget.savingsTargetId,
+      );
+
+      if (mounted) {
+        setState(() => _isSuccess = true);
+        NotificationHelper.showToast(
+          context,
+          title: 'STK Push Sent!',
+          message: 'Follow the prompt on your phone to complete payment.',
+          type: 'success',
+        );
+        final user = ref.read(authProvider).mapState(authenticated: (s) => s.user);
+        if (user?.email != null) {
+          NotificationHelper.sendEmail(
+            to: user!.email!,
+            subject: 'Deposit Initiated - Ratibu',
+            html: '''
+              <div style="font-family:sans-serif;padding:20px;border:1px solid #eee;border-radius:10px;">
+                <h2 style="color:#00C853;">Deposit Initiated</h2>
+                <p>You initiated a deposit of <b>KES $amount</b> to <b>$_depositTarget</b> via M-Pesa.</p>
+                <p>Enter your PIN on the STK push prompt to complete.</p>
+                <br><p>Best regards,<br>The Ratibu Team</p>
+              </div>
+            ''',
+          );
+        }
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) context.pop();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        NotificationHelper.showToast(
+          context,
+          title: 'Deposit Failed',
+          message: e.toString(),
+          type: 'error',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleQrGeneration() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isQrLoading = true);
-      try {
-        final amount = double.tryParse(_amountController.text.trim());
-        if (amount == null) throw 'Invalid amount format';
-        
-        // For now, require chamaId. 
-        if (widget.chamaId == null) {
-          throw 'Please select a Chama to generate QR (Feature coming soon: Wallet Deposit)';
-        }
-
-        final qrData = await _mpesaService.generateQrCode(
-          amount: amount,
-          merchantName: 'Ratibu Chama', // In real app, fetch from chama details
-          refNo: 'Deposit-${DateTime.now().millisecond}',
-        );
-
-        if (mounted && qrData['QRCode'] != null) {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (context) => QrCodeDisplay(
-              qrCodeBase64: qrData['QRCode'],
-              amount: amount,
-              chamaName: 'the Chama', // In real app, fetch from chama details
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          NotificationHelper.showToast(
-            context,
-            title: 'QR Generation Failed',
-            message: e.toString(),
-            type: 'error',
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isQrLoading = false);
-        }
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isQrLoading = true);
+    try {
+      final amount = double.parse(_amountController.text.trim());
+      if (widget.chamaId == null && widget.savingsTargetId == null) {
+        throw 'Please select a destination account.';
       }
+      final qrData = await _mpesaService.generateQrCode(
+        amount: amount,
+        merchantName: 'Ratibu - $_depositTarget',
+        refNo: 'Deposit-${DateTime.now().millisecondsSinceEpoch}',
+      );
+      if (mounted && qrData['QRCode'] != null) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => QrCodeDisplay(
+            qrCodeBase64: qrData['QRCode'],
+            amount: amount,
+            chamaName: _depositTarget,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        NotificationHelper.showToast(
+          context,
+          title: 'QR Generation Failed',
+          message: e.toString(),
+          type: 'error',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isQrLoading = false);
     }
   }
 
@@ -202,7 +210,8 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Deposit Funds', style: TextStyle(color: Colors.white)),
+        title: Text('Deposit to $_depositTarget',
+            style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -220,44 +229,41 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1e293b),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.3)),
+                  border: Border.all(
+                      color: const Color(0xFF00C853).withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
                     Image.network(
-                      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Mjpesa.png/320px-Mjpesa.png', // M-Pesa Logo placeholder
+                      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Mjpesa.png/320px-Mjpesa.png',
                       height: 40,
-                      errorBuilder: (c, e, s) => const Icon(Icons.phone_android, color: Colors.green, size: 40),
+                      errorBuilder: (c, e, s) =>
+                          const Icon(Icons.phone_android, color: Colors.green, size: 40),
                     ),
                     const SizedBox(width: 16),
                     const Expanded(
-                      child: Text(
-                        'M-Pesa Express (STK Push)',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: Text('M-Pesa Express (STK Push)',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-              
-              // Amount Input
-              const Text(
-                'Enter Amount (KES)',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
+              const Text('Enter Amount (KES)',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _amountController,
-                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   prefixText: 'KES ',
-                  prefixStyle: const TextStyle(color: Color(0xFF00C853), fontWeight: FontWeight.bold),
+                  prefixStyle: const TextStyle(
+                      color: Color(0xFF00C853), fontWeight: FontWeight.bold),
                   filled: true,
                   fillColor: const Color(0xFF1e293b),
                   enabledBorder: OutlineInputBorder(
@@ -269,21 +275,16 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Please enter an amount';
-                  if (double.tryParse(value) == null) return 'Invalid number format';
-                  if (double.parse(value) <= 0) return 'Amount must be greater than 0';
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Please enter an amount';
+                  if (double.tryParse(v) == null) return 'Invalid number';
+                  if (double.parse(v) <= 0) return 'Amount must be > 0';
                   return null;
                 },
               ),
-              
               const SizedBox(height: 24),
-              // Phone Number Selection
-              const SizedBox(height: 16),
-              const Text(
-                'Select Phone Number',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
+              const Text('Select Phone Number',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
@@ -291,45 +292,47 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white24),
                 ),
-                child: RadioGroup<String>(
-                  groupValue: _phoneOption,
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _phoneOption = value;
-                      if (_phoneOption == 'mine') {
-                        if (_myNumber != null) {
-                          _phoneController.text = _myNumber!.replaceFirst('+', '');
-                        }
-                      } else {
-                        _phoneController.clear();
-                      }
-                    });
-                  },
-                  child: Column(
-                    children: [
-                      RadioListTile<String>(
-                        title: Text(
-                          'My Number (${_myNumber ?? 'Not found'})',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        value: 'mine',
+                child: Column(
+                  children: [
+                    RadioListTile<String>(
+                      title: Text(
+                        'My Number (${_myNumber ?? 'Not found'})',
+                        style: const TextStyle(color: Colors.white),
                       ),
-                      const Divider(height: 1, color: Colors.white10),
-                      RadioListTile<String>(
-                        title: const Text(
-                          'Other Number',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        value: 'other',
-                      ),
-                    ],
-                  ),
+                      value: 'mine',
+                      groupValue: _phoneOption,
+                      activeColor: const Color(0xFF00C853),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _phoneOption = v;
+                          if (_myNumber != null) {
+                            _phoneController.text =
+                                _myNumber!.replaceFirst('+', '');
+                          }
+                        });
+                      },
+                    ),
+                    const Divider(height: 1, color: Colors.white10),
+                    RadioListTile<String>(
+                      title: const Text('Other Number',
+                          style: TextStyle(color: Colors.white)),
+                      value: 'other',
+                      groupValue: _phoneOption,
+                      activeColor: const Color(0xFF00C853),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _phoneOption = v;
+                          _phoneController.clear();
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              
-              if (_phoneOption == 'other')
+              if (_phoneOption == 'other') ...[
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _phoneController,
                   style: const TextStyle(color: Colors.white),
@@ -347,15 +350,15 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Required';
-                    if (!RegExp(r'^254\d{9}$').hasMatch(value)) {
-                      return 'Format: 2547XXXXXXXX';
-                    }
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Required';
+                    final clean = v.replaceAll(RegExp(r'\s+'), '');
+                    final valid = RegExp(r'^(254[71]\d{8}|0[71]\d{8})$').hasMatch(clean);
+                    if (!valid) return 'Format: 07XXXXXXXX, 01XXXXXXXX or 254...';
                     return null;
                   },
                 ),
-                
+              ],
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleDeposit,
@@ -364,22 +367,18 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isLoading
                     ? const SizedBox(
                         height: 24,
                         width: 24,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
+                            color: Colors.white, strokeWidth: 2))
                     : Text(
-                        _isSuccess ? 'Request Sent âœ…' : 'Pay via STK Push',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                        _isSuccess ? 'Request Sent ✅' : 'Pay via STK Push',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 16),
               OutlinedButton(
@@ -389,28 +388,23 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                   foregroundColor: const Color(0xFF00C853),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isQrLoading
                     ? const SizedBox(
                         height: 24,
                         width: 24,
                         child: CircularProgressIndicator(
-                          color: Color(0xFF00C853),
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        'Generate QR Code',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                            color: Color(0xFF00C853), strokeWidth: 2))
+                    : const Text('Generate QR Code',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               if (_isSuccess)
                 const Padding(
                   padding: EdgeInsets.only(top: 16),
                   child: Text(
-                    'Follow the prompt on your M-Pesa phone to complete transaction.',
+                    'Follow the prompt on your M-Pesa phone to complete.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.greenAccent, fontSize: 13),
                   ),
@@ -422,4 +416,3 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
     );
   }
 }
-

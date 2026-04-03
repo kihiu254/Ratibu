@@ -37,12 +37,14 @@ self.addEventListener('notificationclick', function(event) {
 });
 
 // Enhanced offline support
-const CACHE_NAME = 'ratibu-v2';
+const CACHE_NAME = 'ratibu-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/ratibu-logo.png'
+  '/ratibu-logo.png',
+  '/favicon.png',
+  '/logo.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -69,13 +71,22 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request).catch(() => {
         // Return offline page for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match('/');
+          return caches.match('/index.html');
         }
+
+        return new Response('', {
+          status: 503,
+          statusText: 'Offline',
+        });
       });
     })
   );

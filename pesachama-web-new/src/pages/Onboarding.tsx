@@ -2,12 +2,17 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, ArrowRight, UserCircle, Rocket, Loader2 } from 'lucide-react'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Failed to send security code'
+}
+
 export default function Onboarding() {
   const [loading, setLoading] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
   const navigate = useNavigate()
@@ -83,9 +88,9 @@ export default function Onboarding() {
       const alreadySent = data?.alreadySent
       toast.success(alreadySent ? 'Security code already sent. Check your email' : 'Security code sent to your email')
       navigate('/verify-otp')
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error sending OTP:', error)
-      toast.error(error.message || 'Failed to send security code')
+      toast.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }

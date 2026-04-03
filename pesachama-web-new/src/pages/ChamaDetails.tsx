@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from '../utils/toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -25,50 +25,243 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 
 type TabType = 'overview' | 'members' | 'meetings' | 'prompts' | 'calendar' | 'allocations'
+type MaybeArray<T> = T | T[] | null
+
+interface ChamaRow {
+  id: string
+  name: string
+  description: string | null
+  balance: number | null
+  member_limit: number | null
+  created_by: string | null
+  contribution_frequency: string | null
+  contribution_amount: number | null
+  join_points: number | null
+  mpesa_shortcode: string | null
+}
+
+interface ChamaMemberUser {
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+}
+
+interface ChamaMemberRow {
+  id: string
+  user_id: string
+  role: string
+  joined_at: string
+  total_contribution: number | null
+  users: MaybeArray<ChamaMemberUser>
+}
+
+interface ChamaMember {
+  id: string
+  user_id: string
+  role: string
+  joined_at: string
+  total_contribution: number | null
+  users: ChamaMemberUser | null
+}
+
+interface ChamaDetailsData extends ChamaRow {
+  members: ChamaMember[]
+}
+
+interface Meeting {
+  id: string
+  title: string
+  description: string | null
+  date: string
+  venue: string | null
+  video_link: string | null
+}
+
+interface PaymentPrompt {
+  id: string
+  title: string
+  amount: number
+  due_date: string | null
+}
+
+interface AllocationRow {
+  id: string
+  user_id: string
+  allocation_day: number
+  status: string
+  user: MaybeArray<Pick<ChamaMemberUser, 'first_name' | 'last_name'>>
+}
+
+interface Allocation {
+  id: string
+  user_id: string
+  allocation_day: number
+  status: string
+  user: Pick<ChamaMemberUser, 'first_name' | 'last_name'> | null
+}
+
+interface SwapRequestRow {
+  id: string
+  requester_id: string
+  target_user_id: string
+  requester_day: number
+  target_day: number
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  requester: MaybeArray<Pick<ChamaMemberUser, 'first_name' | 'last_name'>>
+  target: MaybeArray<Pick<ChamaMemberUser, 'first_name' | 'last_name'>>
+}
+
+interface SwapRequest {
+  id: string
+  requester_id: string
+  target_user_id: string
+  requester_day: number
+  target_day: number
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  requester: Pick<ChamaMemberUser, 'first_name' | 'last_name'> | null
+  target: Pick<ChamaMemberUser, 'first_name' | 'last_name'> | null
+}
+
+interface BalanceHistory {
+  working_balance: number | null
+  utility_balance: number | null
+}
+
+interface PromptContributor {
+  user_id: string
+  first_name: string | null
+  last_name: string | null
+  status: string
+}
+
+type PaymentSelection = Pick<PaymentPrompt, 'id' | 'title' | 'amount'>
+
+function firstItem<T>(value: MaybeArray<T>) {
+  return Array.isArray(value) ? value[0] ?? null : value
+}
+
+function normalizeMember(row: ChamaMemberRow): ChamaMember {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    role: row.role,
+    joined_at: row.joined_at,
+    total_contribution: row.total_contribution,
+    users: firstItem(row.users),
+  }
+}
+
+function normalizeAllocation(row: AllocationRow): Allocation {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    allocation_day: Number(row.allocation_day),
+    status: row.status,
+    user: firstItem(row.user),
+  }
+}
+
+function normalizeSwapRequest(row: SwapRequestRow): SwapRequest {
+  return {
+    id: row.id,
+    requester_id: row.requester_id,
+    target_user_id: row.target_user_id,
+    requester_day: Number(row.requester_day),
+    target_day: Number(row.target_day),
+    status: row.status,
+    requester: firstItem(row.requester),
+    target: firstItem(row.target),
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong'
+}
+
+function isNetworkIssue(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase()
+  return !navigator.onLine
+    || message.includes('failed to fetch')
+    || message.includes('network request failed')
+    || message.includes('networkerror')
+    || message.includes('socketexception')
+    || message.includes('failed host lookup')
+    || message.includes('internet')
+}
+
+function getSwapErrorMessage(error: unknown, fallback: string) {
+  const message = getErrorMessage(error)
+
+  if (isNetworkIssue(error)) {
+    return 'No internet connection. Reconnect and try again.'
+  }
+
+  if (message.toLowerCase().includes('duplicate key value violates unique constraint')) {
+    return 'That allocation schedule changed while the swap was being approved. Refresh and try again.'
+  }
+
+  return message || fallback
+}
+
+function isMissingSwapEmailFunction(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase()
+  return message.includes('requested function was not found')
+    || message.includes('not_found')
+    || message.includes('status: 404')
+}
 
 export default function ChamaDetails() {
   const { id } = useParams<{ id: string }>()
-  console.log('Mounting ChamaDetails with ID:', id) // Debug log
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any>(null)
-  const [meetings, setMeetings] = useState<any[]>([])
-  const [prompts, setPrompts] = useState<any[]>([])
-  const [allocations, setAllocations] = useState<any[]>([])
-  const [swapRequests, setSwapRequests] = useState<any[]>([])
+  const [data, setData] = useState<ChamaDetailsData | null>(null)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [prompts, setPrompts] = useState<PaymentPrompt[]>([])
+  const [allocations, setAllocations] = useState<Allocation[]>([])
+  const [swapRequests, setSwapRequests] = useState<SwapRequest[]>([])
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [isGeneratingAllocations, setIsGeneratingAllocations] = useState(false)
   const [creatingSwap, setCreatingSwap] = useState(false)
+  const [actingSwapId, setActingSwapId] = useState<string | null>(null)
   const [swapTargetUserId, setSwapTargetUserId] = useState<string>('')
   const [swapTargetDay, setSwapTargetDay] = useState<number>(1)
   const [userRole, setUserRole] = useState<string>('member')
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [standingOrderModalOpen, setStandingOrderModalOpen] = useState(false)
-  const [selectedPrompt, setSelectedPrompt] = useState<any>(null)
+  const [selectedPrompt, setSelectedPrompt] = useState<PaymentSelection | null>(null)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false)
-  const [realTimeBalance, setRealTimeBalance] = useState<any>(null)
+  const [realTimeBalance, setRealTimeBalance] = useState<BalanceHistory | null>(null)
   const [qrCodeData, setQrCodeData] = useState<string | null>(null)
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [qrLoading, setQrLoading] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (id) {
-      fetchChamaDetails()
-      fetchMeetings()
-      fetchPrompts()
-      fetchAllocations()
-      fetchSwapRequests()
+  const fetchRealTimeBalance = useCallback(async (chamaId: string) => {
+    try {
+      const { data } = await supabase
+        .from('balance_history')
+        .select('*')
+        .eq('chama_id', chamaId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (data) setRealTimeBalance(data)
+    } catch (err) {
+      console.error('Error fetching balance history:', err)
     }
-  }, [id, calendarMonth])
+  }, [])
 
-  async function fetchChamaDetails() {
+  const fetchChamaDetails = useCallback(async () => {
+    if (!id) return
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setCurrentUserId(user.id)
 
       // Fetch chama details
       const { data: chama, error } = await supabase
@@ -87,19 +280,21 @@ export default function ChamaDetails() {
 
       if (membersError) throw membersError
 
-      const currentUserMember = members.find(m => m.user_id === user.id)
+      const normalizedMembers = ((members || []) as ChamaMemberRow[]).map(normalizeMember)
+      const currentUserMember = normalizedMembers.find((member) => member.user_id === user.id)
       setUserRole(currentUserMember?.role || 'member')
 
-      setData({ ...chama, members })
+      setData({ ...(chama as ChamaRow), members: normalizedMembers })
       if (id) fetchRealTimeBalance(id)
     } catch (err) {
       console.error('Error:', err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [fetchRealTimeBalance, id])
 
-  async function fetchMeetings() {
+  const fetchMeetings = useCallback(async () => {
+    if (!id) return
     const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
     const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)
     const { data, error } = await supabase
@@ -113,27 +308,31 @@ export default function ChamaDetails() {
       toast.error('Failed to load meetings', error.message)
       return
     }
-    setMeetings(data || [])
-  }
+    setMeetings((data || []) as Meeting[])
+  }, [calendarMonth, id])
 
-  async function fetchPrompts() {
+  const fetchPrompts = useCallback(async () => {
+    if (!id) return
     const { data } = await supabase
       .from('payment_requests')
       .select('*')
       .eq('chama_id', id)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
-    setPrompts(data || [])
-  }
+    setPrompts((data || []) as PaymentPrompt[])
+  }, [id])
 
-  async function fetchAllocations() {
+  const fetchAllocations = useCallback(async () => {
+    if (!id) return
     const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
-    let { data, error } = await supabase
+    const allocationResponse = await supabase
       .from('chama_allocation_schedule')
       .select('*, user:users(first_name,last_name)')
       .eq('chama_id', id)
       .eq('allocation_month', monthStart.toISOString().slice(0,10))
       .order('allocation_day', { ascending: true })
+    let data = allocationResponse.data
+    const error = allocationResponse.error
     if (error) {
       toast.error('Failed to load allocations', error.message)
       return
@@ -153,10 +352,11 @@ export default function ChamaDetails() {
         data = refreshed.data
       }
     }
-    setAllocations(data || [])
-  }
+    setAllocations(((data || []) as AllocationRow[]).map(normalizeAllocation))
+  }, [calendarMonth, id])
 
-  async function fetchSwapRequests() {
+  const fetchSwapRequests = useCallback(async () => {
+    if (!id) return
     const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
     const { data, error } = await supabase
       .from('allocation_swap_requests')
@@ -169,8 +369,18 @@ export default function ChamaDetails() {
       toast.error('Failed to load swap requests', error.message)
       return
     }
-    setSwapRequests(data || [])
-  }
+    setSwapRequests(((data || []) as SwapRequestRow[]).map(normalizeSwapRequest))
+  }, [calendarMonth, id])
+
+  useEffect(() => {
+    if (id) {
+      void fetchChamaDetails()
+      void fetchMeetings()
+      void fetchPrompts()
+      void fetchAllocations()
+      void fetchSwapRequests()
+    }
+  }, [fetchAllocations, fetchChamaDetails, fetchMeetings, fetchPrompts, fetchSwapRequests, id])
 
   const handleGenerateAllocations = async () => {
     if (!id) return
@@ -184,17 +394,32 @@ export default function ChamaDetails() {
       if (error) throw error
       fetchAllocations()
       toast.success('Allocations generated')
-    } catch (err: any) {
-      toast.error('Failed to generate allocations', err.message)
+    } catch (err: unknown) {
+      toast.error('Failed to generate allocations', getErrorMessage(err))
     } finally {
       setIsGeneratingAllocations(false)
     }
   }
 
+  const sendSwapEmail = useCallback(async (swapId: string, event: 'request_created' | 'approved' | 'rejected') => {
+    try {
+      await supabase.functions.invoke('send-swap-email', {
+        body: { swapId, event },
+      })
+    } catch (error) {
+      if (isMissingSwapEmailFunction(error)) {
+        console.warn('Swap email function is not deployed for this Supabase project. Skipping email send.')
+        return
+      }
+      console.error('Failed to send swap email', error)
+    }
+  }, [])
+
   const handleCreateSwap = async () => {
     if (!id || !swapTargetUserId || !swapTargetDay) return
     try {
       setCreatingSwap(true)
+      if (!navigator.onLine) throw new Error('No internet connection. Reconnect and try again.')
       const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -203,53 +428,92 @@ export default function ChamaDetails() {
         toast.error('No allocation day found for you this month.')
         return
       }
-      const { error } = await supabase
-        .from('allocation_swap_requests')
-        .insert({
-          chama_id: id,
-          month: monthStart.toISOString().slice(0,10),
-          requester_id: user.id,
-          requester_day: myDay,
-          target_user_id: swapTargetUserId,
-          target_day: swapTargetDay
-        })
-      if (error) throw error
-      toast.success('Swap request sent')
-      fetchSwapRequests()
-    } catch (err: any) {
-      toast.error('Failed to create swap request', err.message)
-    } finally {
-      setCreatingSwap(false)
+        const { data, error } = await supabase
+          .from('allocation_swap_requests')
+          .insert({
+            chama_id: id,
+            month: monthStart.toISOString().slice(0,10),
+            requester_id: user.id,
+            requester_day: myDay,
+            target_user_id: swapTargetUserId,
+            target_day: swapTargetDay
+          })
+          .select('id')
+          .single()
+        if (error) throw error
+        await sendSwapEmail(data.id, 'request_created')
+        toast.success('Swap request sent')
+        fetchSwapRequests()
+      } catch (err: unknown) {
+        toast.error('Failed to create swap request', getSwapErrorMessage(err, 'Failed to create swap request'))
+      } finally {
+        setCreatingSwap(false)
+      }
     }
-  }
-
+  
   const handleApproveSwap = async (swapId: string) => {
     try {
+      setActingSwapId(swapId)
+      if (!navigator.onLine) throw new Error('No internet connection. Reconnect and try again.')
       const { error } = await supabase.rpc('approve_allocation_swap', { _swap_id: swapId })
       if (error) throw error
+      await sendSwapEmail(swapId, 'approved')
       toast.success('Swap approved')
       fetchAllocations()
       fetchSwapRequests()
-    } catch (err: any) {
-      toast.error('Failed to approve swap', err.message)
+    } catch (err: unknown) {
+      toast.error('Failed to approve swap', getSwapErrorMessage(err, 'Failed to approve swap'))
+    } finally {
+      setActingSwapId(null)
     }
   }
-
+  
   const handleRejectSwap = async (swapId: string) => {
     try {
+      setActingSwapId(swapId)
+      if (!navigator.onLine) throw new Error('No internet connection. Reconnect and try again.')
       const { error } = await supabase
         .from('allocation_swap_requests')
         .update({ status: 'rejected', updated_at: new Date().toISOString() })
         .eq('id', swapId)
+        .eq('target_user_id', currentUserId)
+        .eq('status', 'pending')
       if (error) throw error
+      await sendSwapEmail(swapId, 'rejected')
       toast.success('Swap rejected')
       fetchSwapRequests()
-    } catch (err: any) {
-      toast.error('Failed to reject swap', err.message)
+    } catch (err: unknown) {
+      toast.error('Failed to reject swap', getSwapErrorMessage(err, 'Failed to reject swap'))
+    } finally {
+      setActingSwapId(null)
+    }
+  }
+  
+  const handleCancelSwap = async (swapId: string) => {
+    try {
+      setActingSwapId(swapId)
+      if (!navigator.onLine) throw new Error('No internet connection. Reconnect and try again.')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+  
+      const { error } = await supabase
+        .from('allocation_swap_requests')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', swapId)
+        .eq('requester_id', user.id)
+        .eq('status', 'pending')
+  
+      if (error) throw error
+      toast.success('Swap cancelled')
+      fetchSwapRequests()
+    } catch (err: unknown) {
+      toast.error('Failed to cancel swap', getSwapErrorMessage(err, 'Failed to cancel swap'))
+    } finally {
+      setActingSwapId(null)
     }
   }
 
-  const handlePayClick = (prompt: any) => {
+  const handlePayClick = (prompt: PaymentSelection) => {
       setSelectedPrompt(prompt)
       setPaymentModalOpen(true)
   }
@@ -278,9 +542,9 @@ export default function ChamaDetails() {
       if (error) throw error
       toast.success('STK Push Sent!', 'Please check your phone to complete the contribution.')
       fetchPrompts() // Refresh active prompts
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Payment error:', err)
-      toast.error('Payment Failed', err.message || 'Check your connection or phone number format.')
+      toast.error('Payment Failed', getErrorMessage(err) || 'Check your connection or phone number format.')
     } finally {
       setPaymentLoading(null)
       setSelectedPrompt(null)
@@ -296,7 +560,6 @@ export default function ChamaDetails() {
         'Ratibu Chama',
         `Chama-${id?.slice(0, 8)}`
       )
-      console.log('QR Code response:', JSON.stringify(data)) // Debug log
       // Safaricom returns 'QRCode' (capital), but guard against other casing too
       const qrBase64 = data?.QRCode ?? data?.qrCode ?? data?.qr_code ?? null
       if (qrBase64) {
@@ -305,8 +568,8 @@ export default function ChamaDetails() {
         alert('QR data missing. Response: ' + JSON.stringify(data))
         setQrModalOpen(false)
       }
-    } catch (err: any) {
-      alert('Failed to generate QR code: ' + err.message)
+    } catch (err: unknown) {
+      alert('Failed to generate QR code: ' + getErrorMessage(err))
       setQrModalOpen(false)
     } finally {
       setQrLoading(false)
@@ -322,25 +585,9 @@ export default function ChamaDetails() {
           
           if (error) throw error
           fetchChamaDetails() // Refresh
-      } catch (err: any) {
-          toast.error('Failed to update role', err.message)
+      } catch (err: unknown) {
+          toast.error('Failed to update role', getErrorMessage(err))
       }
-  }
-
-  const fetchRealTimeBalance = async (chamaId: string) => {
-    try {
-      const { data, error: _error } = await supabase
-        .from('balance_history')
-        .select('*')
-        .eq('chama_id', chamaId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      
-      if (data) setRealTimeBalance(data)
-    } catch (err) {
-      console.error('Error fetching balance history:', err)
-    }
   }
 
   const handleRefreshBalance = async () => {
@@ -362,8 +609,8 @@ export default function ChamaDetails() {
       toast.info('Balance Request Sent', 'Waiting for M-Pesa response...')
       
       if (id) setTimeout(() => fetchRealTimeBalance(id), 5000)
-    } catch (err: any) {
-      toast.error('Refresh Failed', err.message)
+    } catch (err: unknown) {
+      toast.error('Refresh Failed', getErrorMessage(err))
     } finally {
       setIsRefreshingBalance(false)
     }
@@ -388,8 +635,8 @@ export default function ChamaDetails() {
       toast.success('Withdrawal Initiated', 'Your request has been processed successfully.')
       setWithdrawModalOpen(false)
       fetchChamaDetails()
-    } catch (err: any) {
-      toast.error('Withdrawal Failed', err.message)
+    } catch (err: unknown) {
+      toast.error('Withdrawal Failed', getErrorMessage(err))
     }
   }
 
@@ -409,6 +656,8 @@ export default function ChamaDetails() {
   const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0)
   const startDay = monthStart.getDay()
   const totalDays = monthEnd.getDate()
+  const adminMember = data.members.find((member) => member.role === 'admin')
+  const contributionAmount = data.contribution_amount ?? 0
   const calendarCells = [
     ...Array(startDay).fill(null),
     ...Array.from({ length: totalDays }, (_, i) => i + 1),
@@ -421,6 +670,8 @@ export default function ChamaDetails() {
         <div className="space-y-4">
           <button 
             onClick={() => navigate('/chamas')}
+            aria-label="Back to chamas"
+            title="Back to chamas"
             className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -450,21 +701,25 @@ export default function ChamaDetails() {
                 Automate
             </button>
             <button 
-                onClick={() => handlePayClick({ amount: data.contribution_amount, id: 'general', title: 'Manual Deposit' })}
+                onClick={() => handlePayClick({ amount: contributionAmount, id: 'general', title: 'Manual Deposit' })}
                 className="px-6 py-2.5 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/20 flex items-center gap-2"
             >
                 <Wallet className="w-4 h-4" />
                 Deposit
             </button>
             <button 
-                onClick={() => handleGenerateQR(data.contribution_amount)}
+                onClick={() => handleGenerateQR(contributionAmount)}
                 className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-[#00C853] text-[#00C853] rounded-xl font-bold transition-all hover:bg-[#00C853]/5 flex items-center gap-2"
             >
                 <div className="w-4 h-4 rounded-sm border-2 border-[#00C853] flex items-center justify-center text-[8px]">QR</div>
                 QR Pay
             </button>
             {isAdmin && (
-              <button className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
+              <button
+                aria-label="More chama actions"
+                title="More chama actions"
+                className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400"
+              >
                 <MoreVertical className="w-5 h-5" />
               </button>
             )}
@@ -599,11 +854,11 @@ export default function ChamaDetails() {
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Group Admin</h3>
                         <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-full bg-[#00C853] flex items-center justify-center text-white font-bold text-xl">
-                                {data.members?.find((m:any) => m.role === 'admin')?.users?.first_name?.[0] || 'A'}
+                                {adminMember?.users?.first_name?.[0] || 'A'}
                             </div>
                             <div>
                                 <div className="font-bold text-slate-900 dark:text-white">
-                                    {data.members?.find((m:any) => m.role === 'admin')?.users?.first_name || 'Admin'}
+                                    {adminMember?.users?.first_name || 'Admin'}
                                 </div>
                                 <div className="text-xs text-slate-500 dark:text-slate-400">Founder & Chairman</div>
                             </div>
@@ -626,8 +881,9 @@ export default function ChamaDetails() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {data.members?.map((member: any) => (
+                        {data.members?.map((member) => (
                             <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                {/* eslint-disable-next-line jsx-a11y/control-has-associated-label */}
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
@@ -643,9 +899,17 @@ export default function ChamaDetails() {
                                 </td>
                                 <td className="px-6 py-4">
                                     {isAdmin && member.user_id !== data.created_by ? (
+                                        <>
+                                        <label id={`member-role-label-${member.id}`} htmlFor={`member-role-${member.id}`} className="sr-only">
+                                            Member role
+                                        </label>
                                         <select 
+                                            id={`member-role-${member.id}`}
                                             value={member.role}
                                             onChange={(e) => handleUpdateRole(member.id, e.target.value)}
+                                            aria-labelledby={`member-role-label-${member.id}`}
+                                            aria-label="Member role"
+                                            title="Member role"
                                             className="bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-[10px] font-black px-2 py-1 outline-none ring-1 ring-slate-200 dark:ring-slate-700 focus:ring-[#00C853] transition-all cursor-pointer"
                                         >
                                             <option value="member">MEMBER</option>
@@ -653,6 +917,7 @@ export default function ChamaDetails() {
                                             <option value="treasurer">TREASURER</option>
                                             <option value="admin">ADMIN</option>
                                         </select>
+                                        </>
                                     ) : (
                                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
                                             member.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-600'
@@ -819,19 +1084,21 @@ export default function ChamaDetails() {
               <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                 <h3 className="font-bold mb-2">Request Swap</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <label htmlFor="swap-target-user" className="sr-only">Select member to swap with</label>
                   <select
+                    id="swap-target-user"
                     value={swapTargetUserId}
                     onChange={(e) => {
                       const userId = e.target.value
                       setSwapTargetUserId(userId)
-                      const targetDay = allocations.find(a => a.user_id === userId)?.allocation_day
+                      const targetDay = allocations.find((allocation) => allocation.user_id === userId)?.allocation_day
                       if (targetDay) setSwapTargetDay(targetDay)
                       else setSwapTargetDay(0)
                     }}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                   >
                     <option value="">Select member</option>
-                    {data.members?.map((m:any) => (
+                    {data.members?.map((m) => (
                       <option key={m.user_id} value={m.user_id}>
                         {m.users?.first_name} {m.users?.last_name}
                       </option>
@@ -869,26 +1136,38 @@ export default function ChamaDetails() {
                           <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
                             s.status === 'approved' ? 'bg-green-500/10 text-green-500' :
                             s.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
+                            s.status === 'cancelled' ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400' :
                             'bg-amber-500/10 text-amber-600'
                           }`}>
                             {s.status}
                           </span>
-                          {isAdmin && s.status === 'pending' && (
-                            <>
+                          {s.requester_id === currentUserId && s.status === 'pending' && (
                               <button
-                                onClick={() => handleApproveSwap(s.id)}
-                                className="px-2 py-1 text-xs font-bold bg-[#00C853] text-white rounded-lg"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleRejectSwap(s.id)}
+                                onClick={() => handleCancelSwap(s.id)}
+                                disabled={actingSwapId === s.id}
                                 className="px-2 py-1 text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg"
                               >
-                                Decline
+                                {actingSwapId === s.id ? 'Working...' : 'Cancel'}
                               </button>
-                            </>
-                          )}
+                            )}
+                            {isAdmin && s.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveSwap(s.id)}
+                                  disabled={actingSwapId === s.id}
+                                  className="px-2 py-1 text-xs font-bold bg-[#00C853] text-white rounded-lg"
+                                >
+                                  {actingSwapId === s.id ? 'Working...' : 'Approve'}
+                                </button>
+                                <button
+                                  onClick={() => handleRejectSwap(s.id)}
+                                  disabled={actingSwapId === s.id}
+                                  className="px-2 py-1 text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg"
+                                >
+                                  {actingSwapId === s.id ? 'Working...' : 'Decline'}
+                                </button>
+                              </>
+                            )}
                         </div>
                       </div>
                     ))}
@@ -976,7 +1255,7 @@ export default function ChamaDetails() {
             isOpen={qrModalOpen}
             onClose={() => setQrModalOpen(false)}
             qrCode={qrCodeData}
-            amount={data.contribution_amount}
+            amount={contributionAmount}
             loading={qrLoading}
         />
       )}
@@ -985,7 +1264,7 @@ export default function ChamaDetails() {
   )
 }
 
-function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClose: () => void, chama: any }) {
+function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClose: () => void, chama: ChamaDetailsData }) {
   const [amount, setAmount] = useState(chama?.contribution_amount?.toString() || '')
   const [loading, setLoading] = useState(false)
   const [frequency, setFrequency] = useState('4') // Default Monthly
@@ -1025,8 +1304,8 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
 
       toast.success('Standing Order Initiated!', 'Please check your phone for the M-Pesa PIN prompt to authorize.')
       onClose()
-    } catch (err: any) {
-      toast.error('Setup Failed', err.message || 'Check your connection.')
+    } catch (err: unknown) {
+      toast.error('Setup Failed', getErrorMessage(err) || 'Check your connection.')
     } finally {
       setLoading(false)
     }
@@ -1048,15 +1327,16 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
                   <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Automate</h2>
                   <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest">M-PESA RATIBA</p>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                <button onClick={onClose} aria-label="Close automate modal" title="Close automate modal" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                   <Plus className="w-6 h-6 rotate-45 text-slate-400" />
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Purpose</label>
+                  <label htmlFor="standing-order-purpose" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Purpose</label>
                   <input 
+                    id="standing-order-purpose"
                     type="text" 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -1068,8 +1348,9 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Amount (KES)</label>
+                    <label htmlFor="standing-order-amount" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Amount (KES)</label>
                     <input 
+                      id="standing-order-amount"
                       type="number" 
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
@@ -1079,9 +1360,10 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Frequency</label>
+                    <label htmlFor="standing-order-frequency" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Frequency</label>
                     <div className="relative">
                       <select 
+                        id="standing-order-frequency"
                         value={frequency}
                         onChange={(e) => setFrequency(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 text-slate-900 dark:text-white font-bold outline-none focus:border-[#00C853] transition-all appearance-none"
@@ -1098,8 +1380,9 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Start Date</label>
+                    <label htmlFor="standing-order-start-date" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Start Date</label>
                     <input 
+                      id="standing-order-start-date"
                       type="date" 
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
@@ -1108,8 +1391,9 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">End Date</label>
+                    <label htmlFor="standing-order-end-date" className="text-[10px] font-black uppercase tracking-widest text-slate-400">End Date</label>
                     <input 
+                      id="standing-order-end-date"
                       type="date" 
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
@@ -1131,6 +1415,8 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
                 <button 
                   type="submit"
                   disabled={loading}
+                  aria-label={loading ? 'Setting up automation' : 'Set up automation'}
+                  title={loading ? 'Setting up automation' : 'Set up automation'}
                   className="w-full bg-[#00C853] hover:bg-green-600 disabled:opacity-50 text-white rounded-2xl py-4 font-black uppercase tracking-widest transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Set Up Automation'}
@@ -1144,7 +1430,7 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
   )
 }
 
-function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, members: any[], onSuccess: () => void }) {
+function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, members: ChamaMember[], onSuccess: () => void }) {
     const [title, setTitle] = useState('')
     const [amount, setAmount] = useState('')
     const [dueDate, setDueDate] = useState('')
@@ -1172,8 +1458,8 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
             
             if (error) throw error
             onSuccess()
-        } catch (err: any) {
-            toast.error('Failed to create prompt', err.message)
+        } catch (err: unknown) {
+            toast.error('Failed to create prompt', getErrorMessage(err))
         } finally {
             setLoading(false)
         }
@@ -1190,7 +1476,7 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
             >
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Create Payment Request</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                    <button onClick={onClose} aria-label="Close payment request modal" title="Close payment request modal" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                 </div>
@@ -1198,8 +1484,9 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Request Title</label>
+                            <label htmlFor="prompt-title" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Request Title</label>
                             <input 
+                                id="prompt-title"
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
@@ -1210,8 +1497,9 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Amount (KES)</label>
+                            <label htmlFor="prompt-amount" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Amount (KES)</label>
                             <input 
+                                id="prompt-amount"
                                 type="number"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
@@ -1222,8 +1510,9 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Due Date</label>
+                            <label htmlFor="prompt-due-date" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Due Date</label>
                             <input 
+                                id="prompt-due-date"
                                 type="date"
                                 value={dueDate}
                                 onChange={(e) => setDueDate(e.target.value)}
@@ -1232,8 +1521,8 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Target Audience</label>
+                        <fieldset>
+                            <legend className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Target Audience</legend>
                             <div className="flex gap-4 mb-4">
                                 <button 
                                     type="button"
@@ -1272,12 +1561,14 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                                     ))}
                                 </div>
                             )}
-                        </div>
+                        </fieldset>
                     </div>
 
                     <button 
                         type="submit"
                         disabled={loading || (!targetAll && selectedUsers.length === 0)}
+                        aria-label={loading ? 'Sending payment requests' : 'Send payment requests'}
+                        title={loading ? 'Sending payment requests' : 'Send payment requests'}
                         className="w-full py-4 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-500/20 transition-all disabled:opacity-50"
                     >
                         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Send Requests'}
@@ -1288,9 +1579,9 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
     )
 }
 
-function PromptCard({ prompt, onPay, loading }: { prompt: any, onPay: (p: any) => void, loading: boolean }) {
+function PromptCard({ prompt, onPay, loading }: { prompt: PaymentPrompt, onPay: (p: PaymentSelection) => void, loading: boolean }) {
     const [showContributors, setShowContributors] = useState(false)
-    const [contributors, setContributors] = useState<any[]>([])
+    const [contributors, setContributors] = useState<PromptContributor[]>([])
     const [loadingContributors, setLoadingContributors] = useState(false)
 
     const fetchContributors = async () => {
@@ -1298,7 +1589,7 @@ function PromptCard({ prompt, onPay, loading }: { prompt: any, onPay: (p: any) =
             setLoadingContributors(true)
             const { data, error } = await supabase.rpc('get_payment_prompt_status', { prompt_id: prompt.id })
             if (!error && data) {
-                setContributors(data)
+                setContributors((data || []) as PromptContributor[])
             }
             setLoadingContributors(false)
         }
@@ -1335,6 +1626,8 @@ function PromptCard({ prompt, onPay, loading }: { prompt: any, onPay: (p: any) =
                     <button
                         onClick={() => onPay(prompt)}
                         disabled={loading}
+                        aria-label={loading ? `Processing payment for ${prompt.title}` : `Pay ${prompt.title}`}
+                        title={loading ? `Processing payment for ${prompt.title}` : `Pay ${prompt.title}`}
                         className="px-8 py-2.5 bg-[#00C853] hover:bg-green-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-w-[120px]"
                     >
                         {loading ? (
@@ -1408,7 +1701,7 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
                 <div>
                      <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white">Confirm Payment</h3>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                        <button onClick={onClose} aria-label="Close payment confirmation modal" title="Close payment confirmation modal" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                             <ArrowLeft className="w-5 h-5" />
                         </button>
                     </div>
@@ -1421,7 +1714,7 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
                         </div>
 
                         <div className="space-y-4">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
+                            <label htmlFor="payment-phone-number" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
                             
                             <div className="flex flex-col gap-2">
                                 <label className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -1456,6 +1749,7 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
 
                             {!useMyNumber && (
                                 <input
+                                    id="payment-phone-number"
                                     type="tel"
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value)}
@@ -1470,6 +1764,8 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
                         <div className="pt-4">
                             <button 
                                 type="submit"
+                                aria-label={`Pay ${title}`}
+                                title={`Pay ${title}`}
                                 className="w-full py-3 px-4 bg-[#00C853] hover:bg-green-600 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-500/20"
                             >
                                 Pay KES {amount?.toLocaleString()}
@@ -1482,7 +1778,7 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
     )
 }
 
-function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean, onClose: () => void, onWithdraw: (amt: number, phone: string, reason: string) => void, chama: any }) {
+function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean, onClose: () => void, onWithdraw: (amt: number, phone: string, reason: string) => void, chama: Pick<ChamaDetailsData, 'balance'> }) {
   const [amount, setAmount] = useState('')
   const [phone, setPhone] = useState('')
   const [reason, setReason] = useState('')
@@ -1508,7 +1804,7 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
       >
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-900 text-white">
           <h3 className="text-lg font-bold">Withdraw Funds</h3>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+          <button onClick={onClose} aria-label="Close withdrawal modal" title="Close withdrawal modal" className="p-2 hover:bg-white/10 rounded-full transition-colors">
             <Plus className="w-5 h-5 rotate-45" />
           </button>
         </div>
@@ -1520,8 +1816,9 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Recipient Phone Number</label>
+            <label htmlFor="withdraw-phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Recipient Phone Number</label>
             <input
+              id="withdraw-phone"
               type="tel"
               required
               placeholder="e.g. 254712345678"
@@ -1533,8 +1830,9 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount to Withdraw (KES)</label>
+            <label htmlFor="withdraw-amount" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount to Withdraw (KES)</label>
             <input
+              id="withdraw-amount"
               type="number"
               required
               min="10"
@@ -1547,8 +1845,9 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Reason (Optional)</label>
+            <label htmlFor="withdraw-reason" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Reason (Optional)</label>
             <input
+              id="withdraw-reason"
               type="text"
               placeholder="e.g. Purchase for member"
               className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#00C853]/20 focus:border-[#00C853] outline-none transition-all dark:text-white"
@@ -1560,6 +1859,8 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
           <button
             type="submit"
             disabled={loading || !amount || !phone}
+            aria-label={loading ? 'Processing withdrawal' : 'Disburse via M-Pesa B2C'}
+            title={loading ? 'Processing withdrawal' : 'Disburse via M-Pesa B2C'}
             className="w-full p-4 bg-[#00C853] text-white rounded-xl font-bold shadow-lg shadow-[#00C853]/20 hover:bg-green-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:shadow-none transition-all flex items-center justify-center gap-2"
           >
             {loading ? (
@@ -1595,7 +1896,7 @@ function QRModal({ isOpen, onClose, qrCode, amount, loading }: { isOpen: boolean
                             <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Scan to Pay</h2>
                             <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">M-PESA QR</p>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                        <button onClick={onClose} aria-label="Close QR payment modal" title="Close QR payment modal" className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                             <Plus className="w-6 h-6 rotate-45 text-slate-400" />
                         </button>
                     </div>

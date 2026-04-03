@@ -107,7 +107,26 @@ class _CreateChamaScreenState extends ConsumerState<CreateChamaScreen> {
                 'Create a space for your friends or community to save and invest together.',
                 style: TextStyle(color: Colors.grey),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C853).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.group, color: Color(0xFF00C853), size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Maximum 30 members per chama',
+                      style: TextStyle(color: Color(0xFF00C853), fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // Chama Name
               TextFormField(

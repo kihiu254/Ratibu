@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Pause, Play, Plus, Target, Wallet } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, FileText, Lock, Pause, Play, Plus, Target, Wallet, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
 import { toast } from '../utils/toast'
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
 
 type SavingsPurpose =
   | 'emergency'
@@ -29,6 +34,10 @@ interface SavingsTarget {
   allocation_value: number
   status: SavingsStatus
   notes: string | null
+  is_locked?: boolean
+  lock_period_months?: number
+  lock_until?: string
+  lock_started_at?: string
 }
 
 const emptySavingsTarget = {
@@ -40,7 +49,53 @@ const emptySavingsTarget = {
   auto_allocate: true,
   allocation_type: 'percentage' as AllocationType,
   allocation_value: 100,
-  notes: ''
+  notes: '',
+  is_locked: false,
+  lock_period_months: 12
+}
+
+const savingsTargetBaseSelect = [
+  'id',
+  'name',
+  'purpose',
+  'destination_label',
+  'target_amount',
+  'current_amount',
+  'auto_allocate',
+  'allocation_type',
+  'allocation_value',
+  'status',
+  'notes',
+  'created_at',
+  'updated_at',
+].join(', ')
+
+const savingsTargetLockSelect = [
+  savingsTargetBaseSelect,
+  'is_locked',
+  'lock_period_months',
+  'lock_until',
+  'lock_started_at',
+].join(', ')
+
+function normalizeSavingsTargets(data: Partial<SavingsTarget>[] | null | undefined): SavingsTarget[] {
+  return (data || []).map((target) => ({
+    id: target.id || '',
+    name: target.name || '',
+    purpose: (target.purpose || 'custom') as SavingsPurpose,
+    destination_label: target.destination_label ?? null,
+    target_amount: Number(target.target_amount || 0),
+    current_amount: Number(target.current_amount || 0),
+    auto_allocate: target.auto_allocate ?? true,
+    allocation_type: (target.allocation_type || 'percentage') as AllocationType,
+    allocation_value: Number(target.allocation_value || 0),
+    status: (target.status || 'active') as SavingsStatus,
+    notes: target.notes ?? null,
+    is_locked: Boolean(target.is_locked),
+    lock_period_months: target.lock_period_months,
+    lock_until: target.lock_until,
+    lock_started_at: target.lock_started_at,
+  }))
 }
 
 export default function PersonalSavings() {
@@ -48,8 +103,11 @@ export default function PersonalSavings() {
   const [savingsTargets, setSavingsTargets] = useState<SavingsTarget[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState<'regular' | 'locked' | null>(null)
   const [newSavingsTarget, setNewSavingsTarget] = useState(emptySavingsTarget)
+  const [txModal, setTxModal] = useState<{ target: SavingsTarget; type: 'deposit' | 'withdraw' } | null>(null)
+  const [txAmount, setTxAmount] = useState('')
+  const [txLoading, setTxLoading] = useState(false)
 
   useEffect(() => {
     void loadSavingsTargets()
@@ -59,19 +117,33 @@ export default function PersonalSavings() {
     try {
       setLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setSavingsTargets([])
+        return
+      }
 
       setUserId(user.id)
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('user_savings_targets')
-        .select('*')
+        .select(savingsTargetLockSelect)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
+      if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
+        const fallback = await supabase
+          .from('user_savings_targets')
+          .select(savingsTargetBaseSelect)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        data = fallback.data
+        error = fallback.error
+      }
+
       if (error) throw error
-      setSavingsTargets((data || []) as SavingsTarget[])
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to load savings plans')
+      setSavingsTargets(normalizeSavingsTargets(data as Partial<SavingsTarget>[]))
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to load savings plans'))
     } finally {
       setLoading(false)
     }
@@ -83,6 +155,11 @@ export default function PersonalSavings() {
 
     try {
       setSaving(true)
+      const isLocked = showForm === 'locked'
+      const lockUntil = isLocked && newSavingsTarget.lock_period_months
+        ? new Date(Date.now() + newSavingsTarget.lock_period_months * 30 * 24 * 60 * 60 * 1000).toISOString()
+        : null
+
       const { error } = await supabase
         .from('user_savings_targets')
         .insert({
@@ -96,16 +173,24 @@ export default function PersonalSavings() {
           allocation_type: newSavingsTarget.allocation_type,
           allocation_value: Number(newSavingsTarget.allocation_value),
           notes: newSavingsTarget.notes.trim() || null,
+          is_locked: isLocked,
+          lock_period_months: isLocked ? newSavingsTarget.lock_period_months : null,
+          lock_until: lockUntil,
+          lock_started_at: isLocked ? new Date().toISOString() : null,
         })
 
+      if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
+        toast.error('Personal savings is not available until the latest database changes are applied.')
+        return
+      }
       if (error) throw error
 
       setNewSavingsTarget(emptySavingsTarget)
-      setShowForm(false)
-      toast.success('Savings plan created')
+      setShowForm(null)
+      toast.success(`${isLocked ? 'Lock savings' : 'Savings'} plan created`)
       await loadSavingsTargets()
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create savings plan')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to create savings plan'))
     } finally {
       setSaving(false)
     }
@@ -119,12 +204,54 @@ export default function PersonalSavings() {
         .update({ status: nextStatus, updated_at: new Date().toISOString() })
         .eq('id', target.id)
 
+      if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
+        toast.error('Personal savings is not available until the latest database changes are applied.')
+        return
+      }
       if (error) throw error
       setSavingsTargets((current) => current.map((item) =>
         item.id === target.id ? { ...item, status: nextStatus } : item
       ))
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update savings plan')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to update savings plan'))
+    }
+  }
+
+  async function handleTransaction(e: React.FormEvent) {
+    e.preventDefault()
+    if (!txModal) return
+    const amount = Number(txAmount)
+    if (!amount || amount <= 0) return
+    if (txModal.type === 'withdraw' && amount > Number(txModal.target.current_amount)) {
+      toast.error('Amount exceeds available balance')
+      return
+    }
+
+    try {
+      setTxLoading(true)
+      const { target, type } = txModal
+      const next = type === 'deposit'
+        ? Number(target.current_amount) + amount
+        : Math.max(0, Number(target.current_amount) - amount)
+
+      const { error } = await supabase
+        .from('user_savings_targets')
+        .update({ current_amount: next, updated_at: new Date().toISOString() })
+        .eq('id', target.id)
+
+      if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
+        toast.error('Personal savings is not available until the latest database changes are applied.')
+        return
+      }
+      if (error) throw error
+      setSavingsTargets(prev => prev.map(t => t.id === target.id ? { ...t, current_amount: next } : t))
+      toast.success(type === 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded')
+      setTxModal(null)
+      setTxAmount('')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Transaction failed'))
+    } finally {
+      setTxLoading(false)
     }
   }
 
@@ -150,17 +277,34 @@ export default function PersonalSavings() {
             Build savings plans for any viable goal and decide how future deposits should support them.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-[#00C853] text-white font-bold shadow-lg shadow-green-500/20"
-        >
-          <Plus className="w-4 h-4" />
-          {showForm ? 'Close Form' : 'New Savings Plan'}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowForm('regular')}
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-[#00C853] text-white font-bold shadow-lg shadow-green-500/20"
+          >
+            <Plus className="w-4 h-4" />
+            Savings Account
+          </button>
+          <button
+            onClick={() => setShowForm('locked')}
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-orange-500 text-white font-bold shadow-lg shadow-orange-500/20"
+          >
+            <Lock className="w-4 h-4" />
+            Lock Savings
+          </button>
+        </div>
       </div>
 
       {showForm && (
         <form onSubmit={handleCreateSavingsTarget} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              {showForm === 'locked' ? 'Create Lock Savings Account' : 'Create Savings Account'}
+            </h3>
+            <button type="button" onClick={() => setShowForm(null)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               value={newSavingsTarget.name}
@@ -231,6 +375,19 @@ export default function PersonalSavings() {
               placeholder={newSavingsTarget.allocation_type === 'percentage' ? 'Allocation %' : 'Allocation amount (KES)'}
               required
             />
+            {showForm === 'locked' && (
+              <select
+                value={newSavingsTarget.lock_period_months || 12}
+                onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, lock_period_months: Number(e.target.value) }))}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              >
+                <option value={3}>3 months</option>
+                <option value={6}>6 months</option>
+                <option value={12}>12 months</option>
+                <option value={24}>24 months</option>
+                <option value={36}>36 months</option>
+              </select>
+            )}
           </div>
           <textarea
             value={newSavingsTarget.notes}
@@ -247,13 +404,23 @@ export default function PersonalSavings() {
             />
             Enable automatic allocation toward this savings plan
           </label>
+          {showForm === 'locked' && (
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-200 dark:border-orange-800">
+              <p className="text-sm text-orange-700 dark:text-orange-300 font-semibold mb-2">🔒 Lock Savings Features:</p>
+              <ul className="text-xs text-orange-600 dark:text-orange-400 space-y-1">
+                <li>• Funds locked for {newSavingsTarget.lock_period_months || 12} months</li>
+                <li>• No withdrawals allowed during lock period</li>
+                <li>• Higher commitment to reach your savings goal</li>
+              </ul>
+            </div>
+          )}
           <button
             type="submit"
             disabled={saving}
             className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold"
           >
             <Wallet className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Savings Plan'}
+                        {saving ? 'Saving...' : showForm === 'locked' ? 'Create Lock Savings' : 'Save Savings Plan'}
           </button>
         </form>
       )}
@@ -272,23 +439,61 @@ export default function PersonalSavings() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {savingsTargets.map((target) => {
             const progress = Math.min((Number(target.current_amount) / Number(target.target_amount)) * 100, 100)
+            const isLocked = Boolean(
+              target.is_locked &&
+              target.lock_until &&
+              new Date(target.lock_until) > new Date()
+            )
+            const lockDaysLeft = isLocked ? Math.ceil((new Date(target.lock_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0
+            
             return (
               <div key={target.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div>
-                    <p className="text-xl font-black text-slate-900 dark:text-white">{target.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xl font-black text-slate-900 dark:text-white">{target.name}</p>
+                      {isLocked && <Lock className="w-4 h-4 text-orange-500" />}
+                    </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                       {target.destination_label || formatPurpose(target.purpose)}
                     </p>
+                    {isLocked && (
+                      <p className="text-xs text-orange-500 mt-1">
+                        Locked for {lockDaysLeft} more days
+                      </p>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleStatus(target)}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold"
-                  >
-                    {target.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    {target.status === 'active' ? 'Pause' : 'Activate'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setTxModal({ target, type: 'deposit' }); setTxAmount('') }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#00C853]/10 text-[#00C853] text-sm font-semibold"
+                    >
+                      <ArrowDownCircle className="w-4 h-4" />
+                      Deposit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) { toast.error('Cannot withdraw from locked savings'); return }
+                        if (target.current_amount <= 0) { toast.error('No funds to withdraw'); return }
+                        setTxModal({ target, type: 'withdraw' }); setTxAmount('')
+                      }}
+                      disabled={target.current_amount <= 0 || isLocked}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ArrowUpCircle className="w-4 h-4" />
+                      Withdraw
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleStatus(target)}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold"
+                    >
+                      {target.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {target.status === 'active' ? 'Pause' : 'Activate'}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span className="text-slate-500 dark:text-slate-400">KES {Number(target.current_amount).toLocaleString()}</span>
@@ -297,7 +502,7 @@ export default function PersonalSavings() {
                 <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-4">
                   <div className="h-full bg-[#00C853]" style={{ width: `${progress}%` }} />
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs">
+                <div className="flex flex-wrap gap-2 text-xs mb-3">
                   <span className="px-3 py-1 rounded-full bg-[#00C853]/10 text-[#00C853]">
                     {target.auto_allocate ? 'Auto allocation on' : 'Manual tracking'}
                   </span>
@@ -309,6 +514,20 @@ export default function PersonalSavings() {
                   <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
                     {target.status}
                   </span>
+                  {isLocked && (
+                    <span className="px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-500">
+                      Locked
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <a
+                    href={`/statement?account=savings_target&id=${target.id}&name=${encodeURIComponent(target.name)}`}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Statement
+                  </a>
                 </div>
                 {target.notes && (
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-4">{target.notes}</p>
@@ -318,6 +537,47 @@ export default function PersonalSavings() {
           })}
         </div>
       )}
+      {txModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-lg font-black text-slate-900 dark:text-white">
+                {txModal.type === 'deposit' ? 'Deposit to' : 'Withdraw from'} {txModal.target.name}
+              </p>
+              <button onClick={() => setTxModal(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Current balance: <span className="font-bold text-slate-900 dark:text-white">KES {Number(txModal.target.current_amount).toLocaleString()}</span>
+            </p>
+            <form onSubmit={handleTransaction} className="space-y-4">
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                autoFocus
+                value={txAmount}
+                onChange={e => setTxAmount(e.target.value)}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                placeholder="Amount (KES)"
+                max={txModal.type === 'withdraw' ? Number(txModal.target.current_amount) : undefined}
+                required
+              />
+              <button
+                type="submit"
+                disabled={txLoading}
+                className={`w-full py-3 rounded-2xl font-bold text-white ${
+                  txModal.type === 'deposit' ? 'bg-[#00C853]' : 'bg-red-500'
+                }`}
+              >
+                {txLoading ? 'Processing...' : txModal.type === 'deposit' ? 'Confirm Deposit' : 'Confirm Withdrawal'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

@@ -2,18 +2,35 @@
 
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import Button from "./Button";
 import { ThemeToggle } from "./ThemeToggle";
 import { RatibuLogo, RatibuLogoDark, RatibuLogoAuth } from "./RatibuLogo";
 import { supabase } from "../lib/supabase";
 import { User, LayoutDashboard, ArrowLeft } from "lucide-react";
 
+interface UserProfile {
+  avatar_url: string | null;
+}
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  async function fetchProfile(userId: string) {
+    const { data } = await supabase
+      .from("users")
+      .select("avatar_url")
+      .eq("id", userId)
+      .single();
+
+    if (data) {
+      setProfile(data as UserProfile);
+    }
+  }
 
   useEffect(() => {
     // Check initial session
@@ -38,16 +55,6 @@ export default function Navbar() {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('users')
-      .select('avatar_url')
-      .eq('id', userId)
-      .single();
-    if (data) setProfile(data);
-  };
-
   const handleCreateChama = () => {
     if (user) {
       navigate('/create-chama');
@@ -71,17 +78,17 @@ export default function Navbar() {
           )}
           <Link to="/" className="flex items-center group">
             {isAuthPage ? (
-              <RatibuLogoAuth className="h-16 md:h-20 w-auto group-hover:scale-105 transition-transform" />
+              <RatibuLogoAuth className="h-20 md:h-24 lg:h-28 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
             ) : (
               <>
-                <RatibuLogo className="h-20 md:h-24 w-auto group-hover:scale-105 transition-transform" />
-                <RatibuLogoDark className="h-20 md:h-24 w-auto group-hover:scale-105 transition-transform" />
+                <RatibuLogo className="h-24 md:h-28 lg:h-32 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
+                <RatibuLogoDark className="h-24 md:h-28 lg:h-32 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
               </>
             )}
-            <div className="ml-2 md:ml-4 h-8 md:h-12 w-px bg-white/10 hidden sm:block" />
-            <div className="ml-2 md:ml-4 hidden sm:flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00C853]">Ratibu</span>
-              <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] whitespace-nowrap">
+            <div className="ml-3 md:ml-5 h-10 md:h-14 w-px bg-white/10 hidden sm:block" />
+            <div className="ml-3 md:ml-5 hidden sm:flex flex-col">
+              <span className="text-xs md:text-sm font-black uppercase tracking-[0.24em] text-[#00C853]">Ratibu</span>
+              <span className="text-[9px] md:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.18em] whitespace-nowrap">
                 We Power Your Group
               </span>
             </div>
@@ -112,7 +119,11 @@ export default function Navbar() {
               <div className="relative group/profile">
                 <button className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-[#00C853] border border-[#00C853]/30 overflow-hidden hover:border-[#00C853] transition-all">
                     {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} className="w-full h-full object-cover" />
+                      <img
+                        src={profile.avatar_url}
+                        alt="Your profile"
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <User className="w-5 h-5" />
                     )}
@@ -157,22 +168,29 @@ export default function Navbar() {
 
         {/* Mobile Toggle */}
         {!isAuthPage && (
-          <div
-            className="md:hidden cursor-pointer text-white p-2 hover:bg-white/5 rounded-lg transition-colors"
+          <button
+            type="button"
+            className="md:hidden text-white p-2 hover:bg-white/5 rounded-lg transition-colors"
             onClick={() => setOpen(!open)}
+            aria-expanded={open ? "true" : undefined}
+            aria-controls="mobile-navigation-menu"
+            aria-label={open ? "Close navigation menu" : "Open navigation menu"}
           >
             {open ? (
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             )}
-          </div>
+          </button>
         )}
       </div>
 
       {/* Mobile Menu */}
       {open && !isAuthPage && (
-        <div className="md:hidden mt-3 p-6 glass rounded-2xl border border-white/5 shadow-2xl animate-slide-up flex flex-col space-y-4">
+        <div
+          id="mobile-navigation-menu"
+          className="md:hidden mt-3 p-6 glass rounded-2xl border border-white/5 shadow-2xl animate-slide-up flex flex-col space-y-4"
+        >
           {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
             <Link
               key={item}

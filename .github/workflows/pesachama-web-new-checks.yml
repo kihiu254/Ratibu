@@ -1,0 +1,35 @@
+name: pesachama-web-new checks
+
+on:
+  push:
+    paths:
+      - 'pesachama-web-new/**'
+      - '.github/workflows/pesachama-web-new-checks.yml'
+  pull_request:
+    paths:
+      - 'pesachama-web-new/**'
+      - '.github/workflows/pesachama-web-new-checks.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pesachama-web-new
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pesachama-web-new/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend checks
+        run: npm run check

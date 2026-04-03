@@ -1,8 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-  "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,11 +16,12 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const normalizePhoneNumber = (value: string) => {
-  const trimmed = value.replace(/\s+/g, "");
-  if (/^2547\d{8}$/.test(trimmed)) return trimmed;
-  if (/^07\d{8}$/.test(trimmed)) return `254${trimmed.slice(1)}`;
-  if (/^\+2547\d{8}$/.test(trimmed)) return trimmed.slice(1);
+// Accepts: 07XXXXXXXX, 01XXXXXXXX, 2547XXXXXXXX, 2541XXXXXXXX, +254XXXXXXXXX
+const normalizePhoneNumber = (value: string): string | null => {
+  const trimmed = value.replace(/[\s\-()]/g, "");
+  if (/^254\d{9}$/.test(trimmed)) return trimmed;
+  if (/^\+254\d{9}$/.test(trimmed)) return trimmed.slice(1);
+  if (/^0\d{9}$/.test(trimmed)) return `254${trimmed.slice(1)}`;
   return null;
 };
 
@@ -36,24 +36,12 @@ async function authenticateRequest(
   userId: string,
 ) {
   const token = getBearerToken(authHeader);
-
-  if (!token) {
-    throw new Error("Missing bearer token");
-  }
-
-  if (token === SUPABASE_SERVICE_ROLE_KEY) {
-    return { source: "internal" as const };
-  }
+  if (!token) throw new Error("Missing bearer token");
+  if (token === SUPABASE_SERVICE_ROLE_KEY) return { source: "internal" as const };
 
   const { data, error } = await supabase.auth.getUser(token);
-
-  if (error || !data.user) {
-    throw new Error("Unauthorized request");
-  }
-
-  if (data.user.id !== userId) {
-    throw new Error("Authenticated user does not match requested userId");
-  }
+  if (error || !data.user) throw new Error("Unauthorized request");
+  if (data.user.id !== userId) throw new Error("Authenticated user does not match requested userId");
 
   return { source: "user" as const, userId: data.user.id };
 }
@@ -72,10 +60,29 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Invalid JSON payload" }, 400);
   }
 
-  const { amount, phoneNumber, userId, chamaId, requestId, type } = payload;
+  const {
+    amount,
+    phoneNumber,
+    userId,
+    chamaId,
+    savingsTargetId,
+    destinationType,
+    mshwariPhone,
+    requestId,
+    type,
+  } = payload;
 
-  if (!amount || !phoneNumber || !userId || !chamaId) {
-    return jsonResponse({ error: "Missing required fields" }, 400);
+  const isMshwari = destinationType === "mshwari";
+
+  // Validate required fields
+  if (!amount || !phoneNumber || !userId) {
+    return jsonResponse({ error: "Missing required fields: amount, phoneNumber, userId" }, 400);
+  }
+  if (!isMshwari && !chamaId && !savingsTargetId) {
+    return jsonResponse({ error: "Provide chamaId, savingsTargetId, or destinationType: mshwari" }, 400);
+  }
+  if (isMshwari && !mshwariPhone) {
+    return jsonResponse({ error: "mshwariPhone is required for Mshwari deposits" }, 400);
   }
 
   const numericAmount = Number(amount);
@@ -86,9 +93,14 @@ Deno.serve(async (req) => {
   const formattedPhone = normalizePhoneNumber(String(phoneNumber));
   if (!formattedPhone) {
     return jsonResponse(
-      { error: "Phone number must be in 07XXXXXXXX or 2547XXXXXXXX format" },
+      { error: "Invalid phone number. Use 07XXXXXXXX, 01XXXXXXXX, or 254XXXXXXXXX format" },
       400,
     );
+  }
+
+  const normalizedMshwariPhone = isMshwari ? normalizePhoneNumber(String(mshwariPhone)) : null;
+  if (isMshwari && !normalizedMshwariPhone) {
+    return jsonResponse({ error: "Invalid Mshwari phone number format" }, 400);
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -97,56 +109,61 @@ Deno.serve(async (req) => {
   try {
     await authenticateRequest(supabase, authHeader, String(userId));
 
+    // Deduplication check
     if (requestId) {
-      const { data: existingTransaction, error: existingError } = await supabase
+      let existingQuery = supabase
         .from("transactions")
         .select("id, status, metadata")
         .eq("user_id", userId)
-        .eq("chama_id", chamaId)
         .eq("metadata->>payment_request_id", String(requestId))
-        .in("status", ["pending", "completed"])
-        .maybeSingle();
+        .in("status", ["pending", "completed"]);
 
-      if (existingError) {
-        console.error("Failed checking existing transaction:", existingError);
-      }
+      if (chamaId) existingQuery = existingQuery.eq("chama_id", chamaId);
+      if (savingsTargetId) existingQuery = existingQuery.eq("savings_target_id", savingsTargetId);
 
-      const existingCheckoutId = existingTransaction?.metadata
-        ?.checkout_request_id;
+      const { data: existingTx } = await existingQuery.maybeSingle();
+      const existingCheckoutId = existingTx?.metadata?.checkout_request_id;
 
-      if (existingTransaction && (existingTransaction.status === "completed" ||
-        existingCheckoutId)) {
+      if (existingTx && (existingTx.status === "completed" || existingCheckoutId)) {
         return jsonResponse({
-          message: existingTransaction.status === "completed"
+          message: existingTx.status === "completed"
             ? "Payment already completed for this request"
             : "STK push already initiated for this request",
-          transactionId: existingTransaction.id,
+          transactionId: existingTx.id,
           checkoutRequestId: existingCheckoutId ?? null,
           deduplicated: true,
         });
       }
     }
 
+    // Insert transaction record
+    const txType = isMshwari ? "mshwari_deposit" : (type || "deposit");
+    const txDescription = isMshwari
+      ? "Mshwari Savings Deposit"
+      : savingsTargetId
+        ? "Savings Deposit"
+        : type === "contribution"
+          ? "Contribution Payment"
+          : "M-Pesa Deposit";
+
     const { data: transaction, error: dbError } = await supabase
       .from("transactions")
-      .insert([
-        {
-          amount: numericAmount,
-          user_id: userId,
-          chama_id: chamaId,
-          type: type || "deposit",
-          status: "pending",
-          payment_method: "mpesa",
-          description: type === "contribution"
-            ? "Contribution Payment"
-            : "M-Pesa Deposit",
-          metadata: {
-            ...(requestId ? { payment_request_id: requestId } : {}),
-            phone_number: formattedPhone,
-            initiated_at: new Date().toISOString(),
-          },
+      .insert([{
+        amount: numericAmount,
+        user_id: userId,
+        ...(chamaId ? { chama_id: chamaId } : {}),
+        ...(savingsTargetId ? { savings_target_id: savingsTargetId } : {}),
+        type: txType,
+        status: "pending",
+        payment_method: "mpesa",
+        description: txDescription,
+        metadata: {
+          ...(requestId ? { payment_request_id: requestId } : {}),
+          phone_number: formattedPhone,
+          ...(isMshwari ? { mshwari_phone: normalizedMshwariPhone, destination: "mshwari" } : {}),
+          initiated_at: new Date().toISOString(),
         },
-      ])
+      }])
       .select()
       .single();
 
@@ -157,6 +174,7 @@ Deno.serve(async (req) => {
 
     transactionId = transaction.id;
 
+    // M-Pesa credentials
     const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
     const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
     const passkey = Deno.env.get("MPESA_PASSKEY");
@@ -174,9 +192,7 @@ Deno.serve(async (req) => {
     const auth = btoa(`${consumerKey}:${consumerSecret}`);
     const authResp = await fetch(
       `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
-      {
-        headers: { Authorization: `Basic ${auth}` },
-      },
+      { headers: { Authorization: `Basic ${auth}` } },
     );
 
     if (!authResp.ok) {
@@ -194,21 +210,26 @@ Deno.serve(async (req) => {
       date.getMinutes().toString().padStart(2, "0") +
       date.getSeconds().toString().padStart(2, "0");
 
-    const password = btoa(`${shortcode}${passkey}${timestamp}`);
+    // Mshwari uses paybill 512400; account reference = user's Mshwari phone number
+    const targetShortcode = isMshwari ? "512400" : shortcode;
+    const targetPasskey = isMshwari
+      ? (Deno.env.get("MPESA_MSHWARI_PASSKEY") || passkey)
+      : passkey;
+    const password = btoa(`${targetShortcode}${targetPasskey}${timestamp}`);
     const callbackUrl = `${SUPABASE_URL}/functions/v1/mpesa-callback`;
 
     const stkPayload = {
-      BusinessShortCode: shortcode,
+      BusinessShortCode: targetShortcode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: "CustomerPayBillOnline",
       Amount: Math.ceil(numericAmount),
       PartyA: formattedPhone,
-      PartyB: shortcode,
+      PartyB: targetShortcode,
       PhoneNumber: formattedPhone,
       CallBackURL: callbackUrl,
-      AccountReference: "Ratibu",
-      TransactionDesc: "Chama Deposit",
+      AccountReference: isMshwari ? normalizedMshwariPhone! : "Ratibu",
+      TransactionDesc: isMshwari ? "Mshwari Savings" : "Chama Deposit",
     };
 
     const stkResp = await fetch(
@@ -233,13 +254,11 @@ Deno.serve(async (req) => {
     if (stkData.ResponseCode && stkData.ResponseCode !== "0") {
       throw new Error(
         stkData.errorMessage ||
-          `STK Push Failed: ${stkData.ResponseCode} - ${
-            stkData.ResponseDescription || ""
-          }`,
+          `STK Push Failed: ${stkData.ResponseCode} - ${stkData.ResponseDescription || ""}`,
       );
     }
 
-    const { error: updateError } = await supabase
+    await supabase
       .from("transactions")
       .update({
         metadata: {
@@ -249,10 +268,6 @@ Deno.serve(async (req) => {
         },
       })
       .eq("id", transaction.id);
-
-    if (updateError) {
-      console.error("Failed to update transaction metadata:", updateError);
-    }
 
     return jsonResponse({
       message: "STK Push Initiated",
@@ -275,10 +290,7 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse(
-      {
-        error: err.message || "Unknown Error",
-        details: err.toString(),
-      },
+      { error: err.message || "Unknown Error", details: err.toString() },
       400,
     );
   }
