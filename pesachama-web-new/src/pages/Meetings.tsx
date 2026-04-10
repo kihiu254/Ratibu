@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Calendar, MapPin, Video, Plus, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
 import { format } from 'date-fns'
@@ -373,8 +373,19 @@ export default function Meetings() {
   const [showCreate, setShowCreate] = useState(false)
   const [activeRoom, setActiveRoom] = useState<{ roomName: string; title: string } | null>(null)
   const [userInfo, setUserInfo] = useState({ displayName: 'Member', email: '' })
+  const [searchParams] = useSearchParams()
 
   useEffect(() => { void load() }, [])
+
+  useEffect(() => {
+    const roomName = searchParams.get('room')
+    if (!roomName) return
+
+    setActiveRoom({
+      roomName,
+      title: searchParams.get('title') ?? 'Meeting',
+    })
+  }, [searchParams])
 
   async function load() {
     setLoading(true)

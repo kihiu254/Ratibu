@@ -65,7 +65,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Center(child: RatibuLogo(height: 120)),
+              const Center(child: RatibuLogo(height: 180)),
               const SizedBox(height: 40),
               const Text(
                 'Security Check',

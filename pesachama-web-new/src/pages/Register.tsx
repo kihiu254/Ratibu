@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Lock, Mail, User, Phone, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
-import Navbar from '../components/Navbar'
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -16,6 +15,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -28,6 +29,10 @@ export default function Register() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!acceptedTerms || !acceptedPrivacy) {
+      setError('Please accept the Terms and Privacy Policy to continue.')
+      return
+    }
     setLoading(true)
     setError(null)
 
@@ -47,18 +52,17 @@ export default function Register() {
       setError(error.message)
       setLoading(false)
     } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      })
-
-      if (signInError) {
-        setLoading(false)
-        navigate('/login?redirectTo=/onboarding')
-      } else {
-        // Go to onboarding after signup
-        navigate('/onboarding')
+      const { data: session } = await supabase.auth.getSession()
+      const user = session.session?.user
+      if (user) {
+        const now = new Date().toISOString()
+        await supabase.from('users').update({
+          terms_accepted_at: now,
+          privacy_accepted_at: now,
+          updated_at: now,
+        }).eq('id', user.id)
       }
+      navigate('/login?registered=1')
     }
   }
 
@@ -68,9 +72,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
-      <Navbar />
-      
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4 sm:px-6 lg:px-8 relative overflow-hidden pt-32 pb-12">
+      <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 relative overflow-hidden py-12">
         {/* Animated Background Video */}
         <div className="absolute inset-0 z-0 overflow-hidden">
             <div className="absolute inset-0 dark:bg-slate-950/60 z-10 backdrop-blur-[2px] transition-colors duration-300" />
@@ -105,10 +107,11 @@ export default function Register() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
+              <label htmlFor="register-full-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Full Name</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <input
+                  id="register-full-name"
                   name="fullName"
                   type="text"
                   value={formData.fullName}
@@ -121,10 +124,11 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+              <label htmlFor="register-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <input
+                  id="register-email"
                   name="email"
                   type="email"
                   value={formData.email}
@@ -137,10 +141,11 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
+              <label htmlFor="register-phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Phone Number</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <input
+                  id="register-phone"
                   name="phone"
                   type="tel"
                   value={formData.phone}
@@ -153,10 +158,11 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Password</label>
+              <label htmlFor="register-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <input
+                  id="register-password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
@@ -176,9 +182,10 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Referral Code (Optional)</label>
+              <label htmlFor="register-referral" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Referral Code (Optional)</label>
               <div className="relative">
                 <input
+                  id="register-referral"
                   name="referralCode"
                   type="text"
                   value={formData.referralCode}
@@ -189,9 +196,35 @@ export default function Register() {
               </div>
             </div>
 
+            <div className="space-y-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/40 dark:bg-white/5 p-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                One-time legal acceptance is required to create an account.
+              </p>
+              <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+                <input
+                  id="register-consent-terms"
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>I accept the Terms and Conditions.</span>
+              </label>
+              <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+                <input
+                  id="register-consent-privacy"
+                  type="checkbox"
+                  checked={acceptedPrivacy}
+                  onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>I accept the Privacy Policy.</span>
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !acceptedTerms || !acceptedPrivacy}
               className="w-full flex items-center justify-center py-3 px-4 bg-[#00C853] hover:bg-[#00C853]/90 text-white font-semibold rounded-lg shadow-lg shadow-[#00C853]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed group mt-4"
             >
               {loading ? (

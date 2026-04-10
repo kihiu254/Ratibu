@@ -16,6 +16,7 @@ import 'package:ratibu_mobile/screens/create_chama_screen.dart';
 import 'package:ratibu_mobile/screens/chama_details_screen.dart';
 import 'package:ratibu_mobile/screens/create_payment_prompt_screen.dart';
 import 'package:ratibu_mobile/screens/create_meeting_screen.dart';
+import 'package:ratibu_mobile/screens/calendar_screen.dart';
 import 'package:ratibu_mobile/screens/profile_screen.dart';
 import 'package:ratibu_mobile/screens/notifications_screen.dart';
 import 'package:ratibu_mobile/screens/join_chama_screen.dart';
@@ -83,18 +84,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             final isOtp = state.matchedLocation == '/otp-verification';
             final isKyc = state.matchedLocation == '/kyc-form';
             final isOnboardingSuccess = state.matchedLocation == '/onboarding-success';
-            final legalAccepted =
-                s.user.userMetadata?['terms_accepted_at'] != null &&
-                    s.user.userMetadata?['privacy_accepted_at'] != null;
+            final legalAccepted = s.legalAccepted;
+            final isLoginOrRegister =
+                state.matchedLocation == '/login' ||
+                state.matchedLocation == '/register';
+            if (!legalAccepted) {
+              if (isLoginOrRegister) return null;
+              return '/login';
+            }
             if (!s.otpVerified) {
               if (isOtp || isOnboardingSuccess || isOnboarding || isLoggingIn || isRegistering) {
                 return null;
               }
               return '/otp-verification?email=${s.user.email ?? ''}';
-            }
-            if (!legalAccepted) {
-              if (isOnboarding) return null;
-              return '/onboarding';
             }
             if (isKyc) return null;
             if (isOtp || isOnboardingSuccess) return '/kyc-form';
@@ -244,6 +246,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MeetingsScreen(),
       ),
       GoRoute(
+        path: '/calendar',
+        builder: (context, state) => const CalendarScreen(),
+      ),
+      GoRoute(
         path: '/swaps',
         builder: (context, state) => const SwapsScreen(),
       ),
@@ -370,6 +376,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'Ratibu Mobile',
+      debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: ThemeData(
         useMaterial3: true,

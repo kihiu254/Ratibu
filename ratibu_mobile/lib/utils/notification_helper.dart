@@ -154,6 +154,12 @@ class NotificationHelper {
       } else {
         debugPrint('Email sent successfully to $to');
       }
+    } on FunctionException catch (e) {
+      if (e.status == 404 || e.details.toString().contains('NOT_FOUND')) {
+        debugPrint('send-email function is not deployed for this Supabase project. Skipping email send.');
+        return;
+      }
+      debugPrint('Error calling send-email function: $e');
     } catch (e) {
       debugPrint('Error calling send-email function: $e');
     }

@@ -35,10 +35,12 @@ class AuthStateAuthenticated extends AuthState {
   final User user;
   final String kycStatus;
   final bool otpVerified;
+  final bool legalAccepted;
   AuthStateAuthenticated(
     this.user, {
     this.kycStatus = 'not_started',
     this.otpVerified = false,
+    this.legalAccepted = false,
   });
 }
 class AuthStateUnauthenticated extends AuthState {}
@@ -46,10 +48,12 @@ class AuthStateAwaiting2FA extends AuthState {
   final User user;
   final String kycStatus;
   final bool otpVerified;
+  final bool legalAccepted;
   AuthStateAwaiting2FA(
     this.user, {
     this.kycStatus = 'not_started',
     this.otpVerified = false,
+    this.legalAccepted = false,
   });
 }
 class AuthStateError extends AuthState {
@@ -165,7 +169,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       
       final kycData = await _supabase
           .from('users')
-          .select('kyc_status, first_name, last_name, two_factor_enabled, otp_verified_at')
+          .select('kyc_status, first_name, last_name, two_factor_enabled, otp_verified_at, terms_accepted_at, privacy_accepted_at')
           .eq('id', res.user!.id)
           .maybeSingle();
       
@@ -177,6 +181,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final prefs = await SharedPreferences.getInstance();
       final localOtpVerified = prefs.getBool('otp_verified_${res.user!.id}') ?? false;
       final otpVerified = kycData?['otp_verified_at'] != null || localOtpVerified;
+      final legalAccepted = kycData?['terms_accepted_at'] != null &&
+          kycData?['privacy_accepted_at'] != null;
 
       if (is2FAEnabled) {
         // Trigger 2FA
@@ -191,12 +197,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           res.user!, 
           kycStatus: kycStatus,
           otpVerified: otpVerified,
+          legalAccepted: legalAccepted,
         );
       } else {
         state = AuthStateAuthenticated(
           res.user!,
           kycStatus: kycStatus,
           otpVerified: otpVerified,
+          legalAccepted: legalAccepted,
         );
       }
       
@@ -226,6 +234,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           currentState.user,
           kycStatus: currentState.kycStatus,
           otpVerified: currentState.otpVerified,
+          legalAccepted: currentState.legalAccepted,
         );
         
         NotificationHelper.sendNotification(
@@ -239,14 +248,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
           currentState.user,
           kycStatus: currentState.kycStatus,
           otpVerified: currentState.otpVerified,
+          legalAccepted: currentState.legalAccepted,
         );
         state = AuthStateError('Invalid or expired security code');
       }
     } catch (e) {
-      state = AuthStateAwaiting2FA(
+        state = AuthStateAwaiting2FA(
         currentState.user,
         kycStatus: currentState.kycStatus,
         otpVerified: currentState.otpVerified,
+        legalAccepted: currentState.legalAccepted,
       );
       state = AuthStateError('Verification failed: $e');
     }
@@ -275,16 +286,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         final kycData = await _supabase
             .from('users')
-            .select('kyc_status, otp_verified_at')
+            .select('kyc_status, otp_verified_at, terms_accepted_at, privacy_accepted_at')
             .eq('id', user.id)
             .maybeSingle(); // won't throw if row missing
         final prefs = await SharedPreferences.getInstance();
         final localOtpVerified = prefs.getBool('otp_verified_${user.id}') ?? false;
         final otpVerified = kycData?['otp_verified_at'] != null || localOtpVerified;
+        final legalAccepted = kycData?['terms_accepted_at'] != null &&
+            kycData?['privacy_accepted_at'] != null;
         state = AuthStateAuthenticated(
           user,
           kycStatus: kycData?['kyc_status'] ?? 'not_started',
           otpVerified: otpVerified,
+          legalAccepted: legalAccepted,
         );
       } catch (e) {
         debugPrint('Error fetching KYC status: $e');

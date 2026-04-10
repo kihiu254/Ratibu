@@ -77,6 +77,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             _drawerItem(context, Icons.savings, 'Personal Savings', '/personal-savings', Colors.greenAccent),
             _drawerItem(context, Icons.explore, 'Explore Chamas', '/join-chama', Colors.cyan),
             _drawerItem(context, Icons.event, 'Meetings', '/meetings', Colors.lightBlue),
+            _drawerItem(context, Icons.calendar_month, 'Calendar', '/calendar', Colors.greenAccent),
             _drawerItem(context, Icons.swap_horiz, 'Swaps', '/swaps', Colors.white70),
             _drawerItem(context, Icons.emoji_events, 'Rewards', '/rewards', Colors.amber),
             _drawerItem(context, Icons.gavel, 'Penalties', '/penalties', Colors.orange),
@@ -176,6 +177,26 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         .order('created_at', ascending: false)
         .limit(5);
 
+    final activeChamas = await supabase
+        .from('chama_members')
+        .select('chama_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+    final chamaIds = (activeChamas as List)
+        .map((row) => row['chama_id'] as String)
+        .toList();
+
+    final upcomingMeetings = chamaIds.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await supabase
+            .from('meetings')
+            .select('id, title, date, venue, video_link, chama_id, chamas(name)')
+            .inFilter('chama_id', chamaIds)
+            .gte('date', DateTime.now().toIso8601String())
+            .order('date', ascending: true)
+            .limit(3);
+
     final allTransactions = await supabase
         .from('transactions')
         .select('amount, type')
@@ -206,6 +227,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
       'activeChamas': activeChamasResponse,
       'pendingPayments': pendingPayments,
       'recentTransactions': recentTransactions,
+      'upcomingMeetings': upcomingMeetings,
       'displayName': displayName,
     };
   }
@@ -221,6 +243,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         final activeChamas = data['activeChamas'] ?? 0;
         final pendingPayments = data['pendingPayments'] ?? 0.0;
         final recentTransactions = data['recentTransactions'] as List<dynamic>? ?? [];
+        final upcomingMeetings = data['upcomingMeetings'] as List<dynamic>? ?? [];
         final displayName = data['displayName'] ?? 'User';
 
         return RefreshIndicator(
@@ -375,6 +398,11 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       onTap: () => context.push('/penalties')),
                 ],
               ),
+              const SizedBox(height: 24),
+              if (upcomingMeetings.isNotEmpty) ...[
+                _UpcomingMeetingsCard(meetings: upcomingMeetings),
+                const SizedBox(height: 24),
+              ],
               const SizedBox(height: 24),
               const Text('Recent Transactions',
                   style: TextStyle(
@@ -651,6 +679,167 @@ class _StatCard extends StatelessWidget {
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5)),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpcomingMeetingsCard extends StatelessWidget {
+  final List<dynamic> meetings;
+
+  const _UpcomingMeetingsCard({required this.meetings});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C853).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.calendar_month, color: Color(0xFF00C853), size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Upcoming Meetings',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Your next scheduled chama sessions',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.push('/calendar'),
+                child: const Text(
+                  'Calendar',
+                  style: TextStyle(
+                    color: Color(0xFF00C853),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...meetings.map((meeting) {
+            final date = DateTime.tryParse(meeting['date']?.toString() ?? '')?.toLocal();
+            final isVirtual = (meeting['video_link'] ?? '').toString().isNotEmpty;
+            final chamaName = (meeting['chamas'] as Map<String, dynamic>?)?['name'] ?? 'Chama';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0f172a),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C853).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      isVirtual ? Icons.videocam : Icons.event,
+                      color: const Color(0xFF00C853),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          meeting['title']?.toString() ?? 'Meeting',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          chamaName.toString(),
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (date != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            DateFormat('EEE, MMM d • h:mm a').format(date),
+                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (isVirtual)
+                        const Text(
+                          'Virtual',
+                          style: TextStyle(
+                            color: Color(0xFF00C853),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      TextButton(
+                        onPressed: () => context.push('/meetings'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Open',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

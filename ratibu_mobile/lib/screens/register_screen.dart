@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/ratibu_logo.dart';
 
@@ -22,6 +23,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _referralCodeController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
 
   @override
   void dispose() {
@@ -36,6 +39,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
+      if (!_acceptedTerms || !_acceptedPrivacy) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please accept the Terms and Privacy Policy to continue.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
       await ref.read(authProvider.notifier).signUp(
             email: _emailController.text,
             password: _passwordController.text,
@@ -55,6 +67,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('pending_onboarding', true);
         await prefs.setBool('onboarding_complete', false);
+        final currentUser = Supabase.instance.client.auth.currentUser;
+        if (currentUser != null) {
+          final now = DateTime.now().toIso8601String();
+          await Supabase.instance.client.from('users').update({
+            'terms_accepted_at': now,
+            'privacy_accepted_at': now,
+            'updated_at': now,
+          }).eq('id', currentUser.id);
+          await ref.read(authProvider.notifier).refreshUser();
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -87,14 +109,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final isLoading = authState is AuthStateLoading;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go('/onboarding'),
-        ),
-      ),
       backgroundColor: const Color(0xFF020617), // Midnight background
       body: Center(
         child: SingleChildScrollView(
@@ -104,10 +118,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => context.go('/onboarding'),
+                    tooltip: 'Back',
+                  ),
+                ),
                 const Hero(
                   tag: 'app_logo',
                   child: Center(
-                    child: RatibuLogo(height: 120),
+                    child: RatibuLogo(height: 180),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -179,6 +201,52 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _referralCodeController,
                   label: 'Referral Code (Optional)',
                   validator: (_) => null,
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'One-time legal acceptance',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        value: _acceptedTerms,
+                        onChanged: (value) =>
+                            setState(() => _acceptedTerms = value ?? false),
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: const Color(0xFF00C853),
+                        title: const Text(
+                          'I accept the Terms and Conditions',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      CheckboxListTile(
+                        value: _acceptedPrivacy,
+                        onChanged: (value) =>
+                            setState(() => _acceptedPrivacy = value ?? false),
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: const Color(0xFF00C853),
+                        title: const Text(
+                          'I accept the Privacy Policy',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(

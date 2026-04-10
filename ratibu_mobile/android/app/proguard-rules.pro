@@ -1,0 +1,1 @@
+-dontwarn com.facebook.imagepipeline.nativecode.WebpTranscoder

@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/ratibu_logo.dart';
 import '../services/security_service.dart';
@@ -23,12 +24,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _rememberMe = false;
   bool _isBiometricAvailable = false;
   bool _isBiometricEnabled = false;
+  bool _needsConsent = false;
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
+  String? _pendingRoute;
 
   @override
   void initState() {
     super.initState();
     _loadSavedEmail();
     _checkBiometrics();
+    _checkExistingConsent();
+  }
+
+  Future<void> _checkExistingConsent() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final profile = await Supabase.instance.client
+        .from('users')
+        .select('kyc_status, terms_accepted_at, privacy_accepted_at')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (!mounted) return;
+    if (profile?['terms_accepted_at'] == null || profile?['privacy_accepted_at'] == null) {
+      setState(() {
+        _needsConsent = true;
+        _pendingRoute = profile?['kyc_status'] == 'not_started' ? '/onboarding' : '/dashboard';
+      });
+    }
   }
 
   Future<void> _checkBiometrics() async {
@@ -180,7 +205,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (next is AuthStateAuthenticated && previous is AuthStateLoading) {
         final prefs = await SharedPreferences.getInstance();
         final pendingOnboarding = prefs.getBool('pending_onboarding') ?? false;
+        final profile = await Supabase.instance.client
+            .from('users')
+            .select('kyc_status, terms_accepted_at, privacy_accepted_at')
+            .eq('id', next.user.id)
+            .maybeSingle();
+        final legalAccepted = profile?['terms_accepted_at'] != null &&
+            profile?['privacy_accepted_at'] != null;
         if (!mounted) return;
+        if (!legalAccepted) {
+          setState(() {
+            _needsConsent = true;
+            _acceptedTerms = false;
+            _acceptedPrivacy = false;
+            _pendingRoute = pendingOnboarding
+                ? '/onboarding'
+                : (next.kycStatus == 'not_started' ? '/onboarding' : '/dashboard');
+          });
+          return;
+        }
         context.go(pendingOnboarding ? '/onboarding' : '/dashboard');
       } else if (next is AuthStateError) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -196,14 +239,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go('/onboarding'),
-        ),
-      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -213,10 +248,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => context.go('/onboarding'),
+                    tooltip: 'Back',
+                  ),
+                ),
                 const Hero(
                   tag: 'app_logo',
                   child: Center(
-                    child: RatibuLogo(height: 120),
+                    child: RatibuLogo(height: 180),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -367,6 +410,84 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                   ],
                 ),
+                if (_needsConsent) ...[
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'One-time legal acceptance',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Please accept the Terms and Privacy Policy once to finish signing in.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        CheckboxListTile(
+                          value: _acceptedTerms,
+                          onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                          activeColor: const Color(0xFF00C853),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('I accept the Terms and Conditions',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                        CheckboxListTile(
+                          value: _acceptedPrivacy,
+                          onChanged: (value) => setState(() => _acceptedPrivacy = value ?? false),
+                          activeColor: const Color(0xFF00C853),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('I accept the Privacy Policy',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: (!_acceptedTerms || !_acceptedPrivacy)
+                              ? null
+                              : () async {
+                                  final user = Supabase.instance.client.auth.currentUser;
+                                  if (user == null) return;
+                                  final now = DateTime.now().toIso8601String();
+                                  await Supabase.instance.client.from('users').update({
+                                    'terms_accepted_at': now,
+                                    'privacy_accepted_at': now,
+                                    'updated_at': now,
+                                  }).eq('id', user.id);
+                                  await ref.read(authProvider.notifier).refreshUser();
+                                  if (!mounted) return;
+                                  setState(() => _needsConsent = false);
+                                  context.go(_pendingRoute ?? '/dashboard');
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C853),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Continue',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

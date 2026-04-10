@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/chama_provider.dart';
+import '../utils/jitsi_meeting_helper.dart';
 
 class ChamaDetailsScreen extends ConsumerWidget {
   final String chamaId;
@@ -469,10 +470,22 @@ class _MeetingsTab extends ConsumerWidget {
                         if (isVirtual) ...[
                           const SizedBox(height: 8),
                           InkWell(
-                            onTap: () {
-                              // TODO: Launch URL
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Join Link: ${meeting['video_link']}')),
+                            onTap: () async {
+                              final link = meeting['video_link']?.toString() ?? '';
+                              if (link.isEmpty) return;
+
+                              final uri = Uri.tryParse(link);
+                              final roomName = uri?.pathSegments.isNotEmpty == true
+                                  ? uri!.pathSegments.last
+                                  : link;
+                              final user = Supabase.instance.client.auth.currentUser;
+
+                              await joinRatibuMeeting(
+                                context: context,
+                                roomName: roomName,
+                                title: meeting['title']?.toString() ?? 'Meeting',
+                                displayName: user?.email,
+                                email: user?.email,
                               );
                             },
                             child: const Text(

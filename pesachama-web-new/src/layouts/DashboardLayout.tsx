@@ -91,24 +91,10 @@ export default function DashboardLayout() {
       const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
       setUser(data || user)
 
-      const onboardingRoutes = ['/onboarding', '/verify-otp', '/membership-kyc']
-      const otpGateRoutes = ['/onboarding', '/verify-otp']
       const kycStatus = data?.kyc_status ?? 'not_started'
-      const otpVerified = Boolean(data?.otp_verified_at)
-      const legalAccepted = Boolean(data?.terms_accepted_at && data?.privacy_accepted_at)
+      const onboardingRoutes = ['/onboarding', '/verify-otp', '/membership-kyc']
 
-      if (kycStatus === 'not_started') {
-        if (!otpVerified) {
-          if (!otpGateRoutes.includes(location.pathname)) navigate('/onboarding')
-        } else {
-          if (!legalAccepted) {
-            if (location.pathname !== '/onboarding') navigate('/onboarding')
-            return
-          }
-          if (otpGateRoutes.includes(location.pathname)) navigate('/membership-kyc')
-          if (!onboardingRoutes.includes(location.pathname)) navigate('/membership-kyc')
-        }
-      } else if (['pending', 'approved'].includes(kycStatus)) {
+      if (['pending', 'approved'].includes(kycStatus)) {
         if (onboardingRoutes.includes(location.pathname)) navigate('/dashboard')
       }
     } catch (error) {

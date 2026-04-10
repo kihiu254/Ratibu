@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
+import '../widgets/ratibu_logo.dart';
 
 class ProcessingScreen extends StatefulWidget {
   const ProcessingScreen({super.key});
@@ -81,8 +82,6 @@ class _ProcessingScreenState extends State<ProcessingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = (screenWidth * 0.82).clamp(280.0, 380.0);
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       body: FadeTransition(
@@ -91,16 +90,9 @@ class _ProcessingScreenState extends State<ProcessingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Hero(
+              const Hero(
                 tag: 'app_logo',
-                child: SizedBox(
-                  height: logoSize,
-                  width: logoSize,
-                  child: const Image(
-                    image: AssetImage('assets/images/logo_square.png'),
-                    fit: BoxFit.contain,
-                  ),
-                ),
+                child: RatibuLogo(height: 180),
               ),
               const SizedBox(height: 48),
               const SizedBox(

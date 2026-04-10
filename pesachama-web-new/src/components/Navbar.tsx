@@ -3,11 +3,10 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import Button from "./Button";
 import { ThemeToggle } from "./ThemeToggle";
-import { RatibuLogo, RatibuLogoDark, RatibuLogoAuth } from "./RatibuLogo";
+import { RatibuLogo, RatibuLogoDark } from "./RatibuLogo";
 import { supabase } from "../lib/supabase";
-import { User, LayoutDashboard, ArrowLeft } from "lucide-react";
+import { User, LayoutDashboard } from "lucide-react";
 
 interface UserProfile {
   avatar_url: string | null;
@@ -59,32 +58,31 @@ export default function Navbar() {
     if (user) {
       navigate('/create-chama');
     } else {
-      navigate('/login?redirectTo=/create-chama');
+      navigate('/register?redirectTo=/create-chama');
     }
   };
 
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const isFlowPage =
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname === '/onboarding' ||
+    location.pathname === '/verify-otp' ||
+    location.pathname === '/membership-kyc';
+  const navButtonClass =
+    "w-full rounded-xl px-4 py-3 text-sm font-bold transition-all duration-300 border border-transparent";
+
+  if (isFlowPage) {
+    return null;
+  }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 py-4 px-6 font-sans">
-      <div className="max-w-7xl mx-auto px-6 py-2 flex justify-between items-center glass rounded-2xl border border-white/5 shadow-2xl animate-fade-in transition-all duration-500">
+    <header className="fixed top-0 left-0 right-0 z-50 py-3 px-3 sm:px-6 font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex justify-between items-center gap-3 glass rounded-2xl border border-white/5 shadow-2xl animate-fade-in transition-all duration-500">
         {/* Left Side: Logo or Back to Home */}
-        <div className="flex items-center gap-4">
-          {isAuthPage && (
-            <Link to="/" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mr-2">
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back to Home</span>
-            </Link>
-          )}
-          <Link to="/" className="flex items-center group">
-            {isAuthPage ? (
-              <RatibuLogoAuth className="h-20 md:h-24 lg:h-28 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
-            ) : (
-              <>
-                <RatibuLogo className="h-24 md:h-28 lg:h-32 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
-                <RatibuLogoDark className="h-24 md:h-28 lg:h-32 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
-              </>
-            )}
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <Link to="/" className="flex items-center group min-w-0">
+            <RatibuLogo className="h-14 sm:h-16 md:h-28 lg:h-32 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
+            <RatibuLogoDark className="h-14 sm:h-16 md:h-28 lg:h-32 w-auto drop-shadow-[0_10px_30px_rgba(0,200,83,0.18)] group-hover:scale-[1.06] transition-transform" />
             <div className="ml-3 md:ml-5 h-10 md:h-14 w-px bg-white/10 hidden sm:block" />
             <div className="ml-3 md:ml-5 hidden sm:flex flex-col">
               <span className="text-xs md:text-sm font-black uppercase tracking-[0.24em] text-[#00C853]">Ratibu</span>
@@ -96,8 +94,8 @@ export default function Navbar() {
         </div>
 
         {/* Desktop Links (Only shown on landing pages) */}
-        {!isAuthPage && (
-          <nav className="hidden md:flex items-center space-x-1">
+        {!isFlowPage && (
+          <nav className="hidden md:flex items-center gap-1">
             {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
               <Link
                 key={item}
@@ -111,7 +109,7 @@ export default function Navbar() {
         )}
 
         {/* Actions */}
-        <div className="hidden md:flex items-center space-x-3">
+        <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
           
           {user ? (
@@ -148,7 +146,7 @@ export default function Navbar() {
               </div>
             </div>
           ) : (
-            !isAuthPage && (
+            !isFlowPage && (
               <>
                 <Link to="/login">
                   <button className="px-6 py-2 rounded-xl font-bold bg-transparent text-[#00C853] border border-[#00C853]/50 hover:bg-[#00C853]/10 hover:border-[#00C853] transition-all duration-300">
@@ -167,12 +165,12 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Toggle */}
-        {!isAuthPage && (
+        {!isFlowPage && (
           <button
             type="button"
-            className="md:hidden text-white p-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="md:hidden text-white p-2 hover:bg-white/5 rounded-lg transition-colors shrink-0"
             onClick={() => setOpen(!open)}
-            aria-expanded={open ? "true" : undefined}
+            aria-expanded={open ? "true" : "false"}
             aria-controls="mobile-navigation-menu"
             aria-label={open ? "Close navigation menu" : "Open navigation menu"}
           >
@@ -186,10 +184,10 @@ export default function Navbar() {
       </div>
 
       {/* Mobile Menu */}
-      {open && !isAuthPage && (
+      {open && !isFlowPage && (
         <div
           id="mobile-navigation-menu"
-          className="md:hidden mt-3 p-6 glass rounded-2xl border border-white/5 shadow-2xl animate-slide-up flex flex-col space-y-4"
+          className="md:hidden mt-3 p-4 sm:p-6 glass rounded-2xl border border-white/5 shadow-2xl animate-slide-up flex flex-col gap-4 max-h-[calc(100vh-8rem)] overflow-y-auto"
         >
           {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
             <Link
@@ -202,19 +200,31 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="h-px bg-white/5 my-2" />
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             {user ? (
-               <Link to="/dashboard" onClick={() => setOpen(false)}>
-                  <Button className="w-full">Dashboard</Button>
+               <Link
+                  to="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className={`${navButtonClass} bg-[#00C853] text-white shadow-lg shadow-[#00C853]/20 hover:bg-[#00C853]/90`}
+               >
+                  Dashboard
                </Link>
             ) : (
               <>
-                <Link to="/login" onClick={() => setOpen(false)}>
-                  <Button variant="secondary" className="w-full">Login</Button>
+                <Link
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className={`${navButtonClass} bg-transparent text-[#00C853] border border-[#00C853]/50 hover:bg-[#00C853]/10`}
+                >
+                  Login
                 </Link>
-                <button onClick={() => { setOpen(false); handleCreateChama(); }}>
-                  <Button className="w-full">Get Started</Button>
-                </button>
+                <Link
+                  to="/register?redirectTo=/create-chama"
+                  onClick={() => setOpen(false)}
+                  className={`${navButtonClass} bg-[#00C853] text-white shadow-lg shadow-[#00C853]/20 hover:bg-[#00C853]/90`}
+                >
+                  Get Started
+                </Link>
               </>
             )}
           </div>

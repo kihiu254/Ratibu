@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/ratibu_logo.dart';
 
@@ -28,7 +28,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const RatibuLogo(height: 50),
+                  const RatibuLogo(height: 180),
                   const SizedBox(height: 40),
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -81,7 +81,8 @@ class OnboardingSuccessScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 48),
                   ElevatedButton(
-                    onPressed: () => context.push('/otp-verification?email=${email ?? ''}'),
+                    onPressed: () =>
+                        context.push('/otp-verification?email=${email ?? ''}'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00C853),
                       foregroundColor: Colors.white,
@@ -90,7 +91,8 @@ class OnboardingSuccessScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       elevation: 8,
-                      shadowColor: const Color(0xFF00C853).withValues(alpha: 0.4),
+                      shadowColor:
+                          const Color(0xFF00C853).withValues(alpha: 0.4),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -166,4 +168,3 @@ class OnboardingSuccessScreen extends StatelessWidget {
     );
   }
 }
-

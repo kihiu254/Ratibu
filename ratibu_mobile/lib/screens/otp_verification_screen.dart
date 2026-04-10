@@ -232,14 +232,6 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF020617),
         resizeToAvoidBottomInset: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: _signOutToLogin,
-          ),
-        ),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -247,8 +239,16 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: _signOutToLogin,
+                  tooltip: 'Back',
+                ),
+              ),
               const SizedBox(height: 8),
-              const Center(child: RatibuLogo(height: 90)),
+              const Center(child: RatibuLogo(height: 160)),
               const SizedBox(height: 24),
               const Text(
                 'Security Verification',

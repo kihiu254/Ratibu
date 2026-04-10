@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../providers/chama_provider.dart';
+import '../utils/jitsi_meeting_helper.dart';
 
 class MeetingsScreen extends ConsumerStatefulWidget {
   const MeetingsScreen({super.key});
@@ -27,7 +27,9 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
     setState(() => _loading = true);
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        return;
+      }
 
       final membership = await Supabase.instance.client
           .from('chama_members')
@@ -38,11 +40,12 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
           (membership as List).map((m) => m['chama_id'] as String).toList();
 
       if (chamaIds.isEmpty) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _meetings = [];
             _loading = false;
           });
+        }
         return;
       }
 
@@ -53,42 +56,32 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
           .inFilter('chama_id', chamaIds)
           .order('date', ascending: true);
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _meetings = List<Map<String, dynamic>>.from(meetings);
           _loading = false;
         });
+      }
     } catch (e) {
       debugPrint('Error loading meetings: $e');
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _joinMeetingLink(String videoLink, String title) async {
-    try {
-      final url = Uri.tryParse(videoLink);
-      if (url == null) {
-        throw Exception('Invalid meeting link');
-      }
+  Future<void> _joinMeetingRoom(String videoLink, String title) async {
+    final uri = Uri.tryParse(videoLink);
+    final roomName = uri?.pathSegments.isNotEmpty == true
+        ? uri!.pathSegments.last
+        : videoLink;
+    final user = Supabase.instance.client.auth.currentUser;
 
-      final launched = await launchUrl(
-        url,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched) {
-        throw Exception('Unable to open the meeting link');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to open "$title": $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    await joinRatibuMeeting(
+      context: context,
+      roomName: roomName,
+      title: title,
+      displayName: user?.email,
+      email: user?.email,
+    );
   }
 
   Future<void> _showChamaPicker() async {
@@ -256,7 +249,7 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
                                 onJoin: (m['video_link'] ?? '')
                                         .toString()
                                         .isNotEmpty
-                                    ? () => _joinMeetingLink(
+                                    ? () => _joinMeetingRoom(
                                         m['video_link'] as String,
                                         m['title'] ?? 'Meeting')
                                     : null,

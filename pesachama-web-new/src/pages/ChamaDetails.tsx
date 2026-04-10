@@ -983,9 +983,17 @@ export default function ChamaDetails() {
                                         )}
                                     </div>
                                     {meeting.video_link && (
-                                        <a href={meeting.video_link} target="_blank" className="text-xs font-bold text-[#00C853] flex items-center gap-1 hover:underline">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const roomName = meeting.video_link?.split('/').pop()?.trim()
+                                                if (!roomName) return
+                                                navigate(`/meetings?room=${encodeURIComponent(roomName)}&title=${encodeURIComponent(meeting.title)}`)
+                                            }}
+                                            className="text-xs font-bold text-[#00C853] flex items-center gap-1 hover:underline"
+                                        >
                                             Join Now <ExternalLink className="w-3 h-3" />
-                                        </a>
+                                        </button>
                                     )}
                                 </div>
                             </div>

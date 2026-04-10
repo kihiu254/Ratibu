@@ -1,9 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Lock, Mail, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
-import Navbar from '../components/Navbar'
 
 export default function Login() {
   const savedEmail = localStorage.getItem('remember_me_email') ?? ''
@@ -13,8 +12,34 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(Boolean(savedEmail))
+  const [needsConsent, setNeedsConsent] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
+  const [pendingRedirect, setPendingRedirect] = useState('/dashboard')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const justRegistered = searchParams.get('registered') === '1'
+
+  useEffect(() => {
+    const loadExistingSession = async () => {
+      const { data: session } = await supabase.auth.getSession()
+      const user = session.session?.user
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('kyc_status, terms_accepted_at, privacy_accepted_at')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profile?.terms_accepted_at && profile?.privacy_accepted_at) return
+
+      setPendingRedirect(profile?.kyc_status === 'not_started' ? '/onboarding' : '/dashboard')
+      setNeedsConsent(true)
+    }
+
+    void loadExistingSession()
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,31 +58,74 @@ export default function Login() {
         localStorage.removeItem('remember_me_email')
       }
 
-      // Check KYC status to route correctly
       const { data: profile } = await supabase
         .from('users')
-        .select('kyc_status')
+        .select('kyc_status, terms_accepted_at, privacy_accepted_at')
         .eq('id', data.user!.id)
         .maybeSingle()
 
-      const kycStatus = profile?.kyc_status ?? 'not_started'
       const redirectTo = searchParams.get('redirectTo')
+      const kycStatus = profile?.kyc_status ?? 'not_started'
+      setPendingRedirect(redirectTo || (kycStatus === 'not_started' ? '/onboarding' : '/dashboard'))
 
-      if (redirectTo) {
-        navigate(redirectTo)
-      } else if (kycStatus === 'not_started') {
-        navigate('/onboarding')
-      } else {
-        navigate('/dashboard')
+      if (profile?.terms_accepted_at && profile?.privacy_accepted_at) {
+        navigate(redirectTo || '/dashboard')
+        return
       }
+
+      setNeedsConsent(true)
+      setLoading(false)
+      return
     }
+  }
+
+  const handleConsentContinue = async () => {
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) return
+    if (!acceptedTerms || !acceptedPrivacy) return
+
+    setLoading(true)
+    try {
+      const now = new Date().toISOString()
+      const { error } = await supabase
+        .from('users')
+        .update({ terms_accepted_at: now, privacy_accepted_at: now, updated_at: now })
+        .eq('id', authUser.user.id)
+      if (error) throw error
+      setNeedsConsent(false)
+      navigate(pendingRedirect)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save consent')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first to reset your password.')
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    
+    if (error) {
+      setError(error.message)
+    } else {
+      setError('A password reset link has been sent to your email. Check your inbox!')
+    }
+    
+    setLoading(false)
   }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
-      <Navbar />
-      
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4 sm:px-6 lg:px-8 relative overflow-hidden pt-32 pb-12">
+      <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 relative overflow-hidden py-12">
         {/* Animated Background Video */}
         <div className="absolute inset-0 z-0 overflow-hidden">
             <div className="absolute inset-0 dark:bg-slate-950/60 z-10 backdrop-blur-[2px] transition-colors duration-300" />
@@ -84,6 +152,12 @@ export default function Login() {
             <p className="text-slate-600 dark:text-slate-400 mt-2">Sign in to access your Ratibu account</p>
           </div>
 
+          {justRegistered && (
+            <div className="mb-6 p-4 rounded-xl border border-[#00C853]/20 bg-[#00C853]/10 text-[#00C853] text-sm">
+              Account created successfully. Please sign in to continue.
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-6">
             {error && (
               <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
@@ -92,10 +166,11 @@ export default function Login() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -107,10 +182,11 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Password</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -144,26 +220,66 @@ export default function Login() {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-[#00C853] hover:text-green-500">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="font-medium text-[#00C853] hover:text-green-500"
+                >
                   Forgot your password?
-                </a>
+                </button>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center py-3 px-4 bg-[#00C853] hover:bg-[#00C853]/90 text-white font-semibold rounded-lg shadow-lg shadow-[#00C853]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </button>
+            {!needsConsent ? (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center py-3 px-4 bg-[#00C853] hover:bg-[#00C853]/90 text-white font-semibold rounded-lg shadow-lg shadow-[#00C853]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm text-slate-300">
+                  One-time legal acceptance is required to continue.
+                </p>
+                <label className="flex items-start gap-3 text-sm text-slate-200">
+                  <input
+                    id="login-consent-terms"
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>I accept the Terms and Conditions.</span>
+                </label>
+                <label className="flex items-start gap-3 text-sm text-slate-200">
+                  <input
+                    id="login-consent-privacy"
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>I accept the Privacy Policy.</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleConsentContinue}
+                  disabled={loading || !acceptedTerms || !acceptedPrivacy}
+                  className="w-full flex items-center justify-center py-3 px-4 bg-[#00C853] hover:bg-[#00C853]/90 text-white font-semibold rounded-lg shadow-lg shadow-[#00C853]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}
+                </button>
+              </div>
+            )}
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
