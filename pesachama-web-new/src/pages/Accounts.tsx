@@ -18,6 +18,21 @@ function firstItem<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null
 }
 
+function progressWidthClass(progress: number) {
+  const pct = Math.max(0, Math.min(100, Math.round(progress * 100)))
+  if (pct === 0) return 'w-0'
+  if (pct <= 10) return 'w-[10%]'
+  if (pct <= 20) return 'w-[20%]'
+  if (pct <= 30) return 'w-[30%]'
+  if (pct <= 40) return 'w-[40%]'
+  if (pct <= 50) return 'w-[50%]'
+  if (pct <= 60) return 'w-[60%]'
+  if (pct <= 70) return 'w-[70%]'
+  if (pct <= 80) return 'w-[80%]'
+  if (pct <= 90) return 'w-[90%]'
+  return 'w-full'
+}
+
 // ── Shared helpers ────────────────────────────────────────────────────────────
 function normalizePhone(value: string): string | null {
   const t = value.replace(/[\s\-()]/g, '')
@@ -234,7 +249,7 @@ function AccountCard({ icon: Icon, iconBg, title, subtitle, badge, badgeColor = 
       {progress !== undefined && (
         <div className="space-y-1">
           <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-            <div className="h-full bg-[#00C853]" style={{ width: `${Math.min(progress * 100, 100)}%` }} />
+            <div className={`h-full bg-[#00C853] ${progressWidthClass(progress)}`} />
           </div>
           <p className="text-xs text-slate-400">{Math.round(progress * 100)}% of target</p>
         </div>

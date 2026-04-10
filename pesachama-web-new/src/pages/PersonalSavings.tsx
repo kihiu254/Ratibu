@@ -8,6 +8,21 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
+function progressWidthClass(progress: number) {
+  const pct = Math.max(0, Math.min(100, Math.round(progress)))
+  if (pct === 0) return 'w-0'
+  if (pct <= 10) return 'w-[10%]'
+  if (pct <= 20) return 'w-[20%]'
+  if (pct <= 30) return 'w-[30%]'
+  if (pct <= 40) return 'w-[40%]'
+  if (pct <= 50) return 'w-[50%]'
+  if (pct <= 60) return 'w-[60%]'
+  if (pct <= 70) return 'w-[70%]'
+  if (pct <= 80) return 'w-[80%]'
+  if (pct <= 90) return 'w-[90%]'
+  return 'w-full'
+}
+
 type SavingsPurpose =
   | 'emergency'
   | 'rent'
@@ -500,7 +515,7 @@ export default function PersonalSavings() {
                   <span className="font-bold text-slate-900 dark:text-white">KES {Number(target.target_amount).toLocaleString()}</span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-4">
-                  <div className="h-full bg-[#00C853]" style={{ width: `${progress}%` }} />
+                  <div className={`h-full bg-[#00C853] ${progressWidthClass(progress)}`} />
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs mb-3">
                   <span className="px-3 py-1 rounded-full bg-[#00C853]/10 text-[#00C853]">
@@ -556,7 +571,6 @@ export default function PersonalSavings() {
                 type="number"
                 min="1"
                 step="0.01"
-                autoFocus
                 value={txAmount}
                 onChange={e => setTxAmount(e.target.value)}
                 className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"

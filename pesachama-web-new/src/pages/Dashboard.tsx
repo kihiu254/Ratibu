@@ -34,6 +34,21 @@ interface SavingsTarget {
   status: 'active' | 'paused' | 'completed'
 }
 
+function progressWidthClass(progress: number) {
+  const pct = Math.max(0, Math.min(100, Math.round(progress)))
+  if (pct === 0) return 'w-0'
+  if (pct <= 10) return 'w-[10%]'
+  if (pct <= 20) return 'w-[20%]'
+  if (pct <= 30) return 'w-[30%]'
+  if (pct <= 40) return 'w-[40%]'
+  if (pct <= 50) return 'w-[50%]'
+  if (pct <= 60) return 'w-[60%]'
+  if (pct <= 70) return 'w-[70%]'
+  if (pct <= 80) return 'w-[80%]'
+  if (pct <= 90) return 'w-[90%]'
+  return 'w-full'
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalBalance: 0,
@@ -248,7 +263,7 @@ export default function Dashboard() {
                       <span className="font-semibold text-slate-900 dark:text-white">KES {Number(target.target_amount).toLocaleString()}</span>
                     </div>
                     <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-3">
-                      <div className="h-full bg-[#00C853]" style={{ width: `${progress}%` }} />
+                      <div className={`h-full bg-[#00C853] ${progressWidthClass(progress)}`} />
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       Auto allocation: {target.allocation_type === 'percentage'

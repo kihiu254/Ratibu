@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { ArrowDownCircle, ArrowUpCircle, ArrowLeft, Clock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -27,9 +27,7 @@ export default function Statement() {
   const [rows, setRows] = useState<TxRow[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { void load() }, [account, id])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -55,7 +53,9 @@ export default function Statement() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [account, id])
+
+  useEffect(() => { void load() }, [load])
 
   const fmt = (n: number) => `KES ${Number(n).toLocaleString()}`
   const fmtDate = (s: string) =>

@@ -883,7 +883,6 @@ export default function ChamaDetails() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {data.members?.map((member) => (
                             <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                {/* eslint-disable-next-line jsx-a11y/control-has-associated-label */}
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
