@@ -16,6 +16,12 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const failureResponse = (message: string, status = 400, details?: string) =>
+  jsonResponse({
+    error: message,
+    ...(details ? { details } : {}),
+  }, status);
+
 // Accepts: 07XXXXXXXX, 01XXXXXXXX, 2547XXXXXXXX, 2541XXXXXXXX, +254XXXXXXXXX
 const normalizePhoneNumber = (value: string): string | null => {
   const trimmed = value.replace(/[\s\-()]/g, "");
@@ -31,7 +37,7 @@ const getBearerToken = (header: string | null) => {
 };
 
 async function authenticateRequest(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   authHeader: string | null,
   userId: string,
 ) {
@@ -82,7 +88,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Provide chamaId, savingsTargetId, or destinationType: mshwari" }, 400);
   }
   if (isMshwari && !mshwariPhone) {
-    return jsonResponse({ error: "mshwariPhone is required for Mshwari deposits" }, 400);
+    return failureResponse("Mshwari phone is required for this deposit.");
   }
 
   const numericAmount = Number(amount);
@@ -92,15 +98,12 @@ Deno.serve(async (req) => {
 
   const formattedPhone = normalizePhoneNumber(String(phoneNumber));
   if (!formattedPhone) {
-    return jsonResponse(
-      { error: "Invalid phone number. Use 07XXXXXXXX, 01XXXXXXXX, or 254XXXXXXXXX format" },
-      400,
-    );
+    return failureResponse("Invalid phone number. Use 07XXXXXXXX, 01XXXXXXXX, or 254XXXXXXXXX format.");
   }
 
   const normalizedMshwariPhone = isMshwari ? normalizePhoneNumber(String(mshwariPhone)) : null;
   if (isMshwari && !normalizedMshwariPhone) {
-    return jsonResponse({ error: "Invalid Mshwari phone number format" }, 400);
+    return failureResponse("Invalid Mshwari phone number format.");
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -182,7 +185,15 @@ Deno.serve(async (req) => {
     const mpesaEnv = Deno.env.get("MPESA_ENV") || "sandbox";
 
     if (!consumerKey || !consumerSecret || !passkey || !shortcode) {
-      throw new Error("Missing M-Pesa environment variables");
+      throw new Error("Missing M-Pesa environment variables. Set MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, and MPESA_BUSINESS_SHORTCODE.");
+    }
+
+    if (isMshwari && mpesaEnv !== "production") {
+      return failureResponse(
+        "Mshwari deposits require production M-Pesa credentials. Sandbox does not trigger a real Mshwari prompt.",
+        400,
+        "MPESA_ENV is sandbox",
+      );
     }
 
     const baseUrl = mpesaEnv === "production"
@@ -197,7 +208,7 @@ Deno.serve(async (req) => {
 
     if (!authResp.ok) {
       const errorText = await authResp.text();
-      throw new Error(`Auth Failed: ${authResp.status} ${errorText}`);
+      throw new Error(`Unable to authenticate with M-Pesa (${authResp.status}). ${errorText}`);
     }
 
     const { access_token } = await authResp.json();
@@ -252,10 +263,20 @@ Deno.serve(async (req) => {
 
     const stkData = await stkResp.json();
     if (stkData.ResponseCode && stkData.ResponseCode !== "0") {
-      throw new Error(
-        stkData.errorMessage ||
-          `STK Push Failed: ${stkData.ResponseCode} - ${stkData.ResponseDescription || ""}`,
-      );
+      const responseDescription = stkData.ResponseDescription || "";
+      const errorMessage = stkData.errorMessage || "";
+      const friendlyMessage =
+        isMshwari && mpesaEnv !== "production"
+          ? "Mshwari deposits do not work in sandbox."
+          : stkData.ResponseCode === "1032"
+            ? "Payment cancelled on the phone."
+            : stkData.ResponseCode === "2001"
+              ? "M-Pesa could not process the request right now. Try again."
+              : stkData.ResponseCode === "1037"
+                ? "The STK prompt timed out. Try again."
+                : errorMessage || responseDescription || `STK Push failed with code ${stkData.ResponseCode}`;
+
+      throw new Error(friendlyMessage);
     }
 
     await supabase
@@ -289,9 +310,6 @@ Deno.serve(async (req) => {
         .eq("id", transactionId);
     }
 
-    return jsonResponse(
-      { error: err.message || "Unknown Error", details: err.toString() },
-      400,
-    );
+    return failureResponse(err.message || "Unknown Error", 400, err.toString());
   }
 });

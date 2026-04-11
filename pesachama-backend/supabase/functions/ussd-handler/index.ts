@@ -549,6 +549,19 @@ async function invokeInternalFunction(functionName: string, body: Record<string,
   };
 }
 
+function extractFunctionError(result: { data: unknown }) {
+  if (!result.data || typeof result.data !== "object") {
+    return "Please try again.";
+  }
+
+  const payload = result.data as Record<string, unknown>;
+  const error = payload.error;
+  const details = payload.details;
+  const message = payload.message;
+  const parts = [error, message, details].filter((value) => typeof value === "string" && value.trim().length > 0);
+  return parts.length > 0 ? String(parts[0]) : "Please try again.";
+}
+
 async function getCachedUssdResponse(supabase: any, sessionId: string, text: string) {
   const { data, error } = await supabase
     .from("ussd_request_log")
@@ -944,10 +957,7 @@ Deno.serve(async (req: Request) => {
                 });
 
                 if (!result.ok) {
-                  const message = typeof result.data === "object" && result.data && "error" in result.data
-                    ? String((result.data as { error?: unknown }).error ?? "Please try again.")
-                    : "Please try again.";
-                  response = `END Deposit failed. ${message}`;
+                  response = `END Deposit failed. ${extractFunctionError(result)}`;
                 } else {
                   response = "END Deposit initiated. Check your phone for the M-Pesa PIN prompt.";
                 }
@@ -1062,10 +1072,7 @@ Deno.serve(async (req: Request) => {
                 });
 
                 if (!result.ok) {
-                  const message = typeof result.data === "object" && result.data && "error" in result.data
-                    ? String((result.data as { error?: unknown }).error ?? "Please try again.")
-                    : "Please try again.";
-                  response = `END Mshwari deposit failed. ${message}`;
+                  response = `END Mshwari deposit failed. ${extractFunctionError(result)}`;
                 } else {
                   response = "END Mshwari deposit initiated. Check your phone for the M-Pesa PIN prompt.";
                 }
