@@ -386,10 +386,26 @@ async function verifyTransactionPin(
       return { success: false, needsSetup: false, resetRequired: false, attemptsRemaining: 0 };
     }
 
+    await logUssdAudit(supabase, {
+      userId: user.id,
+      action: "ussd_pin_created",
+      resourceType: "transaction_pin",
+      newValue: { channel: "ussd" },
+    });
+
     return { success: true };
   }
 
   if (resetRequired) {
+    await logUssdAudit(supabase, {
+      userId: user.id,
+      action: "ussd_pin_locked",
+      resourceType: "transaction_pin",
+      newValue: {
+        channel: "ussd",
+        failed_attempts: failedAttempts,
+      },
+    });
     return { success: false, needsSetup: false, resetRequired: true };
   }
 
@@ -407,6 +423,17 @@ async function verifyTransactionPin(
       })
       .eq("id", user.id);
 
+    await logUssdAudit(supabase, {
+      userId: user.id,
+      action: lockRequired ? "ussd_pin_locked" : "ussd_pin_failed",
+      resourceType: "transaction_pin",
+      newValue: {
+        channel: "ussd",
+        failed_attempts: nextAttempts,
+        attempts_remaining: getAttemptsRemaining(nextAttempts),
+      },
+    });
+
     return {
       success: false,
       needsSetup: false,
@@ -423,6 +450,13 @@ async function verifyTransactionPin(
       transaction_pin_enabled: true,
     })
     .eq("id", user.id);
+
+  await logUssdAudit(supabase, {
+    userId: user.id,
+    action: "ussd_pin_verified",
+    resourceType: "transaction_pin",
+    newValue: { channel: "ussd" },
+  });
 
   return { success: true };
 }
@@ -605,6 +639,31 @@ async function storeUssdResponse(
     });
 }
 
+async function logUssdAudit(
+  supabase: any,
+  entry: {
+    userId?: string | null;
+    action: string;
+    resourceType: string;
+    resourceId?: string | null;
+    oldValue?: Record<string, unknown> | null;
+    newValue?: Record<string, unknown> | null;
+  },
+) {
+  const { error } = await supabase.from("audit_logs").insert({
+    user_id: entry.userId ?? null,
+    action: entry.action,
+    resource_type: entry.resourceType,
+    resource_id: entry.resourceId ?? null,
+    old_value: entry.oldValue ?? null,
+    new_value: entry.newValue ?? null,
+  });
+
+  if (error) {
+    console.warn("USSD audit log failed:", error.message);
+  }
+}
+
 async function recordSavingsTransaction(
   supabase: any,
   userId: string,
@@ -624,6 +683,20 @@ async function recordSavingsTransaction(
   }
 
   const result = data as { ok?: boolean; message?: string; next_amount?: number };
+
+  await logUssdAudit(supabase, {
+    userId,
+    action: result?.ok === true ? `ussd_savings_${type}` : `ussd_savings_${type}_failed`,
+    resourceType: "savings_target",
+    resourceId: target.id,
+    newValue: {
+      channel: "ussd",
+      amount,
+      next_amount: result?.next_amount ?? null,
+      message: result?.message ?? null,
+    },
+  });
+
   return {
     ok: result?.ok === true,
     message: result?.message ?? null,
@@ -649,6 +722,18 @@ async function requestChamaWithdrawal(
   }
 
   const result = data as { ok?: boolean; message?: string };
+  await logUssdAudit(supabase, {
+    userId,
+    action: result?.ok === true ? "ussd_chama_withdrawal_requested" : "ussd_chama_withdrawal_failed",
+    resourceType: "chama",
+    resourceId: chama.id,
+    newValue: {
+      channel: "ussd",
+      amount,
+      message: result?.message ?? null,
+    },
+  });
+
   return { ok: result?.ok === true, message: result?.message ?? null };
 }
 
@@ -956,6 +1041,7 @@ Deno.serve(async (req: Request) => {
                   userId: profile.id,
                   chamaId: chama.id,
                   requestId: requestKey,
+                  origin: "ussd",
                 });
 
                 if (!result.ok) {
@@ -963,6 +1049,18 @@ Deno.serve(async (req: Request) => {
                 } else {
                   response = "END Deposit sent. Check your phone.";
                 }
+
+                await logUssdAudit(supabase, {
+                  userId: profile.id,
+                  action: result.ok ? "ussd_chama_deposit_initiated" : "ussd_chama_deposit_failed",
+                  resourceType: "chama",
+                  resourceId: chama.id,
+                  newValue: {
+                    channel: "ussd",
+                    amount,
+                    message: result.ok ? null : extractFunctionError(result),
+                  },
+                });
               }
             }
           } else if (menu[1] === "2") {
@@ -1071,6 +1169,7 @@ Deno.serve(async (req: Request) => {
                   destinationType: "mshwari",
                   mshwariPhone,
                   requestId: requestKey,
+                  origin: "ussd",
                 });
 
                 if (!result.ok) {
@@ -1078,6 +1177,18 @@ Deno.serve(async (req: Request) => {
                 } else {
                   response = "END Mshwari deposit sent. Check your phone.";
                 }
+
+                await logUssdAudit(supabase, {
+                  userId: profile.id,
+                  action: result.ok ? "ussd_mshwari_deposit_initiated" : "ussd_mshwari_deposit_failed",
+                  resourceType: "mshwari",
+                  newValue: {
+                    channel: "ussd",
+                    amount,
+                    message: result.ok ? null : extractFunctionError(result),
+                    mshwari_phone: mshwariPhone,
+                  },
+                });
               }
             }
           } else {

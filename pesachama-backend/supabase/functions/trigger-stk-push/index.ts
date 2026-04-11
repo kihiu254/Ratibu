@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
     mshwariPhone,
     requestId,
     type,
+    origin,
   } = payload;
 
   const isMshwari = destinationType === "mshwari";
@@ -162,6 +163,7 @@ Deno.serve(async (req) => {
         description: txDescription,
         metadata: {
           ...(requestId ? { payment_request_id: requestId } : {}),
+          ...(origin ? { origin: String(origin) } : {}),
           phone_number: formattedPhone,
           ...(isMshwari ? { mshwari_phone: normalizedMshwariPhone, destination: "mshwari" } : {}),
           initiated_at: new Date().toISOString(),
@@ -286,6 +288,7 @@ Deno.serve(async (req) => {
           ...(transaction.metadata || {}),
           checkout_request_id: stkData.CheckoutRequestID,
           merchant_request_id: stkData.MerchantRequestID,
+          ...(origin ? { origin: String(origin) } : {}),
         },
       })
       .eq("id", transaction.id);

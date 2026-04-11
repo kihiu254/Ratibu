@@ -9,6 +9,7 @@ import {
   Menu,
   ShieldAlert,
   Activity,
+  MessageSquareText,
   BarChart2,
   ShieldCheck,
   Target,
@@ -58,6 +59,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { name: 'Transactions', icon: CreditCard, path: '/admin/transactions' },
       { name: 'Activities', icon: Activity, path: '/admin/activities' },
+      { name: 'USSD', icon: MessageSquareText, path: '/admin/ussd' },
     ],
   },
   {

@@ -38,6 +38,7 @@ import AdminKycDocuments from '../pages/admin/AdminKycDocuments'
 import AdminRoles from '../pages/admin/AdminRoles'
 import AdminSettings from '../pages/admin/AdminSettings'
 import AdminTransactions from '../pages/admin/AdminTransactions'
+import AdminUssd from '../pages/admin/AdminUssd'
 import AdminUsers from '../pages/admin/AdminUsers'
 
 const PublicLayout = () => (
@@ -109,6 +110,7 @@ export function AppRoutes() {
           <Route path="chamas" element={<AdminChamas />} />
           <Route path="chamas/:id" element={<AdminChamaDetails />} />
           <Route path="activities" element={<AdminActivities />} />
+          <Route path="ussd" element={<AdminUssd />} />
           <Route path="roles" element={<AdminRoles />} />
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="settings" element={<AdminSettings />} />
