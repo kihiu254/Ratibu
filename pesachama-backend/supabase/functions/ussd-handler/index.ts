@@ -899,7 +899,9 @@ Deno.serve(async (req: Request) => {
               .from("meetings")
               .select("id", { count: "exact", head: true });
 
-            response = `END Ratibu\nDashboard\nChamas ${chamaCount}\nSavings ${savingsCount ?? 0}\nMeetings ${meetingCount ?? 0}`;
+            response = renderChoicePrompt(
+              `Ratibu\nDashboard\nChamas ${chamaCount}\nSavings ${savingsCount ?? 0}\nMeetings ${meetingCount ?? 0}`,
+            );
           } else {
             response = renderMainMenu(displayName);
           }
@@ -916,11 +918,11 @@ Deno.serve(async (req: Request) => {
               .filter(Boolean)
               .slice(0, 3)
               .join(", ") || "No active chamas";
-            response = `END Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`;
+            response = renderChoicePrompt(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`);
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nDiscover Chamas\nOpen the app to browse and join chamas.";
+            response = renderChoicePrompt("Ratibu\nDiscover Chamas\nOpen the app to browse and join chamas.");
           } else if (menu[1] === "3") {
-            response = "END Ratibu\nCreate Chama\nOpen the app to start a new chama.";
+            response = renderChoicePrompt("Ratibu\nCreate Chama\nOpen the app to start a new chama.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1092,13 +1094,13 @@ Deno.serve(async (req: Request) => {
               .slice(0, 3)
               .map((target) => `${target.name}: KES ${Number(target.current_amount || 0).toLocaleString()} / KES ${Number(target.target_amount || 0).toLocaleString()}`)
               .join("\n") || "No savings plans yet";
-            response = `END Ratibu\nPersonal Savings\n${summary}\nPlans ${count}`;
+            response = renderChoicePrompt(`Ratibu\nPersonal Savings\n${summary}\nPlans ${count}`);
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nPersonal Savings\nCreate savings plans in the app.";
+            response = renderChoicePrompt("Ratibu\nPersonal Savings\nCreate savings plans in the app.");
           } else if (menu[1] === "3") {
             const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
             if (!target) {
-              response = "END Ratibu\nSavings Deposit\nCreate a savings target first.";
+              response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount to deposit.`;
             } else {
@@ -1117,7 +1119,7 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "4") {
             const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
             if (!target) {
-              response = "END Ratibu\nSavings Withdrawal\nCreate a savings target first.";
+              response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount to withdraw.`;
             } else {
@@ -1134,7 +1136,7 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "5") {
-            response = "END Ratibu\nLock Savings\nManage locked savings in the app.";
+            response = renderChoicePrompt("Ratibu\nLock Savings\nManage locked savings in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1151,22 +1153,24 @@ Deno.serve(async (req: Request) => {
               : null;
 
             if (!chamaId) {
-              response = "END Ratibu\nUpcoming Meetings\nJoin a chama first.";
+              response = renderChoicePrompt("Ratibu\nUpcoming Meetings\nJoin a chama first.");
             } else {
               const meeting = await fetchUpcomingMeeting(supabase, chamaId);
               if (meeting) {
                 const scheduledAt = meeting.date || meeting.scheduled_at || "";
                 const date = new Date(scheduledAt).toLocaleDateString();
                 const time = new Date(scheduledAt).toLocaleTimeString();
-                response = `END Ratibu\nUpcoming Meeting\n${meeting.title || "Meeting"}\n${date} ${time}\n${meeting.agenda || "General"}`;
+                response = renderChoicePrompt(
+                  `Ratibu\nUpcoming Meeting\n${meeting.title || "Meeting"}\n${date} ${time}\n${meeting.agenda || "General"}`,
+                );
               } else {
-                response = "END Ratibu\nUpcoming Meetings\nNo upcoming meetings.";
+                response = renderChoicePrompt("Ratibu\nUpcoming Meetings\nNo upcoming meetings.");
               }
             }
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nSchedule meetings in the app.";
+            response = renderChoicePrompt("Ratibu\nSchedule meetings in the app.");
           } else if (menu[1] === "3") {
-            response = "END Ratibu\nRatibu Meet\nJoin virtual meetings in the app.";
+            response = renderChoicePrompt("Ratibu\nRatibu Meet\nJoin virtual meetings in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1174,9 +1178,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderSwapsMenu();
           } else if (menu[1] === "1") {
-            response = "END Ratibu\nRequest Swap\nManage swaps in the app.";
+            response = renderChoicePrompt("Ratibu\nRequest Swap\nManage swaps in the app.");
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nMy Swaps\nView your swaps in the app.";
+            response = renderChoicePrompt("Ratibu\nMy Swaps\nView your swaps in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1184,11 +1188,11 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderProfileMenu();
           } else if (menu[1] === "1") {
-            response = `END Ratibu\nProfile\n${displayName}\n${profile?.phone_number || phoneNumber}`;
+            response = renderChoicePrompt(`Ratibu\nProfile\n${displayName}\n${profile?.phone_number || phoneNumber}`);
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nEdit Profile\nUpdate your details in the app.";
+            response = renderChoicePrompt("Ratibu\nEdit Profile\nUpdate your details in the app.");
           } else if (menu[1] === "3") {
-            response = "END Ratibu\nKYC\nComplete verification in the app.";
+            response = renderChoicePrompt("Ratibu\nKYC\nComplete verification in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1196,9 +1200,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderRewardsMenu();
           } else if (menu[1] === "1") {
-            response = "END Ratibu\nRewards\nRewards summary in the app.";
+            response = renderChoicePrompt("Ratibu\nRewards\nRewards summary in the app.");
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nLeaderboard\nOpen the app to view the leaderboard.";
+            response = renderChoicePrompt("Ratibu\nLeaderboard\nOpen the app to view the leaderboard.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1206,9 +1210,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderCreateChamaMenu();
           } else if (menu[1] === "1") {
-            response = "END Ratibu\nCreate Chama\nOpen the app to complete setup.";
+            response = renderChoicePrompt("Ratibu\nCreate Chama\nOpen the app to complete setup.");
           } else if (menu[1] === "2") {
-            response = "END Ratibu\nExplore Chamas\nOpen the app to browse chamas.";
+            response = renderChoicePrompt("Ratibu\nExplore Chamas\nOpen the app to browse chamas.");
           } else {
             response = renderMainMenu(displayName);
           }
