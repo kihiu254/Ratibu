@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Search, Filter, Trash2, Eye, User, Loader2, XCircle, Mail,
-  X, CheckCircle, Clock, AlertCircle, ShieldCheck, FileText
+  X, CheckCircle, Clock, AlertCircle, ShieldCheck, FileText, KeyRound, RefreshCw
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -35,10 +35,15 @@ interface UserProfile {
   id_back_url?: string
   selfie_url?: string
   phone?: string
+  transaction_pin_enabled?: boolean
+  transaction_pin_failed_attempts?: number
+  transaction_pin_locked_until?: string
+  transaction_pin_hash?: string | null
 }
 
 function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClose: () => void, onStatusChange: (id: string, status: string) => void }) {
   const [updating, setUpdating] = useState(false)
+  const [resettingPin, setResettingPin] = useState(false)
 
   async function updateKycStatus(status: string) {
     setUpdating(true)
@@ -52,6 +57,31 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
       toast.error('Failed to update KYC status')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  async function resetTransactionPin() {
+    const confirmed = window.confirm(`Reset the transaction PIN for ${user.first_name} ${user.last_name}?`)
+    if (!confirmed) return
+
+    setResettingPin(true)
+    try {
+      const { error } = await supabase.functions.invoke('transaction-auth', {
+        body: {
+          action: 'admin_reset',
+          targetUserId: user.id,
+        },
+      })
+
+      if (error) throw error
+
+      toast.success('Transaction PIN reset')
+      onStatusChange(user.id, user.kyc_status || 'not_started')
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset transaction PIN')
+    } finally {
+      setResettingPin(false)
     }
   }
 
@@ -121,6 +151,52 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
               {row('Phone', user.phone)}
               {row('Occupation', user.occupation)}
               {row('Income Source', user.income_source)}
+            </div>
+          </div>
+
+          {/* Transaction PIN */}
+          <div>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <KeyRound className="w-3 h-3" /> Transaction PIN
+            </h3>
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Status</span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                  user.transaction_pin_hash
+                    ? (user.transaction_pin_enabled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')
+                    : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {user.transaction_pin_hash
+                    ? (user.transaction_pin_enabled ? 'Active' : 'Locked')
+                    : 'Not set'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Failed attempts</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {user.transaction_pin_failed_attempts ?? 0}
+                </span>
+              </div>
+              {user.transaction_pin_locked_until && (
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Locked until</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {new Date(user.transaction_pin_locked_until).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {user.transaction_pin_hash && (
+                <button
+                  type="button"
+                  onClick={resetTransactionPin}
+                  disabled={resettingPin}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00C853]/10 text-[#00C853] font-bold text-sm hover:bg-[#00C853]/20 transition-colors disabled:opacity-60"
+                >
+                  {resettingPin ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Reset PIN
+                </button>
+              )}
             </div>
           </div>
 

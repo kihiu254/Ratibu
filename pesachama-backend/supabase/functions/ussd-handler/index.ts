@@ -957,14 +957,14 @@ Deno.serve(async (req: Request) => {
       } else {
         const pinCheck = await verifyTransactionPin(supabase, profile, pin);
 
-        if (!pinCheck.success) {
-          if (pinCheck.needsSetup) {
-            response = "END No PIN set. Create one in the app.";
-          } else if (pinCheck.resetRequired) {
-            response = "END PIN locked. Reset it in Profile.";
-          } else {
-            response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
-          }
+          if (!pinCheck.success) {
+            if (pinCheck.needsSetup) {
+              response = "END No PIN set. Create one in the app.";
+            } else if (pinCheck.resetRequired) {
+              response = "END PIN locked. Ask an admin to reset it.";
+            } else {
+              response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
+            }
         } else if (menu.length === 0) {
           response = renderMainMenu(displayName);
         } else if (menu[0] === "00") {

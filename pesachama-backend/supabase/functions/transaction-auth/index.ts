@@ -40,6 +40,7 @@ type UserRow = {
   first_name?: string | null;
   last_name?: string | null;
   phone?: string | null;
+  system_role?: string | null;
   transaction_pin_enabled?: boolean | null;
   transaction_pin_hash?: string | null;
   transaction_pin_salt?: string | null;
@@ -73,7 +74,7 @@ function splitFullName(fullName: string | null | undefined) {
 async function ensureUserRow(supabase: any, userId: string) {
   const { data: userRow, error: userError } = await supabase
     .from("users")
-    .select("id, first_name, last_name, phone, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
+    .select("id, first_name, last_name, phone, system_role, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
     .eq("id", userId)
     .maybeSingle();
 
@@ -106,7 +107,7 @@ async function ensureUserRow(supabase: any, userId: string) {
       last_name: lastName,
       phone,
     } as any, { onConflict: "id" })
-    .select("id, first_name, last_name, phone, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
+    .select("id, first_name, last_name, phone, system_role, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
     .single();
 
   if (upsertError) {
@@ -114,6 +115,15 @@ async function ensureUserRow(supabase: any, userId: string) {
   }
 
   return upserted as UserRow;
+}
+
+async function assertAdmin(supabase: any, userId: string) {
+  const userRow = await ensureUserRow(supabase, userId);
+  const role = String(userRow?.system_role ?? "user");
+  if (role !== "admin" && role !== "super_admin") {
+    throw new Error("Admin access required");
+  }
+  return userRow;
 }
 
 Deno.serve(async (req) => {
@@ -189,6 +199,52 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse({ success: true, enabled: true });
+  }
+
+  if (action === "admin_reset") {
+    if (!payload.targetUserId || typeof payload.targetUserId !== "string") {
+      return jsonResponse({ error: "Missing targetUserId" }, 400);
+    }
+
+    await assertAdmin(supabase, userId);
+    const targetUserId = String(payload.targetUserId);
+    const targetUser = await ensureUserRow(supabase, targetUserId);
+
+    const { error } = await supabase
+      .from("users")
+      .update({
+        transaction_pin_hash: null,
+        transaction_pin_salt: null,
+        transaction_pin_enabled: false,
+        transaction_pin_updated_at: new Date().toISOString(),
+        transaction_pin_failed_attempts: 0,
+        transaction_pin_locked_until: null,
+      })
+      .eq("id", targetUserId);
+
+    if (error) {
+      return jsonResponse({ error: error.message }, 500);
+    }
+
+    await supabase.from("audit_logs").insert({
+      user_id: userId,
+      action: "transaction_pin_admin_reset",
+      resource_type: "transaction_pin",
+      resource_id: targetUserId,
+      old_value: {
+        enabled: targetUser?.transaction_pin_enabled ?? null,
+        failed_attempts: targetUser?.transaction_pin_failed_attempts ?? null,
+        locked_until: targetUser?.transaction_pin_locked_until ?? null,
+        has_pin: Boolean(targetUser?.transaction_pin_hash),
+      },
+      new_value: {
+        enabled: false,
+        cleared: true,
+        target_user_id: targetUserId,
+      },
+    });
+
+    return jsonResponse({ success: true, reset: true, targetUserId });
   }
 
   if (action === "reset") {
