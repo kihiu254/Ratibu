@@ -190,6 +190,7 @@ class TransactionAuthorizationService {
     );
 
     if (pin == null || pin.isEmpty) return false;
+    if (!context.mounted) return false;
     return await _verifyPin(context, pin);
   }
 
@@ -274,6 +275,7 @@ class TransactionAuthorizationService {
     );
 
     if (pin == null || pin.isEmpty) return false;
+    if (!context.mounted) return false;
 
     final result = await _setOrResetPin(pin, reset: isReset);
     if (!result.success) {
@@ -296,6 +298,7 @@ class TransactionAuthorizationService {
 
     final attemptsRemaining = (response['attemptsRemaining'] as num?)?.toInt() ?? 0;
     final resetRequired = status == 423 || response['resetRequired'] == true || attemptsRemaining <= 0;
+    if (!context.mounted) return false;
     await _showPinErrorDialog(
       context,
       resetRequired: resetRequired,
@@ -326,6 +329,18 @@ class TransactionAuthorizationService {
       amount: 0,
       isReset: true,
     );
+  }
+
+  Future<void> adminResetTransactionPin(String targetUserId) async {
+    final result = await _invokeAuth({
+      'action': 'admin_reset',
+      'targetUserId': targetUserId,
+    });
+    final response = result['data'] as Map<String, dynamic>;
+    final status = result['status'] as int;
+    if (status != 200 || response['success'] != true) {
+      throw response['error']?.toString() ?? 'Failed to reset transaction PIN';
+    }
   }
 
   Future<_PinActionResult> _setOrResetPin(String pin, {required bool reset}) async {

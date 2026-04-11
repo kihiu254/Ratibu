@@ -37,6 +37,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   int _level = 1;
   List<Map<String, dynamic>> _badges = [];
   String _kycStatus = 'pending';
+  String _systemRole = 'user';
   List<String> _memberCategories = [];
   bool _biometricsEnabled = false;
   final _biometricService = BiometricService();
@@ -44,6 +45,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _savingsTargetService = SavingsTargetService();
   List<SavingsTarget> _savingsTargets = [];
   bool _loadingSavingsTargets = false;
+  final _adminPhoneController = TextEditingController();
+  Map<String, dynamic>? _adminTargetUser;
+  bool _adminSearching = false;
+  bool _adminResetting = false;
 
   @override
   void initState() {
@@ -78,6 +83,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _bioController.text = data['bio'] ?? '';
         _avatarUrl = data['avatar_url'];
         _referralCode = data['referral_code'] ?? '';
+        _systemRole = data['system_role'] ?? 'user';
         
         if (data['gamification_stats'] != null) {
           final stats = data['gamification_stats'];
@@ -124,6 +130,100 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _loadingSavingsTargets = false);
+      }
+    }
+  }
+
+  Future<void> _searchAdminTarget() async {
+    final variants = kenyanPhoneVariants(_adminPhoneController.text);
+    if (variants.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a valid phone number.')),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _adminSearching = true;
+      _adminTargetUser = null;
+    });
+
+    try {
+      final result = await Supabase.instance.client
+          .from('users')
+          .select('id, first_name, last_name, phone, transaction_pin_hash, transaction_pin_enabled, transaction_pin_failed_attempts, transaction_pin_locked_until')
+          .inFilter('phone', variants)
+          .limit(1);
+
+      final rows = List<Map<String, dynamic>>.from(result as List);
+      if (rows.isEmpty) {
+        throw 'No account found for that phone number.';
+      }
+
+      if (mounted) {
+        setState(() => _adminTargetUser = rows.first);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _adminSearching = false);
+      }
+    }
+  }
+
+  Future<void> _adminResetTransactionPin() async {
+    final target = _adminTargetUser;
+    if (target == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Reset PIN', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Reset the transaction PIN for ${target['first_name'] ?? ''} ${target['last_name'] ?? ''}?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Reset', style: TextStyle(color: Color(0xFF00C853))),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _adminResetting = true);
+    try {
+      await _transactionAuthorizationService.adminResetTransactionPin(target['id'] as String);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transaction PIN reset successfully.')),
+        );
+        setState(() => _adminTargetUser = null);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reset PIN: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _adminResetting = false);
       }
     }
   }
@@ -248,6 +348,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _lastNameController.dispose();
     _phoneController.dispose();
     _bioController.dispose();
+    _adminPhoneController.dispose();
     super.dispose();
   }
 
@@ -396,6 +497,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   style: TextStyle(color: Colors.amber, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
+              ],
+
+              if (_systemRole == 'admin' || _systemRole == 'super_admin') ...[
+                const SizedBox(height: 24),
+                _buildAdminPinResetSection(),
               ],
               
               const SizedBox(height: 32),
@@ -980,9 +1086,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     final targetAmount = double.tryParse(targetAmountController.text.trim());
                     final currentAmount = double.tryParse(currentAmountController.text.trim()) ?? 0;
                     final allocationValue = double.tryParse(allocationValueController.text.trim());
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
 
                     if (nameController.text.trim().isEmpty || targetAmount == null || allocationValue == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(content: Text('Please fill in the required target fields.')),
                       );
                       return;
@@ -1001,9 +1109,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     );
 
                     if (!mounted) return;
-                    Navigator.pop(context);
+                    navigator.pop();
                     await _loadSavingsTargets();
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(content: Text('Savings target created successfully!')),
                     );
                   },
@@ -1142,6 +1250,154 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAdminPinResetSection() {
+    final target = _adminTargetUser;
+    final hasPin = target?['transaction_pin_hash'] != null;
+    final isLocked = target != null && (target['transaction_pin_enabled'] == false ||
+        (target['transaction_pin_failed_attempts'] is num && (target['transaction_pin_failed_attempts'] as num) >= 3));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Admin PIN Reset',
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1e293b),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Reset a member transaction PIN from mobile support tools.',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _adminPhoneController,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Member phone',
+                  labelStyle: const TextStyle(color: Colors.grey),
+                  prefixIcon: const Icon(Icons.phone, color: Color(0xFF00C853)),
+                  filled: true,
+                  fillColor: const Color(0xFF0f172a),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _adminSearching ? null : _searchAdminTarget,
+                  icon: _adminSearching
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.search, size: 18),
+                  label: Text(_adminSearching ? 'Searching...' : 'Find member'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C853),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              if (target != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${target['first_name'] ?? ''} ${target['last_name'] ?? ''}'.trim(),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${target['phone'] ?? ''}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildTinyStatusChip(
+                            label: hasPin ? (isLocked ? 'Locked' : 'Active') : 'No PIN',
+                            color: hasPin ? (isLocked ? Colors.amber : const Color(0xFF00C853)) : Colors.white54,
+                          ),
+                          _buildTinyStatusChip(
+                            label: 'Failed: ${target['transaction_pin_failed_attempts'] ?? 0}',
+                            color: Colors.white70,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _adminResetting ? null : _adminResetTransactionPin,
+                          icon: _adminResetting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.lock_reset, size: 18),
+                          label: Text(_adminResetting ? 'Resetting...' : 'Reset PIN'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0f172a),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTinyStatusChip({required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+      ),
     );
   }
 
