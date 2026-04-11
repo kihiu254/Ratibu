@@ -503,6 +503,62 @@ async function fetchMshwariPhone(supabase: any, userId: string): Promise<string 
   return (data.mshwari_phone ?? data.phone ?? null) as string | null;
 }
 
+function buildRequestKey(sessionId: string, text: string) {
+  return `${sessionId || "no-session"}|${text || ""}`;
+}
+
+function isTrustedGatewayRequest(req: Request) {
+  if (Deno.env.get("USSD_ALLOW_UNTRUSTED_REQUESTS") === "true") {
+    return true;
+  }
+
+  const userAgent = req.headers.get("user-agent") ?? "";
+  return /at-ussd-api|africastalking/i.test(userAgent);
+}
+
+async function getCachedUssdResponse(supabase: any, sessionId: string, text: string) {
+  const { data, error } = await supabase
+    .from("ussd_request_log")
+    .select("response_text")
+    .eq("session_id", sessionId)
+    .eq("request_text", text)
+    .maybeSingle();
+
+  if (error || !data?.response_text) return null;
+  return data.response_text as string;
+}
+
+async function countRecentUssdRequests(supabase: any, phoneNumber: string) {
+  const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("ussd_request_log")
+    .select("id", { count: "exact", head: true })
+    .eq("phone_number", phoneNumber)
+    .gte("created_at", since);
+
+  if (error) return 0;
+  return count ?? 0;
+}
+
+async function storeUssdResponse(
+  supabase: any,
+  sessionId: string,
+  phoneNumber: string,
+  text: string,
+  responseText: string,
+) {
+  await supabase
+    .from("ussd_request_log")
+    .upsert({
+      session_id: sessionId,
+      phone_number: phoneNumber,
+      request_text: text,
+      response_text: responseText,
+    }, {
+      onConflict: "session_id,request_text",
+    });
+}
+
 async function recordSavingsTransaction(
   supabase: any,
   userId: string,
@@ -510,54 +566,23 @@ async function recordSavingsTransaction(
   amount: number,
   type: "deposit" | "withdrawal",
 ) {
-  const isLocked = target.is_locked || target.status === "locked";
-
-  if (type === "withdrawal" && isLocked) {
-    return { ok: false, message: `${target.name} is locked. Withdrawals are disabled until it unlocks.` };
-  }
-
-  const currentAmount = Number(target.current_amount ?? 0);
-  if (type === "withdrawal" && amount > currentAmount) {
-    return { ok: false, message: "Amount exceeds available savings balance." };
-  }
-
-  const nextAmount = type === "deposit" ? currentAmount + amount : currentAmount - amount;
-  const now = new Date().toISOString();
-
-  const { error: updateError } = await supabase
-    .from("user_savings_targets")
-    .update({
-      current_amount: nextAmount,
-      updated_at: now,
-    })
-    .eq("id", target.id)
-    .eq("user_id", userId);
-
-  if (updateError) {
-    return { ok: false, message: updateError.message };
-  }
-
-  const { error: txError } = await supabase.from("transactions").insert({
-    user_id: userId,
-    savings_target_id: target.id,
-    type,
-    amount,
-    status: "completed",
-    payment_method: "ussd",
-    description: `USSD savings ${type}`,
-    metadata: {
-      channel: "ussd",
-      savings_target_name: target.name,
-      previous_amount: currentAmount,
-      next_amount: nextAmount,
-    },
+  const { data, error } = await supabase.rpc("process_ussd_savings_transaction", {
+    p_user_id: userId,
+    p_target_id: target.id,
+    p_amount: amount,
+    p_tx_type: type,
   });
 
-  if (txError) {
-    return { ok: false, message: txError.message };
+  if (error) {
+    return { ok: false, message: error.message };
   }
 
-  return { ok: true, nextAmount };
+  const result = data as { ok?: boolean; message?: string; next_amount?: number };
+  return {
+    ok: result?.ok === true,
+    message: result?.message ?? null,
+    nextAmount: result?.next_amount ?? null,
+  };
 }
 
 async function requestChamaWithdrawal(
@@ -566,25 +591,19 @@ async function requestChamaWithdrawal(
   chama: ActiveChama,
   amount: number,
 ) {
-  const { error } = await supabase.from("transactions").insert({
-    user_id: userId,
-    chama_id: chama.id,
-    type: "withdrawal",
-    amount,
-    status: "pending",
-    payment_method: "ussd",
-    description: `USSD withdrawal request for ${chama.name}`,
-    metadata: {
-      channel: "ussd",
-      chama_name: chama.name,
-    },
+  const { data, error } = await supabase.rpc("create_ussd_chama_withdrawal_request", {
+    p_user_id: userId,
+    p_chama_id: chama.id,
+    p_amount: amount,
+    p_reason: "USSD withdrawal request",
   });
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
-  return { ok: true };
+  const result = data as { ok?: boolean; message?: string };
+  return { ok: result?.ok === true, message: result?.message ?? null };
 }
 
 async function fetchActiveChamaMemberships(supabase: any, userId: string) {
@@ -737,6 +756,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    if (!isTrustedGatewayRequest(req)) {
+      return new Response("END Forbidden request source.", {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "text/plain" },
+      });
+    }
+
     const body = await req.text();
     const params = new URLSearchParams(body);
 
@@ -757,10 +783,27 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const profile = await findUserByPhone(supabase, phoneLookupValues);
     const displayName = buildDisplayName(profile);
+    const requestKey = buildRequestKey(sessionId, text);
 
     console.log(
       `USSD Session ${sessionId} - Phone: ${phoneNumber} - Text: ${text} - Service: ${serviceCode}`,
     );
+
+    const cachedResponse = await getCachedUssdResponse(supabase, sessionId, text);
+    if (cachedResponse) {
+      return new Response(cachedResponse, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain" },
+      });
+    }
+
+    const recentRequestCount = await countRecentUssdRequests(supabase, phoneNumber);
+    if (recentRequestCount >= 20) {
+      const response = "END Too many USSD requests. Please wait a moment and try again.";
+      await storeUssdResponse(supabase, sessionId, phoneNumber, text, response);
+      return new Response(response, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain" },
+      });
+    }
 
     let response = "";
 
@@ -855,6 +898,7 @@ Deno.serve(async (req: Request) => {
                     phoneNumber: phone,
                     userId: profile.id,
                     chamaId: chama.id,
+                    requestId: requestKey,
                   },
                 })) as { error?: { message?: string }; status?: number };
 
@@ -943,6 +987,7 @@ Deno.serve(async (req: Request) => {
                     userId: profile.id,
                     destinationType: "mshwari",
                     mshwariPhone,
+                    requestId: requestKey,
                   },
                 })) as { error?: { message?: string }; status?: number };
 
@@ -1092,6 +1137,8 @@ Deno.serve(async (req: Request) => {
         }
       }
     }
+
+    await storeUssdResponse(supabase, sessionId, phoneNumber, text, response);
 
     return new Response(response, {
       headers: { ...corsHeaders, "Content-Type": "text/plain" },

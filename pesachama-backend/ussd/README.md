@@ -51,6 +51,12 @@ USSD transaction shortcuts:
 - `Accounts -> Savings Withdrawal` reduces the same savings target after balance checks.
 - `Savings -> Deposit` and `Savings -> Withdraw` mirror the same savings target flow.
 
+Security notes:
+
+- The handler now rejects direct requests unless they come from the Africa's Talking USSD user agent, unless `USSD_ALLOW_UNTRUSTED_REQUESTS=true` is set for local testing.
+- Repeated USSD payloads for the same session are replayed from the request log to avoid duplicate deposits.
+- Savings transactions are now processed through a database function so the balance update and transaction insert stay in sync.
+
 ## Notes
 
 - The handler now accepts common Kenya phone formats such as `07XXXXXXXX`, `01XXXXXXXX`, `2547XXXXXXXX`, and `+2547XXXXXXXX`.

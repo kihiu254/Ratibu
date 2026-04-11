@@ -41,7 +41,8 @@ function Invoke-UssdRequest {
             -Uri $HandlerUrl `
             -Method Post `
             -Body $body `
-            -ContentType "application/x-www-form-urlencoded"
+            -ContentType "application/x-www-form-urlencoded" `
+            -UserAgent "at-ussd-api/1.0"
 
         Write-Host "Request: text='$Text'" -ForegroundColor Cyan
         Write-Host "Response: $response" -ForegroundColor Green
