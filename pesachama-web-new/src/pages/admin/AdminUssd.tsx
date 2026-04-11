@@ -34,7 +34,6 @@ interface UssdAuditRow {
   resource_type: string
   created_at: string
   new_value?: Record<string, unknown> | null
-  user_email?: string
   user_first_name?: string
   user_last_name?: string
 }
@@ -58,7 +57,7 @@ interface RawAudit {
   resource_type: string
   created_at: string
   new_value?: Record<string, unknown> | null
-  users?: { email?: string; first_name?: string; last_name?: string } | null
+  profiles?: { first_name?: string; last_name?: string } | null
 }
 
 const EVENT_MAP: Record<string, { label: string; icon: LucideIcon; cls: string }> = {
@@ -133,7 +132,7 @@ export default function AdminUssd() {
           .limit(300),
         supabase
           .from('audit_logs')
-          .select('id, action, resource_type, created_at, new_value, users:user_id(email,first_name,last_name)')
+          .select('id, action, resource_type, created_at, new_value, profiles:user_id(first_name,last_name)')
           .ilike('action', 'ussd_%')
           .order('created_at', { ascending: false })
           .limit(300),
@@ -164,9 +163,8 @@ export default function AdminUssd() {
         resource_type: row.resource_type,
         created_at: row.created_at,
         new_value: row.new_value,
-        user_email: row.users?.email,
-        user_first_name: row.users?.first_name,
-        user_last_name: row.users?.last_name,
+        user_first_name: row.profiles?.first_name,
+        user_last_name: row.profiles?.last_name,
       })))
     } catch (err) {
       console.error(err)
@@ -211,10 +209,10 @@ export default function AdminUssd() {
       id: `audit-${row.id}`,
       kind: 'audit' as const,
       title: row.action,
-      actor: row.user_first_name ? `${row.user_first_name} ${row.user_last_name || ''}`.trim() : (row.user_email || 'System'),
-      details: row.resource_type,
-      created_at: row.created_at,
-    })),
+        actor: row.user_first_name ? `${row.user_first_name} ${row.user_last_name || ''}`.trim() : 'System',
+        details: row.resource_type,
+        created_at: row.created_at,
+      })),
   ]
     .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
 

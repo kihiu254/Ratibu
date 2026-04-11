@@ -62,6 +62,15 @@ const ReferralRedirect = () => {
   )
 }
 
+const LegacyAdminRedirect = () => {
+  const navigate = useNavigate()
+  useEffect(() => {
+    const next = window.location.pathname.replace(/^\/dashboard\/admin/, '/admin')
+    navigate(next, { replace: true })
+  }, [navigate])
+  return null
+}
+
 export function AppRoutes() {
   return (
     <BrowserRouter>
@@ -115,6 +124,9 @@ export function AppRoutes() {
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
+
+        <Route path="/dashboard/admin" element={<LegacyAdminRedirect />} />
+        <Route path="/dashboard/admin/*" element={<LegacyAdminRedirect />} />
 
         <Route path="/ref/:code" element={<ReferralRedirect />} />
       </Routes>
