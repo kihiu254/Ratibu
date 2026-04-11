@@ -512,8 +512,41 @@ function isTrustedGatewayRequest(req: Request) {
     return true;
   }
 
+  const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
+  if (authHeader === `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) {
+    return true;
+  }
+
   const userAgent = req.headers.get("user-agent") ?? "";
   return /at-ussd-api|africastalking/i.test(userAgent);
+}
+
+async function invokeInternalFunction(functionName: string, body: Record<string, unknown>) {
+  const url = `${SUPABASE_URL}/functions/v1/${functionName}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      "x-client-info": "ratibu-ussd-handler",
+    },
+    body: JSON.stringify(body),
+  });
+
+  let data: unknown = null;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    data = await response.json().catch(() => null);
+  } else {
+    data = await response.text().catch(() => "");
+  }
+
+  return {
+    status: response.status,
+    ok: response.ok,
+    data,
+  };
 }
 
 async function getCachedUssdResponse(supabase: any, sessionId: string, text: string) {
@@ -750,6 +783,9 @@ const renderRewardsMenu = () =>
 const renderCreateChamaMenu = () =>
   `CON Ratibu\nCreate Chama\n1 Start\n2 Explore\n0 Back\n00 Home`;
 
+const renderChoicePrompt = (message: string) =>
+  `CON Ratibu\n${message}\n1 Main menu\n2 Exit`;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -881,7 +917,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "1") {
             const chama = profile?.id ? await fetchFirstActiveChama(supabase, profile.id) : null;
             if (!chama) {
-              response = "END Ratibu\nChama Deposit\nJoin a chama first.";
+              if (menu.length >= 3) {
+                const choice = menu[menu.length - 1];
+                response = choice === "1"
+                  ? renderMainMenu(displayName)
+                  : "END Thank you for using Ratibu.";
+              } else {
+                response = renderChoicePrompt("Ratibu\nJoin a chama first to deposit.");
+              }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount to deposit.`;
             } else {
@@ -892,18 +935,19 @@ Deno.serve(async (req: Request) => {
                 response = "END Unable to confirm your account.";
               } else {
                 const phone = profile.phone || phoneNumber;
-                const result = (await supabase.functions.invoke("trigger-stk-push", {
-                  body: {
-                    amount,
-                    phoneNumber: phone,
-                    userId: profile.id,
-                    chamaId: chama.id,
-                    requestId: requestKey,
-                  },
-                })) as { error?: { message?: string }; status?: number };
+                const result = await invokeInternalFunction("trigger-stk-push", {
+                  amount,
+                  phoneNumber: phone,
+                  userId: profile.id,
+                  chamaId: chama.id,
+                  requestId: requestKey,
+                });
 
-                if (result.error || result.status !== 200) {
-                  response = `END Deposit failed. ${result.error?.message || "Please try again."}`;
+                if (!result.ok) {
+                  const message = typeof result.data === "object" && result.data && "error" in result.data
+                    ? String((result.data as { error?: unknown }).error ?? "Please try again.")
+                    : "Please try again.";
+                  response = `END Deposit failed. ${message}`;
                 } else {
                   response = "END Deposit initiated. Check your phone for the M-Pesa PIN prompt.";
                 }
@@ -912,7 +956,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "2") {
             const chama = profile?.id ? await fetchFirstActiveChama(supabase, profile.id) : null;
             if (!chama) {
-              response = "END Ratibu\nChama Withdrawal\nJoin a chama first.";
+              if (menu.length >= 3) {
+                const choice = menu[menu.length - 1];
+                response = choice === "1"
+                  ? renderMainMenu(displayName)
+                  : "END Thank you for using Ratibu.";
+              } else {
+                response = renderChoicePrompt("Ratibu\nJoin a chama first to withdraw.");
+              }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount to withdraw.`;
             } else {
@@ -931,7 +982,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "3") {
             const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
             if (!target) {
-              response = "END Ratibu\nSavings Deposit\nCreate a savings target first.";
+              if (menu.length >= 3) {
+                const choice = menu[menu.length - 1];
+                response = choice === "1"
+                  ? renderMainMenu(displayName)
+                  : "END Thank you for using Ratibu.";
+              } else {
+                response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
+              }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount to deposit.`;
             } else {
@@ -950,7 +1008,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "4") {
             const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
             if (!target) {
-              response = "END Ratibu\nSavings Withdrawal\nCreate a savings target first.";
+              if (menu.length >= 3) {
+                const choice = menu[menu.length - 1];
+                response = choice === "1"
+                  ? renderMainMenu(displayName)
+                  : "END Thank you for using Ratibu.";
+              } else {
+                response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
+              }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount to withdraw.`;
             } else {
@@ -969,7 +1034,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "5") {
             const mshwariPhone = profile?.mshwari_phone || await fetchMshwariPhone(supabase, profile.id);
             if (!mshwariPhone) {
-              response = "END Ratibu\nMshwari\nLink your Mshwari phone in the app first.";
+              if (menu.length >= 3) {
+                const choice = menu[menu.length - 1];
+                response = choice === "1"
+                  ? renderMainMenu(displayName)
+                  : "END Thank you for using Ratibu.";
+              } else {
+                response = renderChoicePrompt("Ratibu\nLink your Mshwari phone in the app first.");
+              }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nMshwari Deposit\n${mshwariPhone}\nEnter amount to deposit.`;
             } else {
@@ -980,19 +1052,20 @@ Deno.serve(async (req: Request) => {
                 response = "END Unable to confirm your account.";
               } else {
                 const phone = profile.phone || phoneNumber;
-                const result = (await supabase.functions.invoke("trigger-stk-push", {
-                  body: {
-                    amount,
-                    phoneNumber: phone,
-                    userId: profile.id,
-                    destinationType: "mshwari",
-                    mshwariPhone,
-                    requestId: requestKey,
-                  },
-                })) as { error?: { message?: string }; status?: number };
+                const result = await invokeInternalFunction("trigger-stk-push", {
+                  amount,
+                  phoneNumber: phone,
+                  userId: profile.id,
+                  destinationType: "mshwari",
+                  mshwariPhone,
+                  requestId: requestKey,
+                });
 
-                if (result.error || result.status !== 200) {
-                  response = `END Mshwari deposit failed. ${result.error?.message || "Please try again."}`;
+                if (!result.ok) {
+                  const message = typeof result.data === "object" && result.data && "error" in result.data
+                    ? String((result.data as { error?: unknown }).error ?? "Please try again.")
+                    : "Please try again.";
+                  response = `END Mshwari deposit failed. ${message}`;
                 } else {
                   response = "END Mshwari deposit initiated. Check your phone for the M-Pesa PIN prompt.";
                 }
