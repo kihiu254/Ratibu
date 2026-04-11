@@ -25,3 +25,15 @@ export function isMissingOrUnauthorizedSavingsTargets(error: SupabaseLikeError |
     text.includes('schema cache')
   )
 }
+
+export function isDuplicatePhoneError(error: SupabaseLikeError | null | undefined) {
+  if (!error) return false
+
+  const text = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase()
+
+  return (
+    error.code === '23505' ||
+    text.includes('phone number already exists') ||
+    text.includes('duplicate key value') && text.includes('phone')
+  )
+}

@@ -31,6 +31,26 @@ function firstChama(
   return chama
 }
 
+async function withRetry<T>(action: () => T | PromiseLike<T>, attempts = 3) {
+  let lastError: unknown = null
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await Promise.resolve(action())
+    } catch (error) {
+      lastError = error
+      const message = String(error).toLowerCase()
+      if (
+        i === attempts - 1 ||
+        !(message.includes('connection reset by peer') || message.includes('clientexception') || message.includes('socketexception'))
+      ) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300 * (i + 1)))
+    }
+  }
+  throw lastError
+}
+
 export default function Chamas() {
   const [chamas, setChamas] = useState<ChamaSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +73,7 @@ export default function Chamas() {
       if (!user) return
 
       // Fetch chamas where user is a member
-      const { data: members, error } = await supabase
+      const { data: members, error } = await withRetry<any>(() => supabase
         .from('chama_members')
         .select(`
           chama:chamas (
@@ -69,11 +89,33 @@ export default function Chamas() {
           role,
           status
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', user.id))
 
       if (error) {
           console.error('Error fetching chamas:', error)
           return
+      }
+
+      const chamaIds = ((members as ChamaMemberRow[] | null) || [])
+        .map((member) => firstChama(member.chama)?.id)
+        .filter((id): id is string => Boolean(id))
+
+      const memberCounts: Record<string, number> = {}
+      if (chamaIds.length > 0) {
+        const { data: countRows, error: countError } = await withRetry<any>(() => supabase
+          .from('chama_members')
+          .select('chama_id')
+          .in('chama_id', chamaIds)
+          .eq('status', 'active')
+        )
+
+        if (countError) {
+          console.error('Error fetching chama member counts:', countError)
+        } else {
+          for (const row of (countRows || []) as Array<{ chama_id: string }>) {
+            memberCounts[row.chama_id] = (memberCounts[row.chama_id] || 0) + 1
+          }
+        }
       }
 
       const activeChamas = (members as ChamaMemberRow[] | null)?.flatMap((member) => {
@@ -82,8 +124,9 @@ export default function Chamas() {
 
         return [{
           ...chama,
-        userRole: member.role,
-        status: member.status
+          total_members: memberCounts[chama.id] ?? chama.total_members ?? 0,
+          userRole: member.role,
+          status: member.status
         }]
       }) || []
 

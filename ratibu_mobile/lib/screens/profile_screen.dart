@@ -10,7 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/home_provider.dart';
 import '../services/security_service.dart';
+import '../services/transaction_authorization_service.dart';
 import '../services/savings_target_service.dart';
+import '../utils/phone_utils.dart';
 import '../models/savings_target.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -38,6 +40,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<String> _memberCategories = [];
   bool _biometricsEnabled = false;
   final _biometricService = BiometricService();
+  final _transactionAuthorizationService = TransactionAuthorizationService();
   final _savingsTargetService = SavingsTargetService();
   List<SavingsTarget> _savingsTargets = [];
   bool _loadingSavingsTargets = false;
@@ -189,6 +192,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
 
+      final phoneVariants = kenyanPhoneVariants(_phoneController.text);
+      if (phoneVariants.isEmpty) {
+        throw 'Please enter a valid phone number.';
+      }
+
+      final duplicatePhone = await Supabase.instance.client
+          .from('users')
+          .select('id')
+          .inFilter('phone', phoneVariants)
+          .neq('id', user.id)
+          .limit(1);
+
+      if ((duplicatePhone as List).isNotEmpty) {
+        throw 'This phone number is already linked to another Ratibu account.';
+      }
+
       await Supabase.instance.client.from('users').upsert({
         'id': user.id,
         'first_name': _firstNameController.text,
@@ -242,38 +261,48 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       // appBar: AppBar(...),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              const SizedBox(height: 20), // Top padding for no AppBar
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Profile Settings',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (_saving)
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     IconButton(
-                      onPressed: _saveProfile,
-                      icon: const Icon(Icons.check, color: Color(0xFF00C853)),
+                      onPressed: () {
+                        if (Navigator.canPop(context)) {
+                          context.pop();
+                        } else {
+                          context.go('/dashboard');
+                        }
+                      },
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
-                ],
-              ),
-              const SizedBox(height: 24),
+                    const Text(
+                      'Profile Settings',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (_saving)
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      IconButton(
+                        onPressed: _saveProfile,
+                        icon: const Icon(Icons.check, color: Color(0xFF00C853)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
               // Avatar
               Center(
                 child: Stack(
@@ -431,6 +460,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               // Security Section
               _buildSecuritySection(),
+              const SizedBox(height: 16),
+              _buildTransactionPinSection(),
               
               const SizedBox(height: 40),
               
@@ -440,6 +471,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -1047,7 +1079,65 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 icon: Icons.fingerprint,
                 onChanged: _toggleBiometrics,
               ),
-              
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionPinSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Transaction PIN',
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1e293b),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Set or reset the PIN used to confirm deposits and withdrawals.',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final success = await _transactionAuthorizationService.resetTransactionPin(context);
+                      if (!success || !mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Transaction PIN saved successfully!')),
+                      );
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to update transaction PIN: $e')),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.lock_reset, size: 18),
+                  label: const Text('Reset Transaction PIN'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C853),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

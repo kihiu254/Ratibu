@@ -18,8 +18,9 @@ class ChamaDetailsScreen extends ConsumerWidget {
     return chamaAsync.when(
       data: (data) {
         final chama = data['chama'] as Map<String, dynamic>;
-        // ignore: unused_local_variable
         final members = data['members'] as List<dynamic>;
+        final currentUser = Supabase.instance.client.auth.currentUser;
+        final canEditDescription = members.any((m) => m['user_id'] == currentUser?.id && m['role'] == 'admin');
 
         return DefaultTabController(
           length: 4,
@@ -28,6 +29,19 @@ class ChamaDetailsScreen extends ConsumerWidget {
               title: Text(chama['name']),
               backgroundColor: const Color(0xFF1a1a1a),
               foregroundColor: Colors.white,
+              actions: [
+                if (canEditDescription)
+                  IconButton(
+                    tooltip: 'Edit description',
+                    onPressed: () => showChamaDescriptionEditor(context, ref, chama),
+                    icon: const Icon(Icons.edit_note),
+                  ),
+                IconButton(
+                  tooltip: 'Calendar',
+                  onPressed: () => context.push('/calendar?chamaId=$chamaId'),
+                  icon: const Icon(Icons.calendar_month),
+                ),
+              ],
               bottom: const TabBar(
                 isScrollable: true,
                 indicatorColor: Color(0xFF00C853),
@@ -44,7 +58,7 @@ class ChamaDetailsScreen extends ConsumerWidget {
             backgroundColor: const Color(0xFF121212),
             body: TabBarView(
               children: [
-                _OverviewTab(chama: chama),
+                _OverviewTab(chama: chama, canEditDescription: canEditDescription),
                 _MembersTab(members: members),
                 _MeetingsTab(chamaId: chamaId),
                 _PromptsTab(chamaId: chamaId, members: members),
@@ -68,8 +82,9 @@ class ChamaDetailsScreen extends ConsumerWidget {
 
 class _OverviewTab extends ConsumerWidget {
   final Map<String, dynamic> chama;
+  final bool canEditDescription;
 
-  const _OverviewTab({required this.chama});
+  const _OverviewTab({required this.chama, required this.canEditDescription});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -114,10 +129,10 @@ class _OverviewTab extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
+            Row(
+              children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
                           onPressed: () => context.push('/chama/${chama['id']}/automate'),
                           icon: const Icon(Icons.timer, size: 18),
                           label: const Text('Automate'),
@@ -126,11 +141,11 @@ class _OverviewTab extends ConsumerWidget {
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () => context.push('/chama/${chama['id']}/deposit'),
                           icon: const Icon(Icons.account_balance_wallet, size: 18),
@@ -140,13 +155,25 @@ class _OverviewTab extends ConsumerWidget {
                             foregroundColor: const Color(0xFF00C853),
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
+              if (canEditDescription) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => showChamaDescriptionEditor(context, ref, chama),
+                  icon: const Icon(Icons.edit, size: 18, color: Color(0xFF00C853)),
+                  label: const Text('Edit Description', style: TextStyle(color: Color(0xFF00C853))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF00C853)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ],
+          ),
             ),
             const SizedBox(height: 24),
             const Text(
@@ -173,6 +200,68 @@ class _OverviewTab extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> showChamaDescriptionEditor(
+  BuildContext context,
+  WidgetRef ref,
+  Map<String, dynamic> chama,
+) async {
+  final controller = TextEditingController(text: chama['description']?.toString() ?? '');
+  try {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Edit Chama Description', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Describe what this chama is about',
+            hintStyle: TextStyle(color: Colors.white54),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Save', style: TextStyle(color: Color(0xFF00C853))),
+          ),
+        ],
+      ),
+    );
+
+    if (updated != true) return;
+
+    final chamaId = chama['id']?.toString();
+    if (chamaId == null || chamaId.isEmpty) return;
+    await Supabase.instance.client.from('chamas').update({
+      'description': controller.text.trim().isEmpty ? null : controller.text.trim(),
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', chamaId);
+
+    // ignore: unused_result
+    ref.refresh(chamaDetailsProvider(chamaId));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Description updated successfully!')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update description: $e')),
+      );
+    }
+  } finally {
+    controller.dispose();
   }
 }
 

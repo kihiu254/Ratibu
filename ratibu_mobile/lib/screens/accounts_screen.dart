@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../services/mpesa_service.dart';
+import '../services/transaction_authorization_service.dart';
 
 class AccountsScreen extends ConsumerStatefulWidget {
   const AccountsScreen({super.key});
@@ -19,6 +20,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   List<Map<String, dynamic>> _savingsTargets = [];
   String? _mshwariPhone;
   double _totalBalance = 0;
+  final _transactionAuthorizationService = TransactionAuthorizationService();
 
   final _fmt = NumberFormat('#,##0');
 
@@ -41,6 +43,26 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           .select('role, status, chamas(id, name, description, balance, contribution_amount, contribution_frequency, total_members, status)')
           .eq('user_id', user.id)
           .eq('status', 'active');
+
+      final chamaIds = (chamaRows as List)
+          .map((row) => (row['chamas'] as Map?)?['id'] as String?)
+          .whereType<String>()
+          .toList();
+
+      final Map<String, int> memberCounts = {};
+      if (chamaIds.isNotEmpty) {
+        final countRows = await supabase
+            .from('chama_members')
+            .select('chama_id')
+            .inFilter('chama_id', chamaIds)
+            .eq('status', 'active');
+        for (final row in countRows as List) {
+          final chamaId = row['chama_id'] as String?;
+          if (chamaId != null) {
+            memberCounts[chamaId] = (memberCounts[chamaId] ?? 0) + 1;
+          }
+        }
+      }
 
       // User's total contributed per chama
       final txRows = await supabase
@@ -77,6 +99,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         final c = Map<String, dynamic>.from(r['chamas'] as Map);
         c['my_role'] = r['role'];
         c['my_contributed'] = contributed[c['id']] ?? 0.0;
+        c['total_members'] = memberCounts[c['id']] ?? c['total_members'] ?? 0;
         return c;
       }).toList();
 
@@ -159,6 +182,12 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       return;
     }
     _showAmountDialog('Mshwari (${_mshwariPhone!})', (amount) async {
+      final approved = await _transactionAuthorizationService.confirmTransaction(
+        context,
+        actionLabel: 'deposit',
+        amount: amount,
+      );
+      if (!approved) return;
       final userId = ref.read(authProvider).mapState(authenticated: (s) => s.user.id);
       if (userId == null) return;
       final profile = await Supabase.instance.client
@@ -281,6 +310,23 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                         Text('Across ${_chamas.length} active chama${_chamas.length == 1 ? '' : 's'}',
                             style: const TextStyle(color: Colors.white60, fontSize: 12)),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push('/statement?accountType=all&accountName=All+Transactions'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF00C853)),
+                        foregroundColor: const Color(0xFF00C853),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      icon: const Icon(Icons.receipt_long),
+                      label: const Text('View Full Statement'),
                     ),
                   ),
 

@@ -398,6 +398,12 @@ entrypoint = "./functions/ussd-handler/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/ussd-handler/*.html" ]
 
+[functions.transaction-auth]
+enabled = true
+verify_jwt = false
+import_map = "./functions/transaction-auth/deno.json"
+entrypoint = "./functions/transaction-auth/index.ts"
+
 [functions.trigger-stk-push]
 enabled = true
 verify_jwt = false

@@ -282,7 +282,7 @@ export default function Dashboard() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">Recent Transactions</h3>
-            <button className="text-sm text-[#00C853] hover:text-green-600 font-medium">View All</button>
+            <Link to="/statement?account=all&name=All%20Transactions" className="text-sm text-[#00C853] hover:text-green-600 font-medium">View All</Link>
         </div>
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {stats.recentTransactions.length === 0 ? (

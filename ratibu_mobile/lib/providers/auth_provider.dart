@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/notification_helper.dart';
+import '../utils/phone_utils.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier();
@@ -102,6 +103,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (!await _isConnected()) return;
     state = AuthStateLoading();
     try {
+      final phoneVariants = kenyanPhoneVariants(phone);
+      if (phoneVariants.isEmpty) {
+        state = AuthStateError('Please enter a valid phone number.');
+        return;
+      }
+
+      final duplicatePhone = await _supabase
+          .from('users')
+          .select('id')
+          .inFilter('phone', phoneVariants)
+          .limit(1);
+
+      if ((duplicatePhone as List).isNotEmpty) {
+        state = AuthStateError('This phone number is already linked to another Ratibu account.');
+        return;
+      }
+
       // Pass metadata so the backend trigger can populate the profile correctly
       final AuthResponse res = await _supabase.auth.signUp(
         email: email,
@@ -151,10 +169,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     } on AuthException catch (e) {
       debugPrint('AuthException during signUp: ${e.message}');
-      state = AuthStateError(e.message);
+      state = AuthStateError(
+        e.message.toLowerCase().contains('phone') && e.message.toLowerCase().contains('exist')
+            ? 'This phone number is already linked to another Ratibu account.'
+            : e.message,
+      );
     } catch (e) {
       debugPrint('Unexpected error during signUp: $e');
-      state = AuthStateError('An unexpected error occurred: $e');
+      final message = e.toString().toLowerCase();
+      state = AuthStateError(
+        message.contains('phone') && (message.contains('exist') || message.contains('duplicate'))
+            ? 'This phone number is already linked to another Ratibu account.'
+            : 'An unexpected error occurred: $e',
+      );
     }
   }
 
@@ -173,40 +200,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .eq('id', res.user!.id)
           .maybeSingle();
       
-      // 2FA disabled in mobile security settings
-      final is2FAEnabled = false;
       final kycStatus = kycData?['kyc_status'] ?? 'not_started';
-      final firstName = kycData?['first_name'] ?? '';
-      final fullName = firstName.isNotEmpty ? '$firstName ${kycData?['last_name'] ?? ''}'.trim() : 'Member';
       final prefs = await SharedPreferences.getInstance();
       final localOtpVerified = prefs.getBool('otp_verified_${res.user!.id}') ?? false;
       final otpVerified = kycData?['otp_verified_at'] != null || localOtpVerified;
       final legalAccepted = kycData?['terms_accepted_at'] != null &&
           kycData?['privacy_accepted_at'] != null;
 
-      if (is2FAEnabled) {
-        // Trigger 2FA
-        await _supabase.functions.invoke('send-otp', body: {
-          'email': email,
-          'userId': res.user!.id,
-          'fullName': fullName,
-          'purpose': '2fa',
-        });
-
-        state = AuthStateAwaiting2FA(
-          res.user!, 
-          kycStatus: kycStatus,
-          otpVerified: otpVerified,
-          legalAccepted: legalAccepted,
-        );
-      } else {
-        state = AuthStateAuthenticated(
-          res.user!,
-          kycStatus: kycStatus,
-          otpVerified: otpVerified,
-          legalAccepted: legalAccepted,
-        );
-      }
+      state = AuthStateAuthenticated(
+        res.user!,
+        kycStatus: kycStatus,
+        otpVerified: otpVerified,
+        legalAccepted: legalAccepted,
+      );
       
     } on AuthException catch (e) {
       debugPrint('AuthException during signIn: ${e.message}');

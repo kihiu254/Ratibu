@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { toast } from '../utils/toast'
 import { supabase } from '../lib/supabase'
-import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
+import { resetTransactionPin } from '../lib/transactionAuth'
+import { isDuplicatePhoneError, isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
+import { getKenyanPhoneVariants } from '../lib/phone'
 import { 
   User, 
   Mail, 
@@ -107,6 +109,10 @@ export default function Profile() {
   const [loadingSavingsTargets, setLoadingSavingsTargets] = useState(false)
   const [creatingSavingsTarget, setCreatingSavingsTarget] = useState(false)
   const [showSavingsTargetForm, setShowSavingsTargetForm] = useState(false)
+  const [showPinResetForm, setShowPinResetForm] = useState(false)
+  const [newTransactionPin, setNewTransactionPin] = useState('')
+  const [confirmTransactionPin, setConfirmTransactionPin] = useState('')
+  const [resettingPin, setResettingPin] = useState(false)
   const [newSavingsTarget, setNewSavingsTarget] = useState({
     name: '',
     purpose: 'rent' as SavingsPurpose,
@@ -359,6 +365,24 @@ export default function Profile() {
     setMessage(null)
 
     try {
+      const phoneVariants = getKenyanPhoneVariants(profile.phone)
+      if (phoneVariants.length === 0) {
+        throw new Error('Please enter a valid phone number.')
+      }
+
+      const { data: existingPhones, error: lookupError } = await supabase
+        .from('users')
+        .select('id')
+        .in('phone', phoneVariants)
+        .neq('id', user.id)
+        .limit(1)
+
+      if (lookupError) throw lookupError
+
+      if (existingPhones?.length) {
+        throw new Error('This phone number is already linked to another Ratibu account.')
+      }
+
       const { error } = await supabase
         .from('users')
         .upsert({
@@ -367,10 +391,15 @@ export default function Profile() {
           updated_at: new Date().toISOString()
         })
 
-      if (error) throw error
+      if (error) {
+        throw error
+      }
       setMessage({ type: 'success', text: 'Profile updated successfully!' })
     } catch (err: unknown) {
-      setMessage({ type: 'error', text: getErrorMessage(err) })
+      const message = err && typeof err === 'object' && 'code' in err && 'message' in err && isDuplicatePhoneError(err as { code?: string; message?: string; details?: string; hint?: string })
+        ? 'This phone number is already linked to another Ratibu account.'
+        : getErrorMessage(err)
+      setMessage({ type: 'error', text: message })
     } finally {
       setSaving(false)
     }
@@ -424,6 +453,31 @@ export default function Profile() {
         <Loader2 className="w-8 h-8 animate-spin text-[#00C853]" />
       </div>
     )
+  }
+
+  async function handleResetTransactionPin(e: React.FormEvent) {
+    e.preventDefault()
+    if (newTransactionPin.length < 4 || newTransactionPin.length > 6) {
+      toast.error('Enter a 4 to 6 digit PIN')
+      return
+    }
+    if (newTransactionPin !== confirmTransactionPin) {
+      toast.error('PINs do not match')
+      return
+    }
+
+    try {
+      setResettingPin(true)
+      await resetTransactionPin(newTransactionPin)
+      setShowPinResetForm(false)
+      setNewTransactionPin('')
+      setConfirmTransactionPin('')
+      toast.success('Transaction PIN updated')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setResettingPin(false)
+    }
   }
 
   if (!user) return null
@@ -631,6 +685,34 @@ export default function Profile() {
               </div>
             </div>
           </form>
+        </div>
+
+        <div className="lg:col-span-2">
+          <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-500" />
+                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Security</h3>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Transaction PIN</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Reset the PIN used for deposits and withdrawals.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPinResetForm(true)}
+                  className="px-4 py-2 rounded-xl bg-[#00C853] text-white font-bold text-sm"
+                >
+                  Reset PIN
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Referral + Penalties */}
@@ -1018,6 +1100,60 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {showPinResetForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#00C853]">Security Check</p>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">Reset Transaction PIN</h3>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Create a new 4 to 6 digit PIN for approvals.
+              </p>
+            </div>
+            <form onSubmit={handleResetTransactionPin} className="space-y-4">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={newTransactionPin}
+                onChange={(e) => setNewTransactionPin(e.target.value.replace(/\s+/g, ''))}
+                placeholder="New PIN"
+                className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-[#00C853]"
+              />
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={confirmTransactionPin}
+                onChange={(e) => setConfirmTransactionPin(e.target.value.replace(/\s+/g, ''))}
+                placeholder="Confirm PIN"
+                className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-[#00C853]"
+              />
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPinResetForm(false)
+                    setNewTransactionPin('')
+                    setConfirmTransactionPin('')
+                  }}
+                  className="flex-1 rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 font-semibold text-slate-600 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resettingPin}
+                  className="flex-1 rounded-2xl bg-[#00C853] px-4 py-3 font-bold text-white disabled:opacity-60"
+                >
+                  {resettingPin ? 'Saving...' : 'Save PIN'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

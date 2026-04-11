@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chama_provider.dart';
+import '../providers/home_provider.dart';
 import '../providers/profile_provider.dart';
+import '../services/transaction_authorization_service.dart';
 import '../services/transaction_service.dart';
 import 'tabs/chamas_tab.dart';
 import 'tabs/dashboard_tab.dart';
@@ -106,7 +108,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         unselectedItemColor: Colors.grey,
         backgroundColor: const Color(0xFF1e293b),
         type: BottomNavigationBarType.fixed,
-        onTap: (i) => setState(() => _selectedIndex = i),
+        onTap: (i) {
+          setState(() => _selectedIndex = i);
+          if (i == 2) {
+            ref.read(homeProvider.notifier).refresh();
+          }
+        },
       ),
     );
   }
@@ -170,12 +177,15 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
       pendingPayments += (r['amount'] as num).toDouble();
     }
 
-    final recentTransactions = await supabase
+    final recentTransactionsResponse = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', ascending: false)
         .limit(5);
+    final recentTransactions = recentTransactionsResponse is List
+        ? recentTransactionsResponse
+        : const [];
 
     final activeChamas = await supabase
         .from('chama_members')
@@ -187,7 +197,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         .map((row) => row['chama_id'] as String)
         .toList();
 
-    final upcomingMeetings = chamaIds.isEmpty
+    final upcomingMeetingsResponse = chamaIds.isEmpty
         ? <Map<String, dynamic>>[]
         : await supabase
             .from('meetings')
@@ -196,12 +206,18 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
             .gte('date', DateTime.now().toIso8601String())
             .order('date', ascending: true)
             .limit(3);
+    final upcomingMeetings = upcomingMeetingsResponse is List
+        ? upcomingMeetingsResponse
+        : const [];
 
-    final allTransactions = await supabase
+    final allTransactionsResponse = await supabase
         .from('transactions')
         .select('amount, type')
         .eq('user_id', user.id)
         .eq('status', 'completed');
+    final allTransactions = allTransactionsResponse is List
+        ? allTransactionsResponse
+        : const [];
 
     double totalBalance = 0;
     for (var tx in allTransactions) {
@@ -519,6 +535,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
     final amountController = TextEditingController();
     final reasonController = TextEditingController();
     String? selectedChamaId;
+    final transactionAuthorizationService = TransactionAuthorizationService();
     final chamas = await ref.read(chamaServiceProvider).getMyChamas();
     if (!context.mounted) return;
     showDialog(
@@ -598,6 +615,12 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                   return;
                 }
                 try {
+                  final approved = await transactionAuthorizationService.confirmTransaction(
+                    context,
+                    actionLabel: 'withdrawal',
+                    amount: amount,
+                  );
+                  if (!approved) return;
                   await ref.read(transactionServiceProvider).requestWithdrawal(
                         chamaId: selectedChamaId!,
                         amount: amount,

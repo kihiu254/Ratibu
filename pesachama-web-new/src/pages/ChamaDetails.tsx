@@ -3,6 +3,7 @@ import { toast } from '../utils/toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { mpesaService } from '../services/mpesaService'
+import TransactionApprovalModal from '../components/TransactionApprovalModal'
 import { 
   Users, 
   Wallet, 
@@ -239,6 +240,8 @@ export default function ChamaDetails() {
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [qrLoading, setQrLoading] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [editingDescription, setEditingDescription] = useState(false)
+  const [descriptionDraft, setDescriptionDraft] = useState('')
 
   const fetchRealTimeBalance = useCallback(async (chamaId: string) => {
     try {
@@ -285,6 +288,7 @@ export default function ChamaDetails() {
       setUserRole(currentUserMember?.role || 'member')
 
       setData({ ...(chama as ChamaRow), members: normalizedMembers })
+      setDescriptionDraft((chama as ChamaRow).description || '')
       if (id) fetchRealTimeBalance(id)
     } catch (err) {
       console.error('Error:', err)
@@ -398,6 +402,27 @@ export default function ChamaDetails() {
       toast.error('Failed to generate allocations', getErrorMessage(err))
     } finally {
       setIsGeneratingAllocations(false)
+    }
+  }
+
+  const handleSaveDescription = async () => {
+    if (!id || !data) return
+    try {
+      const { error } = await supabase
+        .from('chamas')
+        .update({
+          description: descriptionDraft.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+
+      if (error) throw error
+
+      setData((current) => current ? { ...current, description: descriptionDraft.trim() || null } : current)
+      setEditingDescription(false)
+      toast.success('Chama description updated')
+    } catch (error) {
+      toast.error('Failed to update chama description', getErrorMessage(error))
     }
   }
 
@@ -651,6 +676,7 @@ export default function ChamaDetails() {
   if (!data) return <div className="p-8 text-center text-slate-500">Chama not found.</div>
 
   const isAdmin = ['admin', 'treasurer', 'secretary'].includes(userRole)
+  const canEditDescription = isAdmin || currentUserId === data.created_by
   const monthLabel = format(calendarMonth, 'MMMM yyyy')
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
   const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0)
@@ -684,11 +710,55 @@ export default function ChamaDetails() {
                 isAdmin 
                   ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800' 
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-              }`}>
+                }`}>
                 {userRole}
               </span>
             </div>
-            <p className="text-slate-500 dark:text-slate-400">{data.description || 'No description provided.'}</p>
+            {editingDescription ? (
+              <div className="space-y-3 max-w-2xl">
+                <textarea
+                  value={descriptionDraft}
+                  onChange={(e) => setDescriptionDraft(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-[#00C853] focus:ring-2 focus:ring-[#00C853]/15"
+                  placeholder="Write a chama description"
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDescriptionDraft(data.description || '')
+                      setEditingDescription(false)
+                    }}
+                    className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDescription}
+                    className="rounded-xl bg-[#00C853] px-4 py-2 text-sm font-bold text-white shadow-lg shadow-green-500/20"
+                  >
+                    Save Description
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
+                  {data.description || 'No description provided.'}
+                </p>
+                {canEditDescription && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDescription(true)}
+                    className="text-xs font-bold uppercase tracking-wider text-[#00C853] hover:underline"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1675,6 +1745,8 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
     const [phoneNumber, setPhoneNumber] = useState('')
     const [useMyNumber, setUseMyNumber] = useState(true)
     const [myNumber, setMyNumber] = useState('')
+    const [approvalOpen, setApprovalOpen] = useState(false)
+    const [pendingPhone, setPendingPhone] = useState('')
 
     useEffect(() => {
         // Fetch user number
@@ -1693,7 +1765,8 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        onConfirm(phoneNumber)
+        setPendingPhone(phoneNumber)
+        setApprovalOpen(true)
     }
 
     if (!isOpen) return null
@@ -1780,6 +1853,21 @@ function PaymentModal({ isOpen, onClose, onConfirm, amount, title }: { isOpen: b
                         </div>
                     </form>
                 </div>
+                <TransactionApprovalModal
+                  isOpen={approvalOpen}
+                  actionLabel="deposit"
+                  amount={amount}
+                  onClose={() => {
+                    setApprovalOpen(false)
+                    setPendingPhone('')
+                  }}
+                  onApproved={async () => {
+                    const phone = pendingPhone
+                    setApprovalOpen(false)
+                    setPendingPhone('')
+                    await onConfirm(phone)
+                  }}
+                />
             </motion.div>
         </div>
     )
@@ -1790,14 +1878,14 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
   const [phone, setPhone] = useState('')
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
+  const [approvalOpen, setApprovalOpen] = useState(false)
+  const [pendingWithdrawal, setPendingWithdrawal] = useState<{ amount: number; phone: string; reason: string } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || !phone) return
-    
-    setLoading(true)
-    await onWithdraw(Number(amount), phone, reason)
-    setLoading(false)
+    setPendingWithdrawal({ amount: Number(amount), phone, reason })
+    setApprovalOpen(true)
   }
 
   if (!isOpen) return null
@@ -1881,6 +1969,26 @@ function WithdrawModal({ isOpen, onClose, onWithdraw, chama }: { isOpen: boolean
             Funds will be disbursed instantly from the Chama's account.
           </p>
         </form>
+        <TransactionApprovalModal
+          isOpen={approvalOpen}
+          actionLabel="withdrawal"
+          amount={pendingWithdrawal?.amount ?? 0}
+          onClose={() => {
+            setApprovalOpen(false)
+            setPendingWithdrawal(null)
+          }}
+          onApproved={async () => {
+            if (!pendingWithdrawal) return
+            setLoading(true)
+            try {
+              await onWithdraw(pendingWithdrawal.amount, pendingWithdrawal.phone, pendingWithdrawal.reason)
+            } finally {
+              setLoading(false)
+              setApprovalOpen(false)
+              setPendingWithdrawal(null)
+            }
+          }}
+        />
       </motion.div>
     </div>
   )

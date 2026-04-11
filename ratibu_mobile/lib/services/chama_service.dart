@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -7,6 +8,31 @@ import '../utils/notification_helper.dart';
 
 class ChamaService {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  Future<T> _retry<T>(
+    Future<T> Function() action, {
+    int attempts = 3,
+    Duration delay = const Duration(milliseconds: 350),
+  }) async {
+    Object? lastError;
+    for (var i = 0; i < attempts; i++) {
+      try {
+        return await action();
+      } catch (e) {
+        lastError = e;
+        final message = e.toString().toLowerCase();
+        if (i == attempts - 1 ||
+            !(e is SocketException ||
+                message.contains('connection reset by peer') ||
+                message.contains('clientexception') ||
+                message.contains('socketexception'))) {
+          rethrow;
+        }
+        await Future.delayed(delay * (i + 1));
+      }
+    }
+    throw lastError ?? Exception('Request failed');
+  }
 
   Future<void> _ensureConnected() async {
     final connectivity = await Connectivity().checkConnectivity();
@@ -76,16 +102,38 @@ class ChamaService {
       final user = _supabase.auth.currentUser;
       if (user == null) return [];
 
-      // Fetch chama_members records for this user, joining the chamas table
-      final response = await _supabase
+      final rows = await _retry(() => _supabase
           .from('chama_members')
-          .select('chamas(*)')
-          .eq('user_id', user.id);
+          .select('chama_id, chamas(*)')
+          .eq('user_id', user.id));
 
-      // The response is a list of objects like: { "chamas": { "id": "...", "name": "..." } }
-      // We extract the inner "chamas" object.
-      final data = List<Map<String, dynamic>>.from(response);
-      return data.map((e) => e['chamas'] as Map<String, dynamic>).toList();
+      final memberships = List<Map<String, dynamic>>.from(rows);
+      final chamaIds = memberships
+          .map((row) => row['chama_id'] as String?)
+          .whereType<String>()
+          .toList();
+
+      final counts = <String, int>{};
+      if (chamaIds.isNotEmpty) {
+        final countRows = await _retry(() => _supabase
+            .from('chama_members')
+            .select('chama_id')
+            .inFilter('chama_id', chamaIds)
+            .eq('status', 'active'));
+
+        for (final row in countRows as List) {
+          final chamaId = row['chama_id'] as String?;
+          if (chamaId != null) {
+            counts[chamaId] = (counts[chamaId] ?? 0) + 1;
+          }
+        }
+      }
+
+      return memberships.map((row) {
+        final chama = Map<String, dynamic>.from(row['chamas'] as Map<String, dynamic>);
+        chama['total_members'] = counts[chama['id']] ?? chama['total_members'] ?? 0;
+        return chama;
+      }).toList();
     } catch (e) {
       throw Exception('Failed to load chamas: $e');
     }
@@ -134,16 +182,19 @@ class ChamaService {
   /// Fetches details for a specific Chama, including members.
   Future<Map<String, dynamic>> getChamaDetails(String chamaId) async {
     try {
-      final chamaNode =
-          await _supabase.from('chamas').select().eq('id', chamaId).single();
+      final chamaNode = await _retry(() =>
+          _supabase.from('chamas').select().eq('id', chamaId).single());
 
-      final membersNode = await _supabase
+      final membersNode = await _retry(() => _supabase
           .from('chama_members')
           .select('*, users(first_name, last_name, phone)')
-          .eq('chama_id', chamaId);
+          .eq('chama_id', chamaId));
 
       return {
-        'chama': chamaNode,
+        'chama': {
+          ...Map<String, dynamic>.from(chamaNode),
+          'total_members': (membersNode as List).length,
+        },
         'members': membersNode,
       };
     } catch (e) {
@@ -154,11 +205,11 @@ class ChamaService {
   /// Fetches meetings for a specific Chama.
   Future<List<Map<String, dynamic>>> getChamaMeetings(String chamaId) async {
     try {
-      final response = await _supabase
+      final response = await _retry(() => _supabase
           .from('meetings')
           .select()
           .eq('chama_id', chamaId)
-          .order('date', ascending: true);
+          .order('date', ascending: true));
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       throw Exception('Failed to load meetings: $e');
@@ -168,12 +219,12 @@ class ChamaService {
   /// Fetches payment prompts (requests) for a specific Chama.
   Future<List<Map<String, dynamic>>> getChamaPrompts(String chamaId) async {
     try {
-      final response = await _supabase
+      final response = await _retry(() => _supabase
           .from('payment_requests')
           .select()
           .eq('chama_id', chamaId)
           .eq('is_active', true)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false));
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       throw Exception('Failed to load payment prompts: $e');
@@ -297,12 +348,12 @@ class ChamaService {
       String chamaId, DateTime month) async {
     await _ensureConnected();
     final monthStart = DateTime(month.year, month.month, 1);
-    final response = await _supabase
+    final response = await _retry(() => _supabase
         .from('chama_allocation_schedule')
         .select('*, user:users(first_name, last_name)')
         .eq('chama_id', chamaId)
         .eq('allocation_month', monthStart.toIso8601String().substring(0, 10))
-        .order('allocation_day', ascending: true);
+        .order('allocation_day', ascending: true));
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -311,14 +362,14 @@ class ChamaService {
       String chamaId, DateTime month) async {
     await _ensureConnected();
     final monthStart = DateTime(month.year, month.month, 1);
-    final response = await _supabase
+    final response = await _retry(() => _supabase
         .from('allocation_swap_requests')
         .select(
             '*, requester:users!allocation_swap_requests_requester_id_fkey(first_name,last_name), target:users!allocation_swap_requests_target_user_id_fkey(first_name,last_name)')
         .eq('chama_id', chamaId)
         .eq('month', monthStart.toIso8601String().substring(0, 10))
         .order('created_at', ascending: false)
-        .limit(20);
+        .limit(20));
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -326,10 +377,10 @@ class ChamaService {
   Future<void> generateAllocations(String chamaId, DateTime month) async {
     await _ensureConnected();
     final monthStart = DateTime(month.year, month.month, 1);
-    await _supabase.rpc('generate_monthly_allocations', params: {
+    await _retry(() => _supabase.rpc('generate_monthly_allocations', params: {
       '_chama_id': chamaId,
       '_month': monthStart.toIso8601String().substring(0, 10),
-    });
+    }));
   }
 
   /// Creates a swap request.
@@ -345,7 +396,7 @@ class ChamaService {
       final user = _supabase.auth.currentUser;
       if (user == null) throw Exception('Not authenticated');
       final monthStart = DateTime(month.year, month.month, 1);
-      final response = await _supabase
+      final response = await _retry(() => _supabase
           .from('allocation_swap_requests')
           .insert({
             'chama_id': chamaId,
@@ -356,7 +407,7 @@ class ChamaService {
             'target_day': targetDay,
           })
           .select('id')
-          .single();
+          .single());
 
       final swapId = response['id'] as String?;
       if (swapId != null) {

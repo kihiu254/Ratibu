@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Lock, Mail, User, Phone, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getKenyanPhoneVariants } from '../lib/phone'
+import { isDuplicatePhoneError } from '../lib/supabaseErrors'
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -36,6 +38,31 @@ export default function Register() {
     setLoading(true)
     setError(null)
 
+    const phoneVariants = getKenyanPhoneVariants(formData.phone)
+    if (phoneVariants.length === 0) {
+      setError('Please enter a valid phone number.')
+      setLoading(false)
+      return
+    }
+
+    const { data: existingPhones, error: lookupError } = await supabase
+      .from('users')
+      .select('id')
+      .in('phone', phoneVariants)
+      .limit(1)
+
+    if (lookupError) {
+      setError(lookupError.message)
+      setLoading(false)
+      return
+    }
+
+    if (existingPhones?.length) {
+      setError('This phone number is already linked to another Ratibu account.')
+      setLoading(false)
+      return
+    }
+
     const { error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
@@ -49,7 +76,9 @@ export default function Register() {
     })
 
     if (error) {
-      setError(error.message)
+      setError(isDuplicatePhoneError(error)
+        ? 'This phone number is already linked to another Ratibu account.'
+        : error.message)
       setLoading(false)
     } else {
       const { data: session } = await supabase.auth.getSession()

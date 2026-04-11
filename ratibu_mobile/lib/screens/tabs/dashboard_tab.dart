@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../providers/home_provider.dart';
@@ -12,290 +13,434 @@ class DashboardTab extends ConsumerWidget {
     final homeState = ref.watch(homeProvider);
     final currencyFormat = NumberFormat.currency(symbol: 'KES ', decimalDigits: 0);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Dashboard',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Welcome back, here\'s your financial overview.',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                  ),
-                ],
-              ),
-              // "New Chama" Button placeholder if needed, or keeping clean
-            ],
-          ),
-          const SizedBox(height: 24),
-          
-          // Total Balance Card (Matching Web Gradient & Layout)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0f172a), Color(0xFF1e293b)], // slate-900 to slate-800
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16), // Rounded-2xl approx
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Stack(
+    if (homeState.isLoading &&
+        homeState.transactions.isEmpty &&
+        homeState.totalBalance == 0 &&
+        homeState.savingsBalance == 0) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)));
+    }
+
+    return RefreshIndicator(
+      color: const Color(0xFF00C853),
+      onRefresh: () => ref.read(homeProvider.notifier).refresh(),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Opacity(
-                    opacity: 0.1,
-                    child: Icon(LucideIcons.wallet, color: Colors.white, size: 80),
-                  ),
-                ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Total Balance',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currencyFormat.format(homeState.totalBalance),
-                      style: const TextStyle(
+                    const Text(
+                      'Dashboard',
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 30,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4ade80).withValues(alpha: 0.1), // green-400 equivalent
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(LucideIcons.arrowUpRight, color: Color(0xFF4ade80), size: 14),
-                          SizedBox(width: 4),
-                          Text(
-                            '+12.5% this month',
-                            style: TextStyle(color: Color(0xFF4ade80), fontSize: 12),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Live account summary.',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
                     ),
                   ],
                 ),
+                if (homeState.error != null)
+                  IconButton(
+                    tooltip: 'Retry sync',
+                    onPressed: () => ref.read(homeProvider.notifier).refresh(),
+                    icon: const Icon(Icons.refresh, color: Color(0xFF00C853)),
+                  ),
               ],
             ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Secondary Stats Grid (Full width cards on mobile for readability, or grid)
-          // Web uses grid-cols-1 md:grid-cols-3. Mobile is cols-1 usually.
-          // Let's stack them to match "mobile view" of the web dashboard
-          
-          // Active Chamas Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0f172a), // Dark bg (slate-900)
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1e293b)), // slate-800 border
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[900]!.withValues(alpha: 0.3), // blue-900/30
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(LucideIcons.wallet, color: Colors.blue, size: 20), // blue-400
+            const SizedBox(height: 24),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0f172a), Color(0xFF1e293b)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  const Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Opacity(
+                      opacity: 0.1,
+                      child: Icon(LucideIcons.wallet, color: Colors.white, size: 80),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Active Chamas',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  homeState.activeChamaCount.toString(),
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Pending Payments Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0f172a),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1e293b)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.orange[900]!.withValues(alpha: 0.3), // orange-900/30
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(LucideIcons.arrowDownLeft, color: Colors.orange, size: 20), // orange-400
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Pending Payments',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  currencyFormat.format(homeState.pendingPayments),
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Recent Transactions Section
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF0f172a), // slate-900
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1e293b)),
-            ),
-            child: Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Recent Transactions',
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        'Total Balance',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        'View All',
-                        style: TextStyle(color: Color(0xFF00C853), fontSize: 14, fontWeight: FontWeight.w500),
+                        currencyFormat.format(homeState.totalBalance),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4ade80).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.database, color: Color(0xFF4ade80), size: 14),
+                            SizedBox(width: 4),
+                            Text(
+                              'Live data',
+                              style: TextStyle(color: Color(0xFF4ade80), fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    title: 'Active Chamas',
+                    value: homeState.activeChamaCount.toString(),
+                    icon: LucideIcons.users,
+                    color: Colors.blue,
+                  ),
                 ),
-                const Divider(color: Color(0xFF1e293b), height: 1),
-                if (homeState.transactions.isEmpty)
-                   const Padding(
-                     padding: EdgeInsets.all(24.0),
-                     child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
-                   )
-                else
-                  ...homeState.transactions.take(5).map((tx) {
-                    final isDeposit = tx.type != 'withdrawal'; // Assuming 'deposit' or others are positive
-                    // Web Logic: 
-                    // Even (mocked as deposit): ArrowUpRight, Green Icon, + Amount Green
-                    // Odd (mocked as withdrawal): ArrowDownLeft, Red Icon, - Amount Slate/White
-                    
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      decoration: const BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Color(0xFF1e293b))),
-                      ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    title: 'Savings',
+                    value: currencyFormat.format(homeState.savingsBalance),
+                    icon: LucideIcons.piggyBank,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            _StatCard(
+              title: 'Pending Payments',
+              value: currencyFormat.format(homeState.pendingPayments),
+              icon: LucideIcons.clock3,
+              color: Colors.orange,
+              fullWidth: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            if (homeState.upcomingMeetings.isNotEmpty)
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0f172a),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF1e293b)),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(20),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1e293b), // slate-800
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              isDeposit ? LucideIcons.arrowUpRight : LucideIcons.arrowDownLeft,
-                              color: isDeposit ? const Color(0xFF22c55e) : const Color(0xFFef4444), // green-500 / red-500
-                              size: 20,
-                            ),
+                          const Text(
+                            'Upcoming Meetings',
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  tx.description ?? (isDeposit ? 'Monthly Contribution' : 'Withdrawal'),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  // Simplified date format from example: "Today, 10:23 AM"
-                                  DateFormat('MMM d, h:mm a').format(tx.createdAt),
-                                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${isDeposit ? '+' : '-'} ${currencyFormat.format(tx.amount)}',
-                            style: TextStyle(
-                              color: isDeposit ? const Color(0xFF22c55e) : Colors.white, // Green or White
-                              fontWeight: FontWeight.bold,
+                          TextButton(
+                            onPressed: () => context.push('/calendar'),
+                            child: const Text(
+                              'Calendar',
+                              style: TextStyle(color: Color(0xFF00C853), fontSize: 14),
                             ),
                           ),
                         ],
                       ),
-                    );
-                  }),
-              ],
+                    ),
+                    const Divider(color: Color(0xFF1e293b), height: 1),
+                    ...homeState.upcomingMeetings.take(3).map((meeting) {
+                      final date = DateTime.tryParse(meeting['date']?.toString() ?? '')?.toLocal();
+                      final chamaName = (meeting['chamas'] as Map<String, dynamic>?)?['name']?.toString() ?? 'Chama';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: const BoxDecoration(
+                          border: Border(bottom: BorderSide(color: Color(0xFF1e293b))),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1e293b),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.event, color: Color(0xFF00C853), size: 20),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    meeting['title']?.toString() ?? 'Meeting',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    chamaName,
+                                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                  ),
+                                  if (date != null)
+                                    Text(
+                                      DateFormat('MMM d, h:mm a').format(date),
+                                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+
+            if (homeState.error != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.18)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        homeState.error!,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0f172a),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF1e293b)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Recent Transactions',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${homeState.transactions.length} shown',
+                          style: const TextStyle(color: Color(0xFF00C853), fontSize: 14, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Color(0xFF1e293b), height: 1),
+                  if (homeState.transactions.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
+                    )
+                  else
+                    ...homeState.transactions.take(5).map((tx) {
+                      final isDeposit = tx.type != 'withdrawal';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: const BoxDecoration(
+                          border: Border(bottom: BorderSide(color: Color(0xFF1e293b))),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1e293b),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isDeposit ? LucideIcons.arrowUpRight : LucideIcons.arrowDownLeft,
+                                color: isDeposit ? const Color(0xFF22c55e) : const Color(0xFFef4444),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tx.description ?? (isDeposit ? 'Monthly Contribution' : 'Withdrawal'),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    DateFormat('MMM d, h:mm a').format(tx.createdAt),
+                                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '${isDeposit ? '+' : '-'} ${currencyFormat.format(tx.amount)}',
+                              style: TextStyle(
+                                color: isDeposit ? const Color(0xFF22c55e) : Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push('/statement?accountType=all&accountName=All+Transactions'),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF00C853)),
+                          foregroundColor: const Color(0xFF00C853),
+                        ),
+                        icon: const Icon(Icons.receipt_long),
+                        label: const Text('View Full Statement'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Bottom padding
-          const SizedBox(height: 20),
-        ],
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
 }
 
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final MaterialColor color;
+  final bool fullWidth;
+
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.fullWidth = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0f172a),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1e293b)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

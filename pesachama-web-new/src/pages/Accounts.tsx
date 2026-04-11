@@ -3,6 +3,7 @@ import { ArrowDownToLine, FileText, Layers, PiggyBank, Target, Wallet, Landmark,
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
+import TransactionApprovalModal from '../components/TransactionApprovalModal'
 import { toast } from '../utils/toast'
 
 interface ChamaAccount { id: string; name: string; description: string | null; contribution_amount: number | null }
@@ -49,22 +50,20 @@ function DepositModal({ title, chamaId, savingsTargetId, onClose }: {
   const [amount, setAmount] = useState('')
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
+  const [approvalOpen, setApprovalOpen] = useState(false)
+  const [pendingDeposit, setPendingDeposit] = useState<{ amount: number; phone: string } | null>(null)
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
 
-  async function handleDeposit(e: React.FormEvent) {
-    e.preventDefault()
-    const parsed = parseFloat(amount)
-    if (!parsed || parsed <= 0) return toast.error('Enter a valid amount')
-    const normalized = normalizePhone(phone)
-    if (!normalized) return toast.error('Use 07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX format')
-
+  async function executeDeposit(request: { amount: number; phone: string }) {
     setLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const { data: { user } } = await supabase.auth.getUser()
       const body: Record<string, unknown> = {
-        phoneNumber: normalized, amount: parsed, userId: user!.id,
+        phoneNumber: request.phone,
+        amount: request.amount,
+        userId: user!.id,
         ...(chamaId ? { chamaId } : {}),
         ...(savingsTargetId ? { savingsTargetId } : {}),
       }
@@ -84,13 +83,43 @@ function DepositModal({ title, chamaId, savingsTargetId, onClose }: {
     }
   }
 
-  return <Modal title={`Deposit to ${title}`} onClose={onClose}>
-    <form onSubmit={handleDeposit} className="space-y-4">
-      <Field label="Amount (KES)" type="number" value={amount} onChange={setAmount} placeholder="e.g. 500" min="1" />
-      <Field label="M-Pesa Phone" type="tel" value={phone} onChange={setPhone} placeholder="07XX or 254XX" />
-      <ModalActions onClose={onClose} loading={loading} submitLabel="Pay via M-Pesa" />
-    </form>
-  </Modal>
+  async function handleDeposit(e: React.FormEvent) {
+    e.preventDefault()
+    const parsed = parseFloat(amount)
+    if (!parsed || parsed <= 0) return toast.error('Enter a valid amount')
+    const normalized = normalizePhone(phone)
+    if (!normalized) return toast.error('Use 07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX format')
+
+    setPendingDeposit({ amount: parsed, phone: normalized })
+    setApprovalOpen(true)
+  }
+
+  return (
+    <>
+      <Modal title={`Deposit to ${title}`} onClose={onClose}>
+        <form onSubmit={handleDeposit} className="space-y-4">
+          <Field label="Amount (KES)" type="number" value={amount} onChange={setAmount} placeholder="e.g. 500" min="1" />
+          <Field label="M-Pesa Phone" type="tel" value={phone} onChange={setPhone} placeholder="07XX or 254XX" />
+          <ModalActions onClose={onClose} loading={loading} submitLabel="Pay via M-Pesa" />
+        </form>
+      </Modal>
+      <TransactionApprovalModal
+        isOpen={approvalOpen}
+        actionLabel="deposit"
+        amount={pendingDeposit?.amount ?? 0}
+        onClose={() => {
+          setApprovalOpen(false)
+          setPendingDeposit(null)
+        }}
+        onApproved={async () => {
+          if (!pendingDeposit) return
+          await executeDeposit(pendingDeposit)
+          setApprovalOpen(false)
+          setPendingDeposit(null)
+        }}
+      />
+    </>
+  )
 }
 
 // ── Mshwari setup modal ───────────────────────────────────────────────────────
@@ -126,16 +155,12 @@ function MshwariDepositModal({ mshwariPhone, onClose }: { mshwariPhone: string; 
   const [amount, setAmount] = useState('')
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
+  const [approvalOpen, setApprovalOpen] = useState(false)
+  const [pendingDeposit, setPendingDeposit] = useState<{ amount: number; phone: string } | null>(null)
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
 
-  async function handleDeposit(e: React.FormEvent) {
-    e.preventDefault()
-    const parsed = parseFloat(amount)
-    if (!parsed || parsed <= 0) return toast.error('Enter a valid amount')
-    const normalized = normalizePhone(phone)
-    if (!normalized) return toast.error('Use 07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX format')
-
+  async function executeDeposit(request: { amount: number; phone: string }) {
     setLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -144,8 +169,8 @@ function MshwariDepositModal({ mshwariPhone, onClose }: { mshwariPhone: string; 
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
-          phoneNumber: normalized,
-          amount: parsed,
+          phoneNumber: request.phone,
+          amount: request.amount,
           userId: user!.id,
           destinationType: 'mshwari',
           mshwariPhone,
@@ -162,16 +187,46 @@ function MshwariDepositModal({ mshwariPhone, onClose }: { mshwariPhone: string; 
     }
   }
 
-  return <Modal title={`Deposit to Mshwari (${mshwariPhone})`} onClose={onClose}>
-    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-      Funds will be sent to Mshwari paybill <strong>512400</strong>, account <strong>{mshwariPhone}</strong>.
-    </p>
-    <form onSubmit={handleDeposit} className="space-y-4">
-      <Field label="Amount (KES)" type="number" value={amount} onChange={setAmount} placeholder="e.g. 500" min="1" />
-      <Field label="Your M-Pesa Paying Phone" type="tel" value={phone} onChange={setPhone} placeholder="07XX or 254XX" />
-      <ModalActions onClose={onClose} loading={loading} submitLabel="Pay via M-Pesa" />
-    </form>
-  </Modal>
+  async function handleDeposit(e: React.FormEvent) {
+    e.preventDefault()
+    const parsed = parseFloat(amount)
+    if (!parsed || parsed <= 0) return toast.error('Enter a valid amount')
+    const normalized = normalizePhone(phone)
+    if (!normalized) return toast.error('Use 07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX format')
+
+    setPendingDeposit({ amount: parsed, phone: normalized })
+    setApprovalOpen(true)
+  }
+
+  return (
+    <>
+      <Modal title={`Deposit to Mshwari (${mshwariPhone})`} onClose={onClose}>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          Funds will be sent to Mshwari paybill <strong>512400</strong>, account <strong>{mshwariPhone}</strong>.
+        </p>
+        <form onSubmit={handleDeposit} className="space-y-4">
+          <Field label="Amount (KES)" type="number" value={amount} onChange={setAmount} placeholder="e.g. 500" min="1" />
+          <Field label="Your M-Pesa Paying Phone" type="tel" value={phone} onChange={setPhone} placeholder="07XX or 254XX" />
+          <ModalActions onClose={onClose} loading={loading} submitLabel="Pay via M-Pesa" />
+        </form>
+      </Modal>
+      <TransactionApprovalModal
+        isOpen={approvalOpen}
+        actionLabel="deposit"
+        amount={pendingDeposit?.amount ?? 0}
+        onClose={() => {
+          setApprovalOpen(false)
+          setPendingDeposit(null)
+        }}
+        onApproved={async () => {
+          if (!pendingDeposit) return
+          await executeDeposit(pendingDeposit)
+          setApprovalOpen(false)
+          setPendingDeposit(null)
+        }}
+      />
+    </>
+  )
 }
 
 // ── Shared UI primitives ──────────────────────────────────────────────────────
@@ -372,6 +427,16 @@ export default function Accounts() {
       <div>
         <h1 className="text-3xl font-black text-slate-900 dark:text-white">Accounts</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">Choose where to deposit.</p>
+      </div>
+
+      <div className="flex justify-end">
+        <Link
+          to="/statement?account=all&name=All%20Transactions"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-[#00C853]/30 text-[#00C853] font-semibold hover:bg-[#00C853]/10 transition-colors"
+        >
+          <FileText className="w-4 h-4" />
+          View Full Statement
+        </Link>
       </div>
 
       {/* Chama Accounts */}

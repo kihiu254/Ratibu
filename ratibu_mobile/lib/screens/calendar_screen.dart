@@ -5,7 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/jitsi_meeting_helper.dart';
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  final String? chamaId;
+
+  const CalendarScreen({super.key, this.chamaId});
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -16,6 +18,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedMonth = DateTime.now();
   DateTime? _selectedDay;
   List<Map<String, dynamic>> _meetings = [];
+
+  Future<T> _retry<T>(Future<T> Function() action) async {
+    Object? lastError;
+    for (var i = 0; i < 3; i++) {
+      try {
+        return await action();
+      } catch (e) {
+        lastError = e;
+        if (i == 2) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 300 * (i + 1)));
+      }
+    }
+    throw lastError ?? Exception('Request failed');
+  }
 
   @override
   void initState() {
@@ -38,31 +54,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
         return;
       }
 
-      final membership = await Supabase.instance.client
-          .from('chama_members')
-          .select('chama_id')
-          .eq('user_id', user.id)
-          .eq('status', 'active');
+      final meetings = widget.chamaId != null && widget.chamaId!.isNotEmpty
+          ? await _retry(() => Supabase.instance.client
+              .from('meetings')
+              .select('id, title, description, date, venue, video_link, chama_id, chamas(name)')
+              .eq('chama_id', widget.chamaId!)
+              .order('date', ascending: true))
+          : await _retry(() async {
+              final membership = await Supabase.instance.client
+                  .from('chama_members')
+                  .select('chama_id')
+                  .eq('user_id', user.id)
+                  .eq('status', 'active');
 
-      final chamaIds = (membership as List)
-          .map((m) => m['chama_id'] as String)
-          .toList();
+              final chamaIds = (membership as List)
+                  .map((m) => m['chama_id'] as String)
+                  .toList();
 
-      if (chamaIds.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _meetings = [];
-            _loading = false;
-          });
-        }
-        return;
-      }
+              if (chamaIds.isEmpty) {
+                return <Map<String, dynamic>>[];
+              }
 
-      final meetings = await Supabase.instance.client
-          .from('meetings')
-          .select('id, title, description, date, venue, video_link, chama_id, chamas(name)')
-          .inFilter('chama_id', chamaIds)
-          .order('date', ascending: true);
+              final rows = await Supabase.instance.client
+                  .from('meetings')
+                  .select('id, title, description, date, venue, video_link, chama_id, chamas(name)')
+                  .inFilter('chama_id', chamaIds)
+                  .order('date', ascending: true);
+              return rows;
+            });
 
       if (mounted) {
         setState(() {

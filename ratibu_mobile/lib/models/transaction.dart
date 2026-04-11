@@ -25,16 +25,18 @@ class Transaction {
 
   factory Transaction.fromMap(Map<String, dynamic> map) {
     return Transaction(
-      id: map['id'],
-      chamaId: map['chama_id'],
-      userId: map['user_id'],
-      type: map['type'],
-      amount: (map['amount'] as num).toDouble(),
-      status: map['status'] ?? 'pending',
-      reference: map['reference'],
-      description: map['description'],
-      createdAt: DateTime.parse(map['created_at']),
-      completedAt: map['completed_at'] != null ? DateTime.parse(map['completed_at']) : null,
+      id: map['id']?.toString() ?? '',
+      chamaId: map['chama_id']?.toString() ?? '',
+      userId: map['user_id']?.toString() ?? '',
+      type: map['type']?.toString() ?? 'unknown',
+      amount: (map['amount'] as num? ?? 0).toDouble(),
+      status: map['status']?.toString() ?? 'pending',
+      reference: map['reference']?.toString(),
+      description: map['description']?.toString(),
+      createdAt: DateTime.tryParse(map['created_at']?.toString() ?? '') ?? DateTime.now(),
+      completedAt: map['completed_at'] != null
+          ? DateTime.tryParse(map['completed_at'].toString())
+          : null,
     );
   }
 }

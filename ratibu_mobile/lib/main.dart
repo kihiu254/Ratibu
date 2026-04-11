@@ -247,7 +247,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/calendar',
-        builder: (context, state) => const CalendarScreen(),
+        builder: (context, state) => CalendarScreen(
+          chamaId: state.uri.queryParameters['chamaId'],
+        ),
       ),
       GoRoute(
         path: '/swaps',

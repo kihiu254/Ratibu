@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/mpesa_service.dart';
+import '../services/transaction_authorization_service.dart';
 import '../providers/auth_provider.dart';
 import '../utils/notification_helper.dart';
 import '../widgets/qr_code_display.dart';
@@ -28,12 +29,21 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   final _amountController = TextEditingController();
   final _phoneController = TextEditingController();
   final _mpesaService = MpesaService();
+  final _transactionAuthorizationService = TransactionAuthorizationService();
   bool _isLoading = false;
   bool _isQrLoading = false;
   bool _isSuccess = false;
   String _phoneOption = 'mine';
   String? _myNumber;
   String? _savingsTargetName;
+
+  String? _normalizePhone(String? value) {
+    if (value == null) return null;
+    final cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '').trim();
+    if (cleaned.isEmpty) return null;
+    if (cleaned.startsWith('+')) return cleaned.substring(1);
+    return cleaned;
+  }
 
   @override
   void initState() {
@@ -56,11 +66,14 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
           .select('phone')
           .eq('id', userId)
           .maybeSingle();
-      final phone = profile?['phone'] as String?;
+      final authUser = Supabase.instance.client.auth.currentUser;
+      final phone = _normalizePhone(profile?['phone'] as String?) ??
+          _normalizePhone(authUser?.userMetadata?['phone']?.toString()) ??
+          _normalizePhone(authUser?.phone);
       if (phone != null && phone.isNotEmpty) {
         setState(() {
           _myNumber = phone;
-          _phoneController.text = phone.replaceFirst('+', '');
+          _phoneController.text = phone;
         });
       } else {
         setState(() => _phoneOption = 'other');
@@ -109,13 +122,22 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
         if (_myNumber == null || _myNumber!.isEmpty) {
           throw 'Profile missing phone number. Please select "Other Number".';
         }
-        phone = _myNumber!.replaceFirst('+', '');
+        phone = _myNumber!;
       } else {
         phone = _phoneController.text.trim();
       }
 
       if (widget.chamaId == null && widget.savingsTargetId == null) {
         throw 'Please select a destination account from the Accounts page.';
+      }
+
+      final approved = await _transactionAuthorizationService.confirmTransaction(
+        context,
+        actionLabel: 'deposit',
+        amount: amount,
+      );
+      if (!approved) {
+        return;
       }
 
       await _mpesaService.initiateStkPush(

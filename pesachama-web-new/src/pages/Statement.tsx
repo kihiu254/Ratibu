@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { ArrowDownCircle, ArrowUpCircle, ArrowLeft, Clock } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, ArrowLeft, Clock, Download, Printer } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../utils/toast'
 
@@ -16,6 +16,26 @@ interface TxRow {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Failed to load statement'
+}
+
+async function withRetry<T>(action: () => T | PromiseLike<T>, attempts = 3) {
+  let lastError: unknown = null
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await Promise.resolve(action())
+    } catch (error) {
+      lastError = error
+      const message = String(error).toLowerCase()
+      if (
+        i === attempts - 1 ||
+        !(message.includes('connection reset by peer') || message.includes('clientexception') || message.includes('socketexception'))
+      ) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300 * (i + 1)))
+    }
+  }
+  throw lastError
 }
 
 export default function Statement() {
@@ -44,8 +64,11 @@ export default function Statement() {
       else if (account === 'savings_target' && id) q = q.eq('savings_target_id', id)
       // mshwari: filter by description keyword since it goes via STK push
       else if (account === 'mshwari') q = q.ilike('description', '%mshwari%')
+      else if (account === 'all') {
+        // no extra filter
+      }
 
-      const { data, error } = await q
+      const { data, error } = await withRetry<any>(() => q)
       if (error) throw error
       setRows((data ?? []) as TxRow[])
     } catch (err: unknown) {
@@ -61,6 +84,28 @@ export default function Statement() {
   const fmtDate = (s: string) =>
     new Date(s).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })
 
+  function exportCsv() {
+    const header = ['Date', 'Description', 'Type', 'Status', 'Amount', 'Reference']
+    const rowsCsv = rows.map((tx) => [
+      fmtDate(tx.created_at),
+      tx.description ?? tx.type,
+      tx.type,
+      tx.status,
+      String(tx.amount),
+      tx.reference ?? '',
+    ])
+    const csv = [header, ...rowsCsv]
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${name.replace(/\s+/g, '_').toLowerCase()}_statement.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-3">
@@ -71,6 +116,25 @@ export default function Statement() {
           <h1 className="text-2xl font-black text-slate-900 dark:text-white">{name}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Transaction statement</p>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          <Printer className="w-4 h-4" />
+          Print
+        </button>
+        <button
+          type="button"
+          onClick={exportCsv}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-[#00C853]/30 text-[#00C853] font-semibold hover:bg-[#00C853]/10"
+        >
+          <Download className="w-4 h-4" />
+          Save CSV
+        </button>
       </div>
 
       {loading ? (

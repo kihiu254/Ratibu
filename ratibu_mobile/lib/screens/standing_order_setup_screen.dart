@@ -26,6 +26,14 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
   bool _isLoading = false;
   String? _userPhone;
 
+  String? _normalizePhone(String? value) {
+    if (value == null) return null;
+    final cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '').trim();
+    if (cleaned.isEmpty) return null;
+    if (cleaned.startsWith('+')) return cleaned.substring(1);
+    return cleaned;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -39,13 +47,16 @@ class _StandingOrderSetupScreenState extends ConsumerState<StandingOrderSetupScr
 
       final data = await Supabase.instance.client
           .from('profiles')
-          .select('phone_number')
+          .select('phone')
           .eq('id', user.id)
           .single();
+      final authUser = Supabase.instance.client.auth.currentUser;
       
       if (mounted) {
         setState(() {
-          _userPhone = data['phone_number'];
+          _userPhone = _normalizePhone(data['phone'] as String?) ??
+              _normalizePhone(authUser?.userMetadata?['phone']?.toString()) ??
+              _normalizePhone(authUser?.phone);
         });
       }
     } catch (e) {
