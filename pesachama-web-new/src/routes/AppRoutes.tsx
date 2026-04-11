@@ -25,6 +25,7 @@ import Pricing from '../pages/Pricing'
 import Products from '../pages/Products'
 import Profile from '../pages/Profile'
 import Register from '../pages/Register'
+import ResetPassword from '../pages/ResetPassword'
 import Rewards from '../pages/Rewards'
 import PersonalSavings from '../pages/PersonalSavings'
 import Accounts from '../pages/Accounts'
@@ -77,6 +78,7 @@ export function AppRoutes() {
         </Route>
 
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/register" element={<Register />} />
 
         <Route element={<DashboardLayout />}>

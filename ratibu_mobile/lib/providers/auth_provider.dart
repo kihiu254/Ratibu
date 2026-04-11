@@ -272,7 +272,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> resetPassword({required String email}) async {
     state = AuthStateLoading();
     try {
-      await _supabase.auth.resetPasswordForEmail(email);
+      await _supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'https://ratibu.vercel.app/reset-password',
+      );
       state = AuthStateUnauthenticated(); // Return to idle state
     } on AuthException catch (e) {
       state = AuthStateError(e.message);

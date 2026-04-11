@@ -9,6 +9,7 @@ export default function Login() {
   const [email, setEmail] = useState(savedEmail)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(Boolean(savedEmail))
@@ -107,20 +108,24 @@ export default function Login() {
       return
     }
     
-    setLoading(true)
+    setForgotPasswordLoading(true)
     setError(null)
     
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    
-    if (error) {
-      setError(error.message)
-    } else {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      
+      if (error) {
+        throw error
+      }
+
       setError('A password reset link has been sent to your email. Check your inbox!')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send password reset email.')
+    } finally {
+      setForgotPasswordLoading(false)
     }
-    
-    setLoading(false)
   }
 
   return (
@@ -223,9 +228,10 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={handleForgotPassword}
-                  className="font-medium text-[#00C853] hover:text-green-500"
+                  disabled={forgotPasswordLoading}
+                  className="font-medium text-[#00C853] hover:text-green-500 disabled:opacity-60"
                 >
-                  Forgot your password?
+                  {forgotPasswordLoading ? 'Sending...' : 'Forgot your password?'}
                 </button>
               </div>
             </div>
