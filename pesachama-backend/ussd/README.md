@@ -29,7 +29,7 @@ This folder is the local USSD research area for the Ratibu backend.
 
 ## USSD Shape
 
-The sandbox handler now follows the app's own navigation model with short, keypad-friendly labels:
+The sandbox handler now starts with a transaction PIN prompt and then follows the app's own navigation model with short, keypad-friendly labels:
 
 - `1` Dashboard
 - `2` Chamas
@@ -42,6 +42,14 @@ The sandbox handler now follows the app's own navigation model with short, keypa
 - `9` Create Chama
 
 Inside those menus, the options point users to the same concepts already in the app, but the wording is kept short so it feels natural on USSD.
+
+USSD transaction shortcuts:
+
+- `Accounts -> Chama Deposit` sends an STK push for your first active chama.
+- `Accounts -> Chama Withdrawal` submits a withdrawal request.
+- `Accounts -> Savings Deposit` updates your first active savings target.
+- `Accounts -> Savings Withdrawal` reduces the same savings target after balance checks.
+- `Savings -> Deposit` and `Savings -> Withdraw` mirror the same savings target flow.
 
 ## Notes
 

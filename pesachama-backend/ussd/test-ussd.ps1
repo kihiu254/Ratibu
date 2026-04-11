@@ -18,6 +18,11 @@ if ([string]::IsNullOrWhiteSpace($SessionId)) {
     $SessionId = "12345"
 }
 
+$Pin = $env:USSD_PIN
+if ([string]::IsNullOrWhiteSpace($Pin)) {
+    $Pin = "1234"
+}
+
 function Invoke-UssdRequest {
     param (
         [Parameter(Mandatory = $true)]
@@ -59,16 +64,16 @@ Write-Host "------------------------------------------------"
 
 @(
     "",
-    "1234",
-    "1234*1",
-    "1234*2",
-    "1234*3",
-    "1234*4",
-    "1234*5",
-    "1234*6",
-    "1234*7",
-    "1234*8",
-    "1234*9"
+    $Pin,
+    "$Pin*3",
+    "$Pin*3*3",
+    "$Pin*3*3*1000",
+    "$Pin*3*4",
+    "$Pin*3*4*500",
+    "$Pin*4",
+    "$Pin*4*1",
+    "$Pin*4*3",
+    "$Pin*4*3*1000"
 ) | ForEach-Object {
     Invoke-UssdRequest -Text $_
 }
