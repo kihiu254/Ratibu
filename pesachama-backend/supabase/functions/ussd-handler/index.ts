@@ -766,8 +766,8 @@ async function fetchUpcomingMeeting(supabase: any, chamaId: string) {
 
 const renderPinPrompt = (name: string, needsSetup = false) =>
   needsSetup
-    ? `CON Ratibu\nHi ${name}\nCreate your transaction PIN to continue.`
-    : `CON Ratibu\nHi ${name}\nEnter your transaction PIN to continue.`;
+    ? `CON Ratibu\nHi ${name}\nSet your PIN`
+    : `CON Ratibu\nHi ${name}\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
   `CON Ratibu\nHi ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n00 Exit`;
@@ -847,7 +847,7 @@ Deno.serve(async (req: Request) => {
 
     const recentRequestCount = await countRecentUssdRequests(supabase, phoneNumber);
     if (recentRequestCount >= 20) {
-      const response = "END Too many USSD requests. Please wait a moment and try again.";
+      const response = "END Too many requests. Try again soon.";
       await storeUssdResponse(supabase, sessionId, phoneNumber, text, response);
       return new Response(response, {
         headers: { ...corsHeaders, "Content-Type": "text/plain" },
@@ -857,7 +857,7 @@ Deno.serve(async (req: Request) => {
     let response = "";
 
     if (!profile) {
-      response = "END This phone number is not registered in Ratibu.";
+      response = "END This number is not registered in Ratibu.";
     } else {
       const firstPart = parts[0] ?? "";
       const pin = isValidPin(firstPart) ? firstPart : null;
@@ -868,17 +868,17 @@ Deno.serve(async (req: Request) => {
       if (awaitingPin) {
         response = renderPinPrompt(displayName, !hasTransactionPin);
       } else if (!pin) {
-        response = "END Enter your 4 to 6 digit transaction PIN to continue.";
+        response = "END Enter your 4-6 digit PIN.";
       } else {
         const pinCheck = await verifyTransactionPin(supabase, profile, pin);
 
         if (!pinCheck.success) {
           if (pinCheck.needsSetup) {
-            response = "END No transaction PIN is set yet. Create one in the app, then try again.";
+            response = "END No PIN set. Create one in the app.";
           } else if (pinCheck.resetRequired) {
-            response = "END Your transaction PIN is locked. Reset it in Profile to continue.";
+            response = "END PIN locked. Reset it in Profile.";
           } else {
-            response = `END Wrong PIN. ${pinCheck.attemptsRemaining} attempt${pinCheck.attemptsRemaining === 1 ? "" : "s"} left.`;
+            response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
           }
         } else if (menu.length === 0) {
           response = renderMainMenu(displayName);
@@ -917,12 +917,12 @@ Deno.serve(async (req: Request) => {
               })
               .filter(Boolean)
               .slice(0, 3)
-              .join(", ") || "No active chamas";
+              .join(", ") || "No chamas";
             response = renderChoicePrompt(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nDiscover Chamas\nOpen the app to browse and join chamas.");
+            response = renderChoicePrompt("Ratibu\nDiscover Chamas\nBrowse chamas in the app.");
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nCreate Chama\nOpen the app to start a new chama.");
+            response = renderChoicePrompt("Ratibu\nCreate Chama\nStart in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -938,16 +938,16 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nJoin a chama first to deposit.");
+                response = renderChoicePrompt("Ratibu\nJoin a chama first.");
               }
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount to deposit.`;
+              response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const phone = profile.phone || phoneNumber;
                 const result = await invokeInternalFunction("trigger-stk-push", {
@@ -961,7 +961,7 @@ Deno.serve(async (req: Request) => {
                 if (!result.ok) {
                   response = `END Deposit failed. ${extractFunctionError(result)}`;
                 } else {
-                  response = "END Deposit initiated. Check your phone for the M-Pesa PIN prompt.";
+                  response = "END Deposit sent. Check your phone.";
                 }
               }
             }
@@ -974,20 +974,20 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nJoin a chama first to withdraw.");
+                response = renderChoicePrompt("Ratibu\nJoin a chama first.");
               }
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount to withdraw.`;
+              response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const result = await requestChamaWithdrawal(supabase, profile.id, chama, amount);
                 response = result.ok
-                  ? "END Withdrawal request submitted. You will be notified once it is reviewed."
+                  ? "END Request sent. You'll be notified."
                   : `END Withdrawal failed. ${result.message}`;
               }
             }
@@ -1003,13 +1003,13 @@ Deno.serve(async (req: Request) => {
                 response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
               }
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount to deposit.`;
+              response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "deposit");
                 response = result.ok
@@ -1029,13 +1029,13 @@ Deno.serve(async (req: Request) => {
                 response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
               }
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount to withdraw.`;
+              response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "withdrawal");
                 response = result.ok
@@ -1052,16 +1052,16 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nLink your Mshwari phone in the app first.");
+                response = renderChoicePrompt("Ratibu\nLink Mshwari in the app.");
               }
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nMshwari Deposit\n${mshwariPhone}\nEnter amount to deposit.`;
+              response = `CON Ratibu\nMshwari Deposit\n${mshwariPhone}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const phone = profile.phone || phoneNumber;
                 const result = await invokeInternalFunction("trigger-stk-push", {
@@ -1076,7 +1076,7 @@ Deno.serve(async (req: Request) => {
                 if (!result.ok) {
                   response = `END Mshwari deposit failed. ${extractFunctionError(result)}`;
                 } else {
-                  response = "END Mshwari deposit initiated. Check your phone for the M-Pesa PIN prompt.";
+                  response = "END Mshwari deposit sent. Check your phone.";
                 }
               }
             }
@@ -1096,19 +1096,19 @@ Deno.serve(async (req: Request) => {
               .join("\n") || "No savings plans yet";
             response = renderChoicePrompt(`Ratibu\nPersonal Savings\n${summary}\nPlans ${count}`);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nPersonal Savings\nCreate savings plans in the app.");
+            response = renderChoicePrompt("Ratibu\nPersonal Savings\nCreate plans in the app.");
           } else if (menu[1] === "3") {
             const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
             if (!target) {
               response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount to deposit.`;
+              response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "deposit");
                 response = result.ok
@@ -1121,13 +1121,13 @@ Deno.serve(async (req: Request) => {
             if (!target) {
               response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount to withdraw.`;
+              response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount.`;
             } else {
               const amount = Number(menu[2]);
               if (!Number.isFinite(amount) || amount <= 0) {
                 response = "END Enter a valid amount.";
               } else if (!profile?.id) {
-                response = "END Unable to confirm your account.";
+                response = "END Can't confirm account.";
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "withdrawal");
                 response = result.ok
@@ -1153,7 +1153,7 @@ Deno.serve(async (req: Request) => {
               : null;
 
             if (!chamaId) {
-              response = renderChoicePrompt("Ratibu\nUpcoming Meetings\nJoin a chama first.");
+              response = renderChoicePrompt("Ratibu\nJoin a chama first.");
             } else {
               const meeting = await fetchUpcomingMeeting(supabase, chamaId);
               if (meeting) {
@@ -1168,9 +1168,9 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nSchedule meetings in the app.");
+            response = renderChoicePrompt("Ratibu\nSchedule Meetings\nIn the app.");
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nRatibu Meet\nJoin virtual meetings in the app.");
+            response = renderChoicePrompt("Ratibu\nRatibu Meet\nJoin meetings in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1178,9 +1178,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderSwapsMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nRequest Swap\nManage swaps in the app.");
+            response = renderChoicePrompt("Ratibu\nRequest Swap\nIn the app.");
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nMy Swaps\nView your swaps in the app.");
+            response = renderChoicePrompt("Ratibu\nMy Swaps\nView swaps in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1190,9 +1190,9 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "1") {
             response = renderChoicePrompt(`Ratibu\nProfile\n${displayName}\n${profile?.phone_number || phoneNumber}`);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nEdit Profile\nUpdate your details in the app.");
+            response = renderChoicePrompt("Ratibu\nEdit Profile\nUpdate details in the app.");
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nKYC\nComplete verification in the app.");
+            response = renderChoicePrompt("Ratibu\nKYC\nVerify in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1200,9 +1200,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderRewardsMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nRewards\nRewards summary in the app.");
+            response = renderChoicePrompt("Ratibu\nRewards\nView rewards in the app.");
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nLeaderboard\nOpen the app to view the leaderboard.");
+            response = renderChoicePrompt("Ratibu\nLeaderboard\nView leaderboard in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1210,9 +1210,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderCreateChamaMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nCreate Chama\nOpen the app to complete setup.");
+            response = renderChoicePrompt("Ratibu\nCreate Chama\nComplete in the app.");
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nExplore Chamas\nOpen the app to browse chamas.");
+            response = renderChoicePrompt("Ratibu\nExplore Chamas\nBrowse chamas in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
