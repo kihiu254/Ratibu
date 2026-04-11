@@ -493,7 +493,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ] else if (_kycStatus == 'pending') ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'Your documents are under review (24â€“48 hrs)',
+                  'Your documents are under review (24-48 hrs)',
                   style: TextStyle(color: Colors.amber, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
@@ -1263,7 +1263,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Admin PIN Reset',
+          'Member PIN Reset',
           style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
@@ -1278,7 +1278,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Reset a member transaction PIN from mobile support tools.',
+                'Reset a member PIN from mobile support tools.',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 12),
@@ -1287,7 +1287,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 keyboardType: TextInputType.phone,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: 'Member phone',
+                  labelText: 'Phone number',
                   labelStyle: const TextStyle(color: Colors.grey),
                   prefixIcon: const Icon(Icons.phone, color: Color(0xFF00C853)),
                   filled: true,
@@ -1310,7 +1310,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.search, size: 18),
-                  label: Text(_adminSearching ? 'Searching...' : 'Find member'),
+                  label: Text(_adminSearching ? 'Searching...' : 'Search member'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C853),
                     foregroundColor: Colors.white,
@@ -1346,11 +1346,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         runSpacing: 8,
                         children: [
                           _buildTinyStatusChip(
-                            label: hasPin ? (isLocked ? 'Locked' : 'Active') : 'No PIN',
+                            label: hasPin ? (isLocked ? 'Locked' : 'Set') : 'Not set',
                             color: hasPin ? (isLocked ? Colors.amber : const Color(0xFF00C853)) : Colors.white54,
                           ),
                           _buildTinyStatusChip(
-                            label: 'Failed: ${target['transaction_pin_failed_attempts'] ?? 0}',
+                            label: 'Attempts: ${target['transaction_pin_failed_attempts'] ?? 0}',
                             color: Colors.white70,
                           ),
                         ],
@@ -1367,7 +1367,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                 )
                               : const Icon(Icons.lock_reset, size: 18),
-                          label: Text(_adminResetting ? 'Resetting...' : 'Reset PIN'),
+                          label: Text(_adminResetting ? 'Resetting...' : 'Reset'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: const Color(0xFF0f172a),

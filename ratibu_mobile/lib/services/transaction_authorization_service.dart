@@ -371,7 +371,7 @@ class TransactionAuthorizationService {
         title: const Text('Transaction PIN', style: TextStyle(color: Colors.white)),
         content: Text(
           resetRequired
-              ? 'Your transaction PIN has been locked after 3 failed attempts. Reset it from Profile to continue.'
+              ? 'Your transaction PIN is locked. Ask an admin to reset it.'
               : 'Wrong PIN. ${attemptsRemaining > 0 ? '$attemptsRemaining attempt${attemptsRemaining == 1 ? '' : 's'} left.' : 'Please try again.'}',
           style: const TextStyle(color: Colors.white70),
         ),
@@ -380,14 +380,20 @@ class TransactionAuthorizationService {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close', style: TextStyle(color: Colors.white54)),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              if (!context.mounted) return;
-              context.push('/profile');
-            },
-            child: const Text('Reset PIN', style: TextStyle(color: Color(0xFF00C853))),
-          ),
+          if (!resetRequired)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                if (!context.mounted) return;
+                context.push('/profile');
+              },
+              child: const Text('Reset PIN', style: TextStyle(color: Color(0xFF00C853))),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK', style: TextStyle(color: Color(0xFF00C853))),
+            ),
         ],
       ),
     );
@@ -400,7 +406,7 @@ class TransactionAuthorizationService {
         backgroundColor: const Color(0xFF1e293b),
         title: const Text('Reset Required', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Your transaction PIN is locked. Reset it in Profile to continue.',
+          'Your transaction PIN is locked. Ask an admin to reset it.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -409,12 +415,8 @@ class TransactionAuthorizationService {
             child: const Text('Close', style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              if (!context.mounted) return;
-              context.push('/profile');
-            },
-            child: const Text('Go to Profile', style: TextStyle(color: Color(0xFF00C853))),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK', style: TextStyle(color: Color(0xFF00C853))),
           ),
         ],
       ),
