@@ -884,6 +884,9 @@ const renderCreateChamaMenu = () =>
 const renderChoicePrompt = (message: string) =>
   `CON Ratibu\n${message}\n1 Main menu\n2 Exit`;
 
+const renderLockedPinPrompt = () =>
+  `CON Ratibu\nPIN locked. Ask an admin to reset it.\n1 Main menu\n2 Exit`;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -961,7 +964,14 @@ Deno.serve(async (req: Request) => {
             if (pinCheck.needsSetup) {
               response = "END No PIN set. Create one in the app.";
             } else if (pinCheck.resetRequired) {
-              response = "END PIN locked. Ask an admin to reset it.";
+              const recoveryChoice = menu[1] ?? "";
+              if (recoveryChoice === "1") {
+                response = renderMainMenu(displayName);
+              } else if (recoveryChoice === "2") {
+                response = "END Thank you for using Ratibu.";
+              } else {
+                response = renderLockedPinPrompt();
+              }
             } else {
               response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
             }
