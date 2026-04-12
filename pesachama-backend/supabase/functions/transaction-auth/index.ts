@@ -40,6 +40,7 @@ type UserRow = {
   first_name?: string | null;
   last_name?: string | null;
   phone?: string | null;
+  email?: string | null;
   system_role?: string | null;
   transaction_pin_enabled?: boolean | null;
   transaction_pin_hash?: string | null;
@@ -74,7 +75,7 @@ function splitFullName(fullName: string | null | undefined) {
 async function ensureUserRow(supabase: any, userId: string) {
   const { data: userRow, error: userError } = await supabase
     .from("users")
-    .select("id, first_name, last_name, phone, system_role, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
+    .select("id, first_name, last_name, phone, email, system_role, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
     .eq("id", userId)
     .maybeSingle();
 
@@ -107,7 +108,7 @@ async function ensureUserRow(supabase: any, userId: string) {
       last_name: lastName,
       phone,
     } as any, { onConflict: "id" })
-    .select("id, first_name, last_name, phone, system_role, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
+    .select("id, first_name, last_name, phone, email, system_role, transaction_pin_enabled, transaction_pin_hash, transaction_pin_salt, transaction_pin_failed_attempts, transaction_pin_locked_until")
     .single();
 
   if (upsertError) {
@@ -245,6 +246,49 @@ Deno.serve(async (req) => {
     });
 
     return jsonResponse({ success: true, reset: true, targetUserId });
+  }
+
+  if (action === "admin_password_reset") {
+    if (!payload.targetUserId || typeof payload.targetUserId !== "string") {
+      return jsonResponse({ error: "Missing targetUserId" }, 400);
+    }
+
+    const redirectTo = typeof payload.redirectTo === "string" && payload.redirectTo.trim()
+      ? payload.redirectTo.trim()
+      : "https://ratibu.vercel.app/reset-password";
+
+    await assertAdmin(supabase, userId);
+    const targetUserId = String(payload.targetUserId);
+    const targetAuthUser = await supabase.auth.admin.getUserById(targetUserId);
+    const targetEmail = targetAuthUser.data?.user?.email ?? null;
+
+    if (!targetEmail) {
+      return jsonResponse({ error: "Target user does not have an email address" }, 400);
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+      redirectTo,
+    });
+
+    if (error) {
+      return jsonResponse({ error: error.message }, 500);
+    }
+
+    await supabase.from("audit_logs").insert({
+      user_id: userId,
+      action: "password_reset_admin_requested",
+      resource_type: "user_auth",
+      resource_id: targetUserId,
+      old_value: {
+        email: targetEmail,
+      },
+      new_value: {
+        redirect_to: redirectTo,
+        password_reset_requested: true,
+      },
+    });
+
+    return jsonResponse({ success: true, reset: true, targetUserId, emailSent: true });
   }
 
   if (action === "reset") {

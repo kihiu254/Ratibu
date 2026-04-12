@@ -44,6 +44,7 @@ interface UserProfile {
 function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClose: () => void, onStatusChange: (id: string, status: string) => void }) {
   const [updating, setUpdating] = useState(false)
   const [resettingPin, setResettingPin] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState(false)
 
   async function updateKycStatus(status: string) {
     setUpdating(true)
@@ -82,6 +83,31 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
       toast.error(err instanceof Error ? err.message : 'Failed to reset PIN')
     } finally {
       setResettingPin(false)
+    }
+  }
+
+  async function resetPassword() {
+    const confirmed = window.confirm(`Send a password reset email to ${user.email}?`)
+    if (!confirmed) return
+
+    setResettingPassword(true)
+    try {
+      const { error } = await supabase.functions.invoke('transaction-auth', {
+        body: {
+          action: 'admin_password_reset',
+          targetUserId: user.id,
+          redirectTo: `${window.location.origin}/reset-password`,
+        },
+      })
+
+      if (error) throw error
+
+      toast.success('Password reset email sent')
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send password reset email')
+    } finally {
+      setResettingPassword(false)
     }
   }
 
@@ -195,6 +221,35 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
                 >
                   {resettingPin ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Password */}
+          <div>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Mail className="w-3 h-3" /> Account Password
+            </h3>
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Email</span>
+                <span className="font-bold text-slate-900 dark:text-white text-right max-w-[60%]">
+                  {user.email || 'Not available'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Send a password reset link to the member's registered email.
+              </p>
+              {user.email && (
+                <button
+                  type="button"
+                  onClick={resetPassword}
+                  disabled={resettingPassword}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00C853]/10 text-[#00C853] font-bold text-sm hover:bg-[#00C853]/20 transition-colors disabled:opacity-60"
+                >
+                  {resettingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  {resettingPassword ? 'Sending...' : 'Send reset email'}
                 </button>
               )}
             </div>

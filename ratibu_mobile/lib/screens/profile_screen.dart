@@ -49,6 +49,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Map<String, dynamic>? _adminTargetUser;
   bool _adminSearching = false;
   bool _adminResetting = false;
+  bool _adminPasswordResetting = false;
 
   @override
   void initState() {
@@ -153,7 +154,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final result = await Supabase.instance.client
           .from('users')
-          .select('id, first_name, last_name, phone, transaction_pin_hash, transaction_pin_enabled, transaction_pin_failed_attempts, transaction_pin_locked_until')
+          .select('id, first_name, last_name, email, phone, transaction_pin_hash, transaction_pin_enabled, transaction_pin_failed_attempts, transaction_pin_locked_until')
           .inFilter('phone', variants)
           .limit(1);
 
@@ -224,6 +225,59 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _adminResetting = false);
+      }
+    }
+  }
+
+  Future<void> _adminResetPassword() async {
+    final target = _adminTargetUser;
+    final email = target?['email'] as String?;
+    if (target == null || email == null || email.trim().isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Reset Password', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Send a password reset email to $email?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Send', style: TextStyle(color: Color(0xFF00C853))),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _adminPasswordResetting = true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'https://ratibu.vercel.app/reset-password',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password reset email sent.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send password reset email: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _adminPasswordResetting = false);
       }
     }
   }
@@ -1340,6 +1394,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         '${target['phone'] ?? ''}',
                         style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
+                      if (target['email'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${target['email'] ?? ''}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -1368,6 +1429,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 )
                               : const Icon(Icons.lock_reset, size: 18),
                           label: Text(_adminResetting ? 'Resetting...' : 'Reset'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0f172a),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _adminPasswordResetting ? null : _adminResetPassword,
+                          icon: _adminPasswordResetting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.mail_outline, size: 18),
+                          label: Text(_adminPasswordResetting ? 'Sending...' : 'Send reset email'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: const Color(0xFF0f172a),
