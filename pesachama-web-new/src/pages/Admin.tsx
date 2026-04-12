@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   Users, 
   Target, 
   TrendingUp, 
   ArrowRight,
+  Mail,
+  KeyRound,
   MoreVertical,
   Loader2
 } from 'lucide-react'
@@ -34,6 +37,7 @@ interface Chama {
 }
 
 export default function Admin() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [recentUsers, setRecentUsers] = useState<UserProfile[]>([])
@@ -117,6 +121,42 @@ export default function Admin() {
           </motion.div>
         ))}
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="p-8 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-[32px] shadow-sm border border-slate-700 overflow-hidden relative"
+      >
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,_#00C853,_transparent_45%)]" />
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#00C853]">Quick Security Actions</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight">Password and PIN recovery</h2>
+            <p className="mt-2 text-slate-300 max-w-xl">
+              Jump straight to member recovery tools for PIN resets, password reset emails, and account support.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/admin/users')}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-bold text-slate-900 transition-colors hover:bg-slate-100"
+            >
+              <KeyRound className="w-4 h-4" />
+              Open PIN tools
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/users')}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-5 py-3 font-bold text-white transition-colors hover:bg-white/10"
+            >
+              <Mail className="w-4 h-4" />
+              Reset password
+            </button>
+          </div>
+        </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
