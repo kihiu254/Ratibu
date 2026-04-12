@@ -61,7 +61,7 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
   }
 
   async function resetTransactionPin() {
-    const confirmed = window.confirm(`Reset the transaction PIN for ${user.first_name} ${user.last_name}?`)
+    const confirmed = window.confirm(`Reset the PIN for ${user.first_name} ${user.last_name}?`)
     if (!confirmed) return
 
     setResettingPin(true)
@@ -75,11 +75,11 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
 
       if (error) throw error
 
-      toast.success('Transaction PIN reset')
+      toast.success('PIN reset')
       onStatusChange(user.id, user.kyc_status || 'not_started')
       onClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to reset transaction PIN')
+      toast.error(err instanceof Error ? err.message : 'Failed to reset PIN')
     } finally {
       setResettingPin(false)
     }
@@ -157,7 +157,7 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
           {/* Transaction PIN */}
           <div>
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <KeyRound className="w-3 h-3" /> Transaction PIN
+              <KeyRound className="w-3 h-3" /> Member PIN
             </h3>
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between gap-3 text-sm">
@@ -168,12 +168,12 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
                     : 'bg-slate-100 text-slate-500'
                 }`}>
                   {user.transaction_pin_hash
-                    ? (user.transaction_pin_enabled ? 'Active' : 'Locked')
+                    ? (user.transaction_pin_enabled ? 'Set' : 'Locked')
                     : 'Not set'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Failed attempts</span>
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">Attempts</span>
                 <span className="font-bold text-slate-900 dark:text-white">
                   {user.transaction_pin_failed_attempts ?? 0}
                 </span>
@@ -194,7 +194,7 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00C853]/10 text-[#00C853] font-bold text-sm hover:bg-[#00C853]/20 transition-colors disabled:opacity-60"
                 >
                   {resettingPin ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  Reset PIN
+                  Reset
                 </button>
               )}
             </div>

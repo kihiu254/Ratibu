@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { toast } from '../utils/toast'
 import {
   getTransactionPinStatus,
@@ -28,8 +27,6 @@ export default function TransactionApprovalModal({
   const [resetRequired, setResetRequired] = useState(false)
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
-  const navigate = useNavigate()
-
   useEffect(() => {
     if (!isOpen) return
     setLoading(true)
@@ -67,7 +64,7 @@ export default function TransactionApprovalModal({
         if (!result.success) {
           if (result.resetRequired) {
             setResetRequired(true)
-            toast.error('Your transaction PIN is locked. Reset it from Profile to continue.')
+            toast.error('Your transaction PIN is locked. Ask an admin to reset it.')
           } else {
             toast.error(`Wrong transaction PIN. ${result.attemptsRemaining} attempt${result.attemptsRemaining === 1 ? '' : 's'} left.`)
           }
@@ -99,7 +96,7 @@ export default function TransactionApprovalModal({
 
         {showResetBanner && (
           <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-600">
-            Your transaction PIN is locked after 3 failed attempts. Reset it from Profile to continue.
+            Your transaction PIN is locked. Ask an admin to reset it.
           </div>
         )}
 
@@ -151,13 +148,10 @@ export default function TransactionApprovalModal({
               {showResetBanner ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose()
-                    navigate('/profile')
-                  }}
+                  onClick={onClose}
                   className="flex-1 rounded-2xl border border-amber-500/30 px-4 py-3 font-bold text-amber-600"
                 >
-                  Reset PIN
+                  OK
                 </button>
               ) : (
                 <button
