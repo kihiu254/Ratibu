@@ -443,6 +443,14 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       label: 'Penalties',
                       onTap: () => context.push('/penalties')),
                   _ActionButton(
+                      icon: Icons.account_balance,
+                      label: 'KCB M-PESA',
+                      onTap: () => context.push('/kcb-mpesa')),
+                  _ActionButton(
+                      icon: Icons.bolt,
+                      label: 'Pay KPLC',
+                      onTap: () => context.push('/kplc-bill?type=prepaid')),
+                  _ActionButton(
                       icon: Icons.undo,
                       label: 'Reversal',
                       onTap: () => context.push('/mpesa-reversal')),
