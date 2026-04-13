@@ -35,6 +35,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final kycAsync = ref.read(userProfileProvider);
       kycAsync.whenData((profile) {
+        if (!mounted) return;
         if (profile != null && profile['kyc_status'] == 'pending') {
           context.go('/onboarding-success');
         }
@@ -42,11 +43,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
   }
 
-  static const List<Widget> _pages = <Widget>[
-    ActivitiesTab(),
-    ChamasTab(),
-    DashboardTab(),
-    ProfileScreen(),
+  static final List<Widget Function()> _pages = <Widget Function()>[
+    () => const ActivitiesTab(),
+    () => const ChamasTab(),
+    () => const DashboardTab(),
+    () => const ProfileScreen(),
   ];
 
   @override
@@ -110,7 +111,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
-      body: SafeArea(child: _pages.elementAt(_selectedIndex)),
+      body: SafeArea(child: _pages.elementAt(_selectedIndex)()),
       bottomNavigationBar: BottomNavigationBar(
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
