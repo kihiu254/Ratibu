@@ -5,7 +5,7 @@ from PIL import Image
 ROOT = Path(r"c:\Users\evince\Downloads\Ratibu")
 SOURCE = ROOT / "ratibu_mobile" / "assets" / "images" / "logo.png"
 OUTPUT = ROOT / "ratibu_mobile" / "assets" / "images" / "app_icon.png"
-BACKGROUND = (2, 6, 23)
+BACKGROUND = (0, 200, 83)
 
 
 def crop_non_white(image: Image.Image, threshold: int = 245) -> Image.Image:
@@ -49,15 +49,29 @@ def make_white_transparent(image: Image.Image, threshold: int = 245) -> Image.Im
     return rgba
 
 
+def make_black_transparent(image: Image.Image, threshold: int = 60) -> Image.Image:
+    rgba = image.convert("RGBA")
+    pixels = rgba.load()
+    width, height = rgba.size
+
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = pixels[x, y]
+            if r <= threshold and g <= threshold and b <= threshold:
+                pixels[x, y] = (0, 0, 0, 0)
+    return rgba
+
+
 def prepare_icon() -> None:
     source = Image.open(SOURCE)
     source = make_white_transparent(source)
+    source = make_black_transparent(source)
     source = crop_non_white(source)
 
     canvas_size = (1024, 1024)
-    canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+    canvas = Image.new("RGBA", canvas_size, BACKGROUND + (255,))
 
-    target_size = int(min(canvas_size) * 1.10)
+    target_size = int(min(canvas_size) * 0.84)
     source.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
 
     offset = ((canvas_size[0] - source.size[0]) // 2, (canvas_size[1] - source.size[1]) // 2)
