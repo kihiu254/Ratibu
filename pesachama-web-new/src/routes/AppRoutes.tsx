@@ -81,8 +81,6 @@ export function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/product/*" element={<Products />} />
           <Route path="/products" element={<Products />} />
-          <Route path="/kcb-mpesa" element={<KcbMpesa />} />
-          <Route path="/kplc-bill" element={<KplcBill />} />
           <Route path="/opportunities" element={<Opportunities />} />
           <Route path="/resources/*" element={<Opportunities />} />
           <Route path="/legal/*" element={<Legal />} />
@@ -101,6 +99,8 @@ export function AppRoutes() {
           <Route path="/create-chama" element={<CreateChama />} />
           <Route path="/explore" element={<ExploreChamas />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/kcb-mpesa" element={<KcbMpesa />} />
+          <Route path="/kplc-bill" element={<KplcBill />} />
           <Route path="/statement" element={<Statement />} />
           <Route path="/personal-savings" element={<PersonalSavings />} />
           <Route path="/rewards" element={<Rewards />} />

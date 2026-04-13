@@ -2,9 +2,21 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Button from '../components/Button';
 import { RatibuHeroLogo } from '../components/RatibuHeroLogo';
+import { supabase } from '../lib/supabase';
 
 const Hero = () => {
     const navigate = useNavigate();
+
+    const goToProtectedFeature = async (path: string) => {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+            navigate(path)
+            return
+        }
+
+        navigate(`/login?redirectTo=${encodeURIComponent(path)}`)
+    }
+
     return (
         <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-28 md:pt-36 bg-slate-50 dark:bg-midnight transition-colors duration-300">
             
@@ -53,10 +65,10 @@ const Hero = () => {
                         className="flex flex-col sm:flex-row gap-6 justify-center items-center pt-4"
                     >
                         <Button large>Create a Chama</Button>
-                        <Button variant="outline" large onClick={() => navigate('/kcb-mpesa')}>
+                        <Button variant="outline" large onClick={() => void goToProtectedFeature('/kcb-mpesa')}>
                            KCB M-PESA
                         </Button>
-                        <Button variant="outline" large onClick={() => navigate('/kplc-bill')}>
+                        <Button variant="outline" large onClick={() => void goToProtectedFeature('/kplc-bill')}>
                            Pay KPLC
                         </Button>
                         <Button variant="outline" large className="flex items-center gap-3 group border-slate-300 dark:border-white/10 text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/5">
