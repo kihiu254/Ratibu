@@ -472,7 +472,7 @@ type ActiveSavingsTarget = {
   lock_until?: string | null;
 };
 
-async function fetchFirstActiveChama(supabase: any, userId: string): Promise<ActiveChama | null> {
+async function fetchActiveChamas(supabase: any, userId: string): Promise<ActiveChama[]> {
   const lookups = [
     {
       userColumn: "user_id",
@@ -498,32 +498,46 @@ async function fetchFirstActiveChama(supabase: any, userId: string): Promise<Act
       query = query.eq(lookup.statusColumn, lookup.statusValue);
     }
 
-    const { data, error } = await query.limit(1).maybeSingle();
+    const { data, error } = await query.limit(10);
     if (error || !data) continue;
 
-    const relation = (data as { chamas?: ActiveChama | ActiveChama[]; groups?: ActiveChama | ActiveChama[] }).chamas ??
-      (data as { groups?: ActiveChama | ActiveChama[] }).groups;
-    const target = Array.isArray(relation) ? relation[0] : relation;
-    if (target?.id) {
-      return { id: target.id, name: target.name ?? "Chama" };
+    const rows = data as Array<{ chamas?: ActiveChama | ActiveChama[]; groups?: ActiveChama | ActiveChama[] }>;
+    const mapped = rows.flatMap((row) => {
+      const relation = row.chamas ?? row.groups;
+      const values = Array.isArray(relation) ? relation : relation ? [relation] : [];
+      return values
+        .filter((item): item is ActiveChama => Boolean(item?.id))
+        .map((item) => ({ id: item.id, name: item.name ?? "Chama" }));
+    });
+
+    if (mapped.length > 0) {
+      return mapped;
     }
   }
 
-  return null;
+  return [];
 }
 
-async function fetchFirstActiveSavingsTarget(supabase: any, userId: string): Promise<ActiveSavingsTarget | null> {
+async function fetchFirstActiveChama(supabase: any, userId: string): Promise<ActiveChama | null> {
+  const chamas = await fetchActiveChamas(supabase, userId);
+  return chamas[0] ?? null;
+}
+
+async function fetchActiveSavingsTargets(supabase: any, userId: string): Promise<ActiveSavingsTarget[]> {
   const { data, error } = await supabase
     .from("user_savings_targets")
     .select("id, name, current_amount, target_amount, status, is_locked, lock_until")
     .eq("user_id", userId)
     .in("status", ["active", "locked"])
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
-  if (error || !data) return null;
-  return data as ActiveSavingsTarget;
+  if (error || !data) return [];
+  return data as ActiveSavingsTarget[];
+}
+
+async function fetchFirstActiveSavingsTarget(supabase: any, userId: string): Promise<ActiveSavingsTarget | null> {
+  const targets = await fetchActiveSavingsTargets(supabase, userId);
+  return targets[0] ?? null;
 }
 
 async function fetchMshwariPhone(supabase: any, userId: string): Promise<string | null> {
@@ -594,6 +608,20 @@ function extractFunctionError(result: { data: unknown }) {
   const message = payload.message;
   const parts = [error, message, details].filter((value) => typeof value === "string" && value.trim().length > 0);
   return parts.length > 0 ? String(parts[0]) : "Please try again.";
+}
+
+function getTimeGreeting(now = new Date()) {
+  const hourText = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    hour12: false,
+    timeZone: "Africa/Nairobi",
+  }).format(now);
+  const hour = Number(hourText);
+
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 21) return "Good evening";
+  return "Good night";
 }
 
 async function getCachedUssdResponse(supabase: any, sessionId: string, text: string) {
@@ -851,11 +879,11 @@ async function fetchUpcomingMeeting(supabase: any, chamaId: string) {
 
 const renderPinPrompt = (name: string, needsSetup = false) =>
   needsSetup
-    ? `CON Ratibu\nHi ${name}\nSet your PIN`
-    : `CON Ratibu\nHi ${name}\nEnter your PIN`;
+    ? `CON Ratibu\n${getTimeGreeting()} ${name}\nSet your PIN`
+    : `CON Ratibu\n${getTimeGreeting()} ${name}\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
-  `CON Ratibu\nHi ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n00 Exit`;
+  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n00 Exit`;
 
 const renderChamasMenu = () =>
   `CON Ratibu\nChamas\n1 View\n2 Discover\n3 Start\n0 Back\n00 Home`;
@@ -885,7 +913,12 @@ const renderChoicePrompt = (message: string) =>
   `CON Ratibu\n${message}\n1 Main menu\n2 Exit`;
 
 const renderLockedPinPrompt = () =>
-  `CON Ratibu\nPIN locked. Ask an admin to reset it.\n1 Main menu\n2 Exit`;
+  `CON Ratibu\nPIN locked. Ask an admin to reset your PIN.\n1 Main menu\n2 Exit`;
+
+function renderSelectionPrompt(title: string, items: Array<{ name: string }>) {
+  const lines = items.slice(0, 9).map((item, index) => `${index + 1} ${item.name}`);
+  return `CON Ratibu\n${title}\n${lines.join("\n")}\n0 Back\n00 Home`;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -952,29 +985,37 @@ Deno.serve(async (req: Request) => {
       const menu = pin ? parts.slice(1) : parts;
       const awaitingPin = text === "";
       const hasTransactionPin = Boolean(profile.transaction_pin_hash && profile.transaction_pin_salt);
+      const pinFailedAttempts = Number(profile.transaction_pin_failed_attempts ?? 0);
+      const pinLocked = Boolean(
+        profile.transaction_pin_hash &&
+        profile.transaction_pin_salt &&
+        (!profile.transaction_pin_enabled || pinFailedAttempts >= 3),
+      );
 
       if (awaitingPin) {
         response = renderPinPrompt(displayName, !hasTransactionPin);
+      } else if (pinLocked && !pin) {
+        const recoveryChoice = firstPart;
+        if (recoveryChoice === "1") {
+          response = renderMainMenu(displayName);
+        } else if (recoveryChoice === "2") {
+          response = "END Thank you for using Ratibu.";
+        } else {
+          response = renderLockedPinPrompt();
+        }
       } else if (!pin) {
         response = "END Enter your 4-6 digit PIN.";
       } else {
         const pinCheck = await verifyTransactionPin(supabase, profile, pin);
 
-          if (!pinCheck.success) {
-            if (pinCheck.needsSetup) {
-              response = "END No PIN set. Create one in the app.";
-            } else if (pinCheck.resetRequired) {
-              const recoveryChoice = menu[1] ?? "";
-              if (recoveryChoice === "1") {
-                response = renderMainMenu(displayName);
-              } else if (recoveryChoice === "2") {
-                response = "END Thank you for using Ratibu.";
-              } else {
-                response = renderLockedPinPrompt();
-              }
-            } else {
-              response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
-            }
+        if (!pinCheck.success) {
+          if (pinCheck.needsSetup) {
+            response = "END No PIN set. Create one in the app.";
+          } else if (pinCheck.resetRequired) {
+            response = renderLockedPinPrompt();
+          } else {
+            response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
+          }
         } else if (menu.length === 0) {
           response = renderMainMenu(displayName);
         } else if (menu[0] === "00") {
@@ -1025,8 +1066,8 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderAccountsMenu();
           } else if (menu[1] === "1") {
-            const chama = profile?.id ? await fetchFirstActiveChama(supabase, profile.id) : null;
-            if (!chama) {
+            const chamas = profile?.id ? await fetchActiveChamas(supabase, profile.id) : [];
+            if (chamas.length === 0) {
               if (menu.length >= 3) {
                 const choice = menu[menu.length - 1];
                 response = choice === "1"
@@ -1036,41 +1077,56 @@ Deno.serve(async (req: Request) => {
                 response = renderChoicePrompt("Ratibu\nJoin a chama first.");
               }
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.`;
+              response = renderSelectionPrompt("Chama Deposit", chamas);
             } else {
-              const amount = Number(menu[2]);
-              if (!Number.isFinite(amount) || amount <= 0) {
-                response = "END Enter a valid amount.";
-              } else if (!profile?.id) {
-                response = "END Can't confirm account.";
+              const selectedToken = menu[2];
+              if (selectedToken === "0") {
+                response = renderAccountsMenu();
+              } else if (selectedToken === "00") {
+                response = renderMainMenu(displayName);
               } else {
-                const phone = profile.phone || phoneNumber;
-                const result = await invokeInternalFunction("trigger-stk-push", {
-                  amount,
-                  phoneNumber: phone,
-                  userId: profile.id,
-                  chamaId: chama.id,
-                  requestId: requestKey,
-                  origin: "ussd",
-                });
-
-                if (!result.ok) {
-                  response = `END Deposit failed. ${extractFunctionError(result)}`;
+                const selected = Number(selectedToken);
+                if (!Number.isInteger(selected) || selected < 1 || selected > chamas.length) {
+                  response = renderSelectionPrompt("Chama Deposit", chamas);
+                } else if (menu.length === 3) {
+                  response = `CON Ratibu\nChama Deposit\n${chamas[selected - 1].name}\nEnter amount.`;
                 } else {
-                  response = "END Deposit sent. Check your phone.";
-                }
+                  const amount = Number(menu[3]);
+                  const chama = chamas[selected - 1];
+                  if (!Number.isFinite(amount) || amount <= 0) {
+                    response = "END Enter a valid amount.";
+                  } else if (!profile?.id) {
+                    response = "END Can't confirm account.";
+                  } else {
+                    const phone = profile.phone || phoneNumber;
+                    const result = await invokeInternalFunction("trigger-stk-push", {
+                      amount,
+                      phoneNumber: phone,
+                      userId: profile.id,
+                      chamaId: chama.id,
+                      requestId: requestKey,
+                      origin: "ussd",
+                    });
 
-                await logUssdAudit(supabase, {
-                  userId: profile.id,
-                  action: result.ok ? "ussd_chama_deposit_initiated" : "ussd_chama_deposit_failed",
-                  resourceType: "chama",
-                  resourceId: chama.id,
-                  newValue: {
-                    channel: "ussd",
-                    amount,
-                    message: result.ok ? null : extractFunctionError(result),
-                  },
-                });
+                    if (!result.ok) {
+                      response = `END Deposit failed. ${extractFunctionError(result)}`;
+                    } else {
+                      response = "END Deposit sent. Check your phone.";
+                    }
+
+                    await logUssdAudit(supabase, {
+                      userId: profile.id,
+                      action: result.ok ? "ussd_chama_deposit_initiated" : "ussd_chama_deposit_failed",
+                      resourceType: "chama",
+                      resourceId: chama.id,
+                      newValue: {
+                        channel: "ussd",
+                        amount,
+                        message: result.ok ? null : extractFunctionError(result),
+                      },
+                    });
+                  }
+                }
               }
             }
           } else if (menu[1] === "2") {
@@ -1219,22 +1275,37 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "2") {
             response = renderChoicePrompt("Ratibu\nPersonal Savings\nCreate plans in the app.");
           } else if (menu[1] === "3") {
-            const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
-            if (!target) {
+            const targets = profile?.id ? await fetchActiveSavingsTargets(supabase, profile.id) : [];
+            if (targets.length === 0) {
               response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
             } else if (menu.length === 2) {
-              response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount.`;
+              response = renderSelectionPrompt("Savings Deposit", targets);
             } else {
-              const amount = Number(menu[2]);
-              if (!Number.isFinite(amount) || amount <= 0) {
-                response = "END Enter a valid amount.";
-              } else if (!profile?.id) {
-                response = "END Can't confirm account.";
+              const selectedToken = menu[2];
+              if (selectedToken === "0") {
+                response = renderSavingsMenu();
+              } else if (selectedToken === "00") {
+                response = renderMainMenu(displayName);
               } else {
-                const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "deposit");
-                response = result.ok
-                  ? `END Deposit recorded. New balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.`
-                  : `END Deposit failed. ${result.message}`;
+                const selected = Number(selectedToken);
+                if (!Number.isInteger(selected) || selected < 1 || selected > targets.length) {
+                  response = renderSelectionPrompt("Savings Deposit", targets);
+                } else if (menu.length === 3) {
+                  response = `CON Ratibu\nSavings Deposit\n${targets[selected - 1].name}\nEnter amount.`;
+                } else {
+                  const amount = Number(menu[3]);
+                  const target = targets[selected - 1];
+                  if (!Number.isFinite(amount) || amount <= 0) {
+                    response = "END Enter a valid amount.";
+                  } else if (!profile?.id) {
+                    response = "END Can't confirm account.";
+                  } else {
+                    const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "deposit");
+                    response = result.ok
+                      ? `END Deposit recorded. New balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.`
+                      : `END Deposit failed. ${result.message}`;
+                  }
+                }
               }
             }
           } else if (menu[1] === "4") {
