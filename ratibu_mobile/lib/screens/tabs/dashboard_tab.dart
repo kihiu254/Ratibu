@@ -165,6 +165,64 @@ class DashboardTab extends ConsumerWidget {
 
             const SizedBox(height: 16),
 
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0f172a),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF1e293b)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Quick Services',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        TextButton(
+                          onPressed: () => context.push('/kcb-mpesa'),
+                          child: const Text(
+                            'Open KCB M-PESA',
+                            style: TextStyle(color: Color(0xFF00C853), fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Color(0xFF1e293b), height: 1),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: LucideIcons.landmark,
+                            title: 'KCB M-PESA',
+                            subtitle: 'Loans and savings',
+                            onTap: () => context.push('/kcb-mpesa'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: LucideIcons.zap,
+                            title: 'KPLC Bill',
+                            subtitle: 'Tokens & postpaid',
+                            onTap: () => context.push('/kplc-bill?type=prepaid'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
             if (homeState.upcomingMeetings.isNotEmpty)
               Container(
                 decoration: BoxDecoration(
@@ -371,6 +429,45 @@ class DashboardTab extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF1e293b),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: const Color(0xFF00C853)),
+              const SizedBox(height: 14),
+              Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            ],
+          ),
         ),
       ),
     );

@@ -125,7 +125,7 @@ export default function Statement() {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           <Printer className="w-4 h-4" />
-          Print
+          Download PDF
         </button>
         <button
           type="button"
@@ -133,7 +133,7 @@ export default function Statement() {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-[#00C853]/30 text-[#00C853] font-semibold hover:bg-[#00C853]/10"
         >
           <Download className="w-4 h-4" />
-          Save CSV
+          Download CSV
         </button>
       </div>
 

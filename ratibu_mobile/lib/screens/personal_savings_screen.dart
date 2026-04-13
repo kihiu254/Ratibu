@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/savings_target.dart';
 import '../services/savings_target_service.dart';
@@ -20,6 +21,7 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
   final _currentAmountController = TextEditingController(text: '0');
   final _allocationValueController = TextEditingController(text: '100');
   final _notesController = TextEditingController();
+  final _earlyPenaltyController = TextEditingController(text: '5');
 
   List<SavingsTarget> _targets = [];
   bool _loading = true;
@@ -28,6 +30,10 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
   bool _autoAllocate = true;
   String _purpose = 'emergency';
   String _allocationType = 'percentage';
+  bool _isLocked = false;
+  int _savingsPeriodMonths = 12;
+  double _earlyWithdrawalPenaltyPercent = 5;
+  int _lockPeriodMonths = 12;
 
   @override
   void initState() {
@@ -43,6 +49,7 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
     _currentAmountController.dispose();
     _allocationValueController.dispose();
     _notesController.dispose();
+    _earlyPenaltyController.dispose();
     super.dispose();
   }
 
@@ -85,6 +92,8 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
 
     setState(() => _saving = true);
     try {
+      _earlyWithdrawalPenaltyPercent =
+          double.tryParse(_earlyPenaltyController.text.trim()) ?? 5;
       await _service.createSavingsTarget(
         name: _nameController.text.trim(),
         purpose: _purpose,
@@ -95,6 +104,10 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
         allocationType: _allocationType,
         allocationValue: double.parse(_allocationValueController.text.trim()),
         notes: _notesController.text.trim(),
+        isLocked: _isLocked,
+        lockPeriodMonths: _isLocked ? _lockPeriodMonths : null,
+        savingsPeriodMonths: _isLocked ? _lockPeriodMonths : _savingsPeriodMonths,
+        earlyWithdrawalPenaltyPercent: _isLocked ? 0 : _earlyWithdrawalPenaltyPercent,
       );
 
       _formKey.currentState!.reset();
@@ -104,6 +117,7 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
       _currentAmountController.text = '0';
       _allocationValueController.text = '100';
       _notesController.clear();
+      _earlyPenaltyController.text = '5';
 
       if (mounted) {
         setState(() {
@@ -111,6 +125,10 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
           _purpose = 'emergency';
           _allocationType = 'percentage';
           _autoAllocate = true;
+          _isLocked = false;
+          _savingsPeriodMonths = 12;
+          _earlyWithdrawalPenaltyPercent = 5;
+          _lockPeriodMonths = 12;
         });
       }
 
@@ -172,6 +190,11 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
                   'Current balance: KES ${target.currentAmount.toStringAsFixed(0)}',
                   style: const TextStyle(color: Colors.white54, fontSize: 13),
                 ),
+                if (!target.isLocked && target.savingsPeriodMonths != null)
+                  Text(
+                    'Early withdrawals may incur a ${target.earlyWithdrawalPenaltyPercent.toStringAsFixed(1)}% penalty.',
+                    style: const TextStyle(color: Colors.amberAccent, fontSize: 12),
+                  ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: amountController,
@@ -195,15 +218,12 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
                           }
                           setModalState(() => processing = true);
                           try {
-                            final next = type == 'deposit'
-                                ? target.currentAmount + amount
-                                : (target.currentAmount - amount)
-                                    .clamp(0, double.infinity)
-                                    .toDouble();
-                            await _service.updateCurrentAmount(
+                            final result = await _service.processSavingsTransaction(
                               targetId: target.id,
-                              newAmount: next,
+                              amount: amount,
+                              type: type == 'deposit' ? 'deposit' : 'withdrawal',
                             );
+                            final next = (result['next_amount'] as num?)?.toDouble() ?? target.currentAmount;
                             if (!mounted || !context.mounted || !ctx.mounted) return;
 
                             setState(() {
@@ -221,12 +241,19 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
                                   'allocation_value': target.allocationValue,
                                   'status': target.status,
                                   'notes': target.notes,
+                                  'savings_period_months': target.savingsPeriodMonths,
+                                  'savings_period_started_at': target.savingsPeriodStartedAt?.toIso8601String(),
+                                  'early_withdrawal_penalty_percent': target.earlyWithdrawalPenaltyPercent,
+                                  'is_locked': target.isLocked,
+                                  'lock_period_months': target.lockPeriodMonths,
+                                  'lock_until': target.lockUntil?.toIso8601String(),
+                                  'lock_started_at': target.lockStartedAt?.toIso8601String(),
                                 });
                               }
                             });
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(type == 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded'),
+                              content: Text(result['message']?.toString() ?? (type == 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded')),
                               backgroundColor: const Color(0xFF00C853),
                             ));
                           } catch (e) {
@@ -422,6 +449,53 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 12),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: const Color(0xFF00C853),
+              value: _isLocked,
+              onChanged: (v) => setState(() => _isLocked = v),
+              title: const Text('Lock savings account',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Deposits are allowed, but withdrawals unlock on a set date',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_isLocked)
+              _buildDropdown<int>(
+                label: 'Lock period',
+                value: _lockPeriodMonths,
+                items: const [
+                  DropdownMenuItem(value: 3, child: Text('3 months')),
+                  DropdownMenuItem(value: 6, child: Text('6 months')),
+                  DropdownMenuItem(value: 12, child: Text('12 months')),
+                  DropdownMenuItem(value: 24, child: Text('24 months')),
+                  DropdownMenuItem(value: 36, child: Text('36 months')),
+                ],
+                onChanged: (v) { if (v != null) setState(() => _lockPeriodMonths = v); },
+              )
+            else ...[
+              _buildDropdown<int>(
+                label: 'Savings period',
+                value: _savingsPeriodMonths,
+                items: const [
+                  DropdownMenuItem(value: 3, child: Text('3 months')),
+                  DropdownMenuItem(value: 6, child: Text('6 months')),
+                  DropdownMenuItem(value: 12, child: Text('12 months')),
+                  DropdownMenuItem(value: 24, child: Text('24 months')),
+                  DropdownMenuItem(value: 36, child: Text('36 months')),
+                ],
+                onChanged: (v) { if (v != null) setState(() => _savingsPeriodMonths = v); },
+              ),
+              const SizedBox(height: 12),
+              _buildField(
+                _earlyPenaltyController,
+                'Early withdrawal penalty (%)',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                requiredField: false,
+              ),
+            ],
             _buildField(_notesController, 'Notes (optional)',
                 maxLines: 3, requiredField: false),
             const SizedBox(height: 4),
@@ -456,6 +530,8 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
   }
 
   Widget _buildTargetCard(SavingsTarget target) {
+    final savingsEndsAt = target.savingsPeriodEndsAt;
+    final savingsActive = target.isSavingsPeriodActive;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -548,6 +624,26 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
                 : 'Auto allocation: KES ${target.allocationValue.toStringAsFixed(0)} per matched saving',
             style: const TextStyle(color: Colors.white54, fontSize: 12),
           ),
+          if (target.isLocked && target.lockUntil != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Locked until ${DateFormat('dd MMM yyyy').format(target.lockUntil!)}',
+              style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+            ),
+          ] else if (target.savingsPeriodMonths != null && savingsEndsAt != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Savings period: ${target.savingsPeriodMonths} months${savingsActive ? ', early withdrawal penalty applies' : ', penalty-free now'}',
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+          if (!target.isLocked) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Early withdrawal penalty: ${target.earlyWithdrawalPenaltyPercent.toStringAsFixed(1)}%',
+              style: const TextStyle(color: Colors.amberAccent, fontSize: 12),
+            ),
+          ],
           if (target.notes != null && target.notes!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(target.notes!,

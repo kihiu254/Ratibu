@@ -53,6 +53,9 @@ interface SavingsTarget {
   lock_period_months?: number
   lock_until?: string
   lock_started_at?: string
+  savings_period_months?: number
+  savings_period_started_at?: string
+  early_withdrawal_penalty_percent?: number
 }
 
 const emptySavingsTarget = {
@@ -66,10 +69,12 @@ const emptySavingsTarget = {
   allocation_value: 100,
   notes: '',
   is_locked: false,
-  lock_period_months: 12
+  lock_period_months: 12,
+  savings_period_months: 12,
+  early_withdrawal_penalty_percent: 5
 }
 
-const savingsTargetBaseSelect = [
+const savingsTargetLegacySelect = [
   'id',
   'name',
   'purpose',
@@ -83,6 +88,13 @@ const savingsTargetBaseSelect = [
   'notes',
   'created_at',
   'updated_at',
+].join(', ')
+
+const savingsTargetBaseSelect = [
+  savingsTargetLegacySelect,
+  'savings_period_months',
+  'savings_period_started_at',
+  'early_withdrawal_penalty_percent',
 ].join(', ')
 
 const savingsTargetLockSelect = [
@@ -110,6 +122,9 @@ function normalizeSavingsTargets(data: Partial<SavingsTarget>[] | null | undefin
     lock_period_months: target.lock_period_months,
     lock_until: target.lock_until,
     lock_started_at: target.lock_started_at,
+    savings_period_months: target.savings_period_months,
+    savings_period_started_at: target.savings_period_started_at,
+    early_withdrawal_penalty_percent: Number(target.early_withdrawal_penalty_percent ?? 5),
   }))
 }
 
@@ -147,7 +162,7 @@ export default function PersonalSavings() {
       if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
         const fallback = await supabase
           .from('user_savings_targets')
-          .select(savingsTargetBaseSelect)
+          .select(savingsTargetLegacySelect)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
 
@@ -174,6 +189,9 @@ export default function PersonalSavings() {
       const lockUntil = isLocked && newSavingsTarget.lock_period_months
         ? new Date(Date.now() + newSavingsTarget.lock_period_months * 30 * 24 * 60 * 60 * 1000).toISOString()
         : null
+      const savingsPeriodMonths = isLocked
+        ? Number(newSavingsTarget.lock_period_months || 12)
+        : Number(newSavingsTarget.savings_period_months || 12)
 
       const { error } = await supabase
         .from('user_savings_targets')
@@ -192,6 +210,9 @@ export default function PersonalSavings() {
           lock_period_months: isLocked ? newSavingsTarget.lock_period_months : null,
           lock_until: lockUntil,
           lock_started_at: isLocked ? new Date().toISOString() : null,
+          savings_period_months: savingsPeriodMonths,
+          savings_period_started_at: new Date().toISOString(),
+          early_withdrawal_penalty_percent: isLocked ? 0 : Number(newSavingsTarget.early_withdrawal_penalty_percent || 0),
         })
 
       if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
@@ -234,7 +255,7 @@ export default function PersonalSavings() {
 
   async function handleTransaction(e: React.FormEvent) {
     e.preventDefault()
-    if (!txModal) return
+    if (!txModal || !userId) return
     const amount = Number(txAmount)
     if (!amount || amount <= 0) return
     if (txModal.type === 'withdraw' && amount > Number(txModal.target.current_amount)) {
@@ -245,22 +266,30 @@ export default function PersonalSavings() {
     try {
       setTxLoading(true)
       const { target, type } = txModal
-      const next = type === 'deposit'
-        ? Number(target.current_amount) + amount
-        : Math.max(0, Number(target.current_amount) - amount)
+      const { data, error } = await supabase.rpc('process_ussd_savings_transaction', {
+        p_user_id: userId,
+        p_target_id: target.id,
+        p_amount: amount,
+        p_tx_type: type === 'deposit' ? 'deposit' : 'withdrawal',
+        p_channel: 'web',
+      })
 
-      const { error } = await supabase
-        .from('user_savings_targets')
-        .update({ current_amount: next, updated_at: new Date().toISOString() })
-        .eq('id', target.id)
-
-      if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
-        toast.error('Personal savings is not available until the latest database changes are applied.')
-        return
+      if (error) {
+        if (isMissingOrUnauthorizedSavingsTargets(error)) {
+          toast.error('Personal savings is not available until the latest database changes are applied.')
+          return
+        }
+        throw error
       }
-      if (error) throw error
+
+      const result = data as { ok?: boolean; message?: string; next_amount?: number }
+      if (!result?.ok) {
+        throw new Error(result?.message || 'Transaction failed')
+      }
+
+      const next = Number(result.next_amount ?? target.current_amount)
       setSavingsTargets(prev => prev.map(t => t.id === target.id ? { ...t, current_amount: next } : t))
-      toast.success(type === 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded')
+      toast.success(result.message || (type === 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded'))
       setTxModal(null)
       setTxAmount('')
     } catch (error) {
@@ -390,6 +419,31 @@ export default function PersonalSavings() {
               placeholder={newSavingsTarget.allocation_type === 'percentage' ? 'Allocation %' : 'Allocation amount (KES)'}
               required
             />
+            {showForm === 'regular' && (
+              <>
+                <select
+                  value={newSavingsTarget.savings_period_months || 12}
+                  onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, savings_period_months: Number(e.target.value) }))}
+                  className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                >
+                  <option value={3}>Savings period: 3 months</option>
+                  <option value={6}>Savings period: 6 months</option>
+                  <option value={12}>Savings period: 12 months</option>
+                  <option value={24}>Savings period: 24 months</option>
+                  <option value={36}>Savings period: 36 months</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={newSavingsTarget.early_withdrawal_penalty_percent || 5}
+                  onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, early_withdrawal_penalty_percent: Number(e.target.value) }))}
+                  className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  placeholder="Early withdrawal penalty (%)"
+                />
+              </>
+            )}
             {showForm === 'locked' && (
               <select
                 value={newSavingsTarget.lock_period_months || 12}
@@ -459,7 +513,14 @@ export default function PersonalSavings() {
               target.lock_until &&
               new Date(target.lock_until) > new Date()
             )
+            const savingsPeriodEndsAt = target.savings_period_months && target.savings_period_started_at
+              ? new Date(new Date(target.savings_period_started_at).getTime() + Number(target.savings_period_months) * 30 * 24 * 60 * 60 * 1000)
+              : null
+            const isSavingsPeriodActive = Boolean(savingsPeriodEndsAt && savingsPeriodEndsAt > new Date())
             const lockDaysLeft = isLocked ? Math.ceil((new Date(target.lock_until!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0
+            const savingsDaysLeft = isSavingsPeriodActive && savingsPeriodEndsAt
+              ? Math.ceil((savingsPeriodEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+              : 0
             
             return (
               <div key={target.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
@@ -475,6 +536,12 @@ export default function PersonalSavings() {
                     {isLocked && (
                       <p className="text-xs text-orange-500 mt-1">
                         Locked for {lockDaysLeft} more days
+                      </p>
+                    )}
+                    {!isLocked && target.savings_period_months && savingsPeriodEndsAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Savings period: {target.savings_period_months} months
+                        {isSavingsPeriodActive ? `, ${savingsDaysLeft} days left for penalty-free withdrawal` : ', penalty-free now'}
                       </p>
                     )}
                   </div>
@@ -529,6 +596,11 @@ export default function PersonalSavings() {
                   <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800">
                     {target.status}
                   </span>
+                  {!isLocked && target.early_withdrawal_penalty_percent !== undefined && (
+                    <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                      {Number(target.early_withdrawal_penalty_percent).toFixed(1)}% early withdrawal penalty
+                    </span>
+                  )}
                   {isLocked && (
                     <span className="px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-500">
                       Locked
@@ -566,6 +638,11 @@ export default function PersonalSavings() {
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Current balance: <span className="font-bold text-slate-900 dark:text-white">KES {Number(txModal.target.current_amount).toLocaleString()}</span>
             </p>
+            {!txModal.target.is_locked && txModal.target.savings_period_months && txModal.target.early_withdrawal_penalty_percent !== undefined && (
+              <p className="text-xs text-amber-600 dark:text-amber-300">
+                Early withdrawals within {txModal.target.savings_period_months} months attract a {Number(txModal.target.early_withdrawal_penalty_percent).toFixed(1)}% penalty.
+              </p>
+            )}
             <form onSubmit={handleTransaction} className="space-y-4">
               <input
                 type="number"

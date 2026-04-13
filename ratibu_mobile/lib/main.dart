@@ -45,6 +45,9 @@ import 'package:ratibu_mobile/screens/legal_screen.dart';
 import 'package:ratibu_mobile/screens/personal_savings_screen.dart';
 import 'package:ratibu_mobile/screens/accounts_screen.dart';
 import 'package:ratibu_mobile/screens/statement_screen.dart';
+import 'package:ratibu_mobile/screens/kcb_mpesa_screen.dart';
+import 'package:ratibu_mobile/screens/kplc_bill_payment_screen.dart';
+import 'package:ratibu_mobile/screens/mpesa_reversal_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -276,6 +279,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/products',
         builder: (context, state) => const ProductsScreen(),
+      ),
+      GoRoute(
+        path: '/kcb-mpesa',
+        builder: (context, state) => const KcbMpesaScreen(),
+      ),
+      GoRoute(
+        path: '/kplc-bill',
+        builder: (context, state) => KplcBillPaymentScreen(
+          initialType: state.uri.queryParameters['type'] ?? 'prepaid',
+        ),
+      ),
+      GoRoute(
+        path: '/mpesa-reversal',
+        builder: (context, state) => const MpesaReversalScreen(),
       ),
       GoRoute(
         path: '/opportunities',

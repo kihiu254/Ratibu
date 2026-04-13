@@ -934,6 +934,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                           'Route to $routeLabel',
                                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                                         ),
+                                        if (target.savingsPeriodMonths != null)
+                                          Text(
+                                            'Savings period: ${target.savingsPeriodMonths} months',
+                                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -1044,9 +1049,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final currentAmountController = TextEditingController(text: '0');
     final allocationValueController = TextEditingController(text: '100');
     final notesController = TextEditingController();
+    final earlyPenaltyController = TextEditingController(text: '5');
     String purpose = 'rent';
     String allocationType = 'percentage';
     bool autoAllocate = true;
+    bool isLocked = false;
+    int savingsPeriodMonths = 12;
+    int lockPeriodMonths = 12;
 
     await showDialog<void>(
       context: context,
@@ -1117,6 +1126,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      value: isLocked,
+                      onChanged: (value) => setModalState(() => isLocked = value),
+                      activeThumbColor: const Color(0xFF00C853),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Lock savings account', style: TextStyle(color: Colors.white)),
+                      subtitle: const Text('Deposits are allowed, withdrawals unlock on a set date', style: TextStyle(color: Colors.white54)),
+                    ),
+                    const SizedBox(height: 12),
+                    if (isLocked)
+                      DropdownButtonFormField<int>(
+                        initialValue: lockPeriodMonths,
+                        dropdownColor: const Color(0xFF0f172a),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _dialogDecoration('Lock period'),
+                        items: const [
+                          DropdownMenuItem(value: 3, child: Text('3 months')),
+                          DropdownMenuItem(value: 6, child: Text('6 months')),
+                          DropdownMenuItem(value: 12, child: Text('12 months')),
+                          DropdownMenuItem(value: 24, child: Text('24 months')),
+                          DropdownMenuItem(value: 36, child: Text('36 months')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) setModalState(() => lockPeriodMonths = value);
+                        },
+                      )
+                    else ...[
+                      DropdownButtonFormField<int>(
+                        initialValue: savingsPeriodMonths,
+                        dropdownColor: const Color(0xFF0f172a),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _dialogDecoration('Savings period'),
+                        items: const [
+                          DropdownMenuItem(value: 3, child: Text('3 months')),
+                          DropdownMenuItem(value: 6, child: Text('6 months')),
+                          DropdownMenuItem(value: 12, child: Text('12 months')),
+                          DropdownMenuItem(value: 24, child: Text('24 months')),
+                          DropdownMenuItem(value: 36, child: Text('36 months')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) setModalState(() => savingsPeriodMonths = value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDialogField(
+                        controller: earlyPenaltyController,
+                        label: 'Early withdrawal penalty (%)',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ],
                     _buildDialogField(controller: notesController, label: 'Notes', maxLines: 3),
                     const SizedBox(height: 12),
                     SwitchListTile.adaptive(
@@ -1140,6 +1199,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     final targetAmount = double.tryParse(targetAmountController.text.trim());
                     final currentAmount = double.tryParse(currentAmountController.text.trim()) ?? 0;
                     final allocationValue = double.tryParse(allocationValueController.text.trim());
+                    final earlyPenaltyPercent = double.tryParse(earlyPenaltyController.text.trim()) ?? 5;
                     final navigator = Navigator.of(context);
                     final messenger = ScaffoldMessenger.of(context);
 
@@ -1160,6 +1220,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       allocationType: allocationType,
                       allocationValue: allocationValue,
                       notes: notesController.text.trim(),
+                      isLocked: isLocked,
+                      lockPeriodMonths: isLocked ? lockPeriodMonths : null,
+                      savingsPeriodMonths: isLocked ? lockPeriodMonths : savingsPeriodMonths,
+                      earlyWithdrawalPenaltyPercent: isLocked ? 0 : earlyPenaltyPercent,
                     );
 
                     if (!mounted) return;
@@ -1178,6 +1242,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       },
     );
+    earlyPenaltyController.dispose();
   }
 
   InputDecoration _dialogDecoration(String label) {
@@ -1450,6 +1515,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 )
                               : const Icon(Icons.mail_outline, size: 18),
                           label: Text(_adminPasswordResetting ? 'Sending...' : 'Send reset email'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0f172a),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => context.push('/mpesa-reversal'),
+                          icon: const Icon(Icons.undo, size: 18),
+                          label: const Text('Reverse transaction'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: const Color(0xFF0f172a),

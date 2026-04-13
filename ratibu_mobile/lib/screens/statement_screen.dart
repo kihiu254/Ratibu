@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -72,7 +76,7 @@ class _StatementScreenState extends State<StatementScreen> {
       }
 
       final data = await _retry(() => q.order('created_at', ascending: false).limit(100));
-      final rows = data is List ? data : const [];
+      final rows = data as List? ?? const [];
       if (mounted) {
         setState(() => _rows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList());
       }
@@ -146,6 +150,77 @@ class _StatementScreenState extends State<StatementScreen> {
     }
   }
 
+  String _buildCsv() {
+    final header = ['Date', 'Description', 'Type', 'Status', 'Amount', 'Reference'];
+    final rows = _rows.map((tx) => [
+      DateFormat('y-MM-dd HH:mm').format(DateTime.tryParse(tx['created_at']?.toString() ?? '') ?? DateTime.now()),
+      tx['description']?.toString() ?? tx['type']?.toString() ?? '',
+      tx['type']?.toString() ?? '',
+      tx['status']?.toString() ?? '',
+      (tx['amount'] as num? ?? 0).toStringAsFixed(2),
+      tx['reference']?.toString() ?? '',
+    ]).toList();
+
+    return [
+      header,
+      ...rows,
+    ].map((line) => line.map((value) => '"${value.toString().replaceAll('"', '""')}"').join(',')).join('\n');
+  }
+
+  Future<void> _exportCsv() async {
+    final csv = _buildCsv();
+    final dir = Directory.systemTemp.createTempSync('ratibu_statement_');
+    final file = File('${dir.path}/${widget.accountName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_').toLowerCase()}_statement.csv');
+    await file.writeAsString(csv);
+
+    await SharePlus.instance.share(
+      ShareParams(
+        text: 'Ratibu statement CSV',
+        files: [XFile(file.path)],
+      ),
+    );
+  }
+
+  Future<void> _savePdf() async {
+    final doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) => [
+          pw.Text(
+            'RATIBU TRANSACTION STATEMENT',
+            style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text('Account: ${widget.accountName}'),
+          pw.Text('Generated: ${DateFormat('y MMM d, HH:mm').format(DateTime.now())}'),
+          pw.SizedBox(height: 16),
+          pw.TableHelper.fromTextArray(
+            headers: const ['Date', 'Description', 'Type', 'Status', 'Amount'],
+            data: _rows.map((tx) {
+              final date = DateTime.tryParse(tx['created_at']?.toString() ?? '');
+              final type = tx['type']?.toString() ?? '';
+              final isCredit = type == 'deposit' || type == 'credit';
+              return [
+                date != null ? DateFormat('y-MM-dd HH:mm').format(date.toLocal()) : 'Unknown date',
+                tx['description']?.toString() ?? type,
+                type,
+                tx['status']?.toString() ?? '',
+                '${isCredit ? '+' : '-'}KES ${_fmt.format((tx['amount'] as num? ?? 0).toDouble())}',
+              ];
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => doc.save(),
+      name: '${widget.accountName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_').toLowerCase()}_statement.pdf',
+    );
+  }
+
   String _capitalize(String value) {
     if (value.isEmpty) return 'Transaction';
     return value[0].toUpperCase() + value.substring(1);
@@ -175,6 +250,16 @@ class _StatementScreenState extends State<StatementScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            tooltip: 'Download PDF',
+            onPressed: _rows.isEmpty ? null : _savePdf,
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+          ),
+          IconButton(
+            tooltip: 'Export CSV',
+            onPressed: _rows.isEmpty ? null : _exportCsv,
+            icon: const Icon(Icons.table_view, color: Colors.white),
+          ),
           IconButton(
             tooltip: 'Share statement',
             onPressed: _rows.isEmpty ? null : _shareStatement,

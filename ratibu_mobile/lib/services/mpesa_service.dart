@@ -41,10 +41,16 @@ class MpesaService {
     String? savingsTargetId,
     String? destinationType,
     String? mshwariPhone,
+    String? billerCode,
+    String? billAccountReference,
+    String? billName,
   }) async {
     assert(
-      chamaId != null || savingsTargetId != null || destinationType == 'mshwari',
-      'Provide chamaId, savingsTargetId, or destinationType: mshwari',
+      chamaId != null ||
+          savingsTargetId != null ||
+          destinationType == 'mshwari' ||
+          destinationType == 'bill_payment',
+      'Provide chamaId, savingsTargetId, or destinationType: mshwari/bill_payment',
     );
 
     final session = _supabase.auth.currentSession;
@@ -61,6 +67,9 @@ class MpesaService {
       if (savingsTargetId != null) 'savingsTargetId': savingsTargetId,
       if (destinationType != null) 'destinationType': destinationType,
       if (mshwariPhone != null) 'mshwariPhone': _normalizePhone(mshwariPhone),
+      if (billerCode != null) 'billerCode': billerCode,
+      if (billAccountReference != null) 'billAccountReference': billAccountReference,
+      if (billName != null) 'billName': billName,
     };
 
     debugPrint('STK Push body: $body');
@@ -83,6 +92,25 @@ class MpesaService {
       debugPrint('FULL GENERAL ERROR: $e');
       throw 'STK Push failed: ${_friendlyErrorMessage(e)}';
     }
+  }
+
+  Future<void> initiateBillPayment({
+    required String phoneNumber,
+    required double amount,
+    required String userId,
+    required String billerCode,
+    required String accountReference,
+    required String billName,
+  }) async {
+    await initiateStkPush(
+      phoneNumber: phoneNumber,
+      amount: amount,
+      userId: userId,
+      destinationType: 'bill_payment',
+      billerCode: billerCode,
+      billAccountReference: accountReference,
+      billName: billName,
+    );
   }
 
   Future<Map<String, dynamic>> generateQrCode({

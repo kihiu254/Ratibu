@@ -41,6 +41,13 @@ interface SavingsTarget {
   allocation_value: number
   status: SavingsStatus
   notes: string | null
+  savings_period_months?: number
+  savings_period_started_at?: string
+  early_withdrawal_penalty_percent?: number
+  is_locked?: boolean
+  lock_period_months?: number
+  lock_until?: string
+  lock_started_at?: string
 }
 
 interface GamificationStats {
@@ -122,7 +129,10 @@ export default function Profile() {
     auto_allocate: true,
     allocation_type: 'percentage' as AllocationType,
     allocation_value: 100,
-    notes: ''
+    notes: '',
+    savings_period_months: 12,
+    early_withdrawal_penalty_percent: 5,
+    lock_period_months: 12,
   })
   const [profile, setProfile] = useState({
     first_name: '',
@@ -259,6 +269,7 @@ export default function Profile() {
 
     try {
       setCreatingSavingsTarget(true)
+      const savingsPeriodMonths = Number(newSavingsTarget.savings_period_months || 12)
       const { error } = await supabase
         .from('user_savings_targets')
         .insert({
@@ -272,6 +283,9 @@ export default function Profile() {
           allocation_type: newSavingsTarget.allocation_type,
           allocation_value: Number(newSavingsTarget.allocation_value),
           notes: newSavingsTarget.notes.trim() || null,
+          savings_period_months: savingsPeriodMonths,
+          savings_period_started_at: new Date().toISOString(),
+          early_withdrawal_penalty_percent: Number(newSavingsTarget.early_withdrawal_penalty_percent || 5),
         })
 
       if (error && isMissingOrUnauthorizedSavingsTargets(error)) {
@@ -289,7 +303,10 @@ export default function Profile() {
         auto_allocate: true,
         allocation_type: 'percentage',
         allocation_value: 100,
-        notes: ''
+        notes: '',
+        savings_period_months: 12,
+        early_withdrawal_penalty_percent: 5,
+        lock_period_months: 12,
       })
       setShowSavingsTargetForm(false)
       await fetchSavingsTargets(user.id)
@@ -823,6 +840,33 @@ export default function Profile() {
                     required
                   />
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label htmlFor="savings-period-months" className="sr-only">Savings period</label>
+                  <select
+                    id="savings-period-months"
+                    value={newSavingsTarget.savings_period_months}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, savings_period_months: Number(e.target.value) }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  >
+                    <option value={3}>Savings period: 3 months</option>
+                    <option value={6}>Savings period: 6 months</option>
+                    <option value={12}>Savings period: 12 months</option>
+                    <option value={24}>Savings period: 24 months</option>
+                    <option value={36}>Savings period: 36 months</option>
+                  </select>
+                  <label htmlFor="savings-penalty-percent" className="sr-only">Early withdrawal penalty</label>
+                  <input
+                    id="savings-penalty-percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={newSavingsTarget.early_withdrawal_penalty_percent}
+                    onChange={(e) => setNewSavingsTarget(prev => ({ ...prev, early_withdrawal_penalty_percent: Number(e.target.value) }))}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    placeholder="Early withdrawal penalty (%)"
+                  />
+                </div>
                 <label htmlFor="savings-notes" className="sr-only">Savings target notes</label>
                 <textarea
                   id="savings-notes"
@@ -858,6 +902,10 @@ export default function Profile() {
               <div className="grid gap-3">
                 {savingsTargets.map((target) => {
                   const progress = Math.min((Number(target.current_amount) / Number(target.target_amount)) * 100, 100)
+                  const savingsPeriodEndsAt = target.savings_period_months && target.savings_period_started_at
+                    ? new Date(new Date(target.savings_period_started_at).getTime() + Number(target.savings_period_months) * 30 * 24 * 60 * 60 * 1000)
+                    : null
+                  const isSavingsPeriodActive = Boolean(savingsPeriodEndsAt && savingsPeriodEndsAt > new Date())
                   return (
                     <div key={target.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
                       <div className="flex items-center justify-between gap-4 mb-3">
@@ -866,6 +914,12 @@ export default function Profile() {
                           <p className="text-xs text-slate-500">
                             Route to {target.destination_label || formatSavingsPurpose(target.purpose)}
                           </p>
+                          {target.savings_period_months && savingsPeriodEndsAt && (
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Savings period: {target.savings_period_months} months
+                              {isSavingsPeriodActive ? ' - early withdrawal penalty applies' : ' - penalty-free now'}
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
@@ -917,6 +971,11 @@ export default function Profile() {
                             ? `${Number(target.allocation_value)}% per allocation`
                             : `KES ${Number(target.allocation_value).toLocaleString()} per allocation`}
                         </span>
+                        {target.early_withdrawal_penalty_percent !== undefined && (
+                          <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                            {Number(target.early_withdrawal_penalty_percent).toFixed(1)}% early penalty
+                          </span>
+                        )}
                       </div>
                       {target.notes && (
                         <p className="mt-3 text-xs text-slate-500">{target.notes}</p>

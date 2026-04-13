@@ -360,6 +360,32 @@ class TransactionAuthorizationService {
     }
   }
 
+  Future<Map<String, dynamic>> requestMpesaReversal({
+    required String transactionId,
+    required double amount,
+    required String receiverParty,
+    required String remarks,
+  }) async {
+    final response = await _supabase.functions.invoke(
+      'request-mpesa-reversal',
+      body: {
+        'transactionId': transactionId,
+        'amount': amount,
+        'receiverParty': receiverParty,
+        'remarks': remarks,
+      },
+    );
+
+    if (response.status != 200) {
+      throw 'Reversal request failed: ${response.data}';
+    }
+
+    if (response.data is Map<String, dynamic>) {
+      return response.data as Map<String, dynamic>;
+    }
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<_PinActionResult> _setOrResetPin(String pin, {required bool reset}) async {
     final result = await _invokeAuth({'action': reset ? 'reset' : 'set', 'pin': pin});
     final response = result['data'] as Map<String, dynamic>;

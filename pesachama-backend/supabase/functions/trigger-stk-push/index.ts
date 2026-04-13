@@ -74,22 +74,29 @@ Deno.serve(async (req) => {
     savingsTargetId,
     destinationType,
     mshwariPhone,
+    billerCode,
+    billAccountReference,
+    billName,
     requestId,
     type,
     origin,
   } = payload;
 
   const isMshwari = destinationType === "mshwari";
+  const isBillPayment = destinationType === "bill_payment";
 
   // Validate required fields
   if (!amount || !phoneNumber || !userId) {
     return jsonResponse({ error: "Missing required fields: amount, phoneNumber, userId" }, 400);
   }
-  if (!isMshwari && !chamaId && !savingsTargetId) {
+  if (!isMshwari && !isBillPayment && !chamaId && !savingsTargetId) {
     return jsonResponse({ error: "Provide chamaId, savingsTargetId, or destinationType: mshwari" }, 400);
   }
   if (isMshwari && !mshwariPhone) {
     return failureResponse("Mshwari phone is required for this deposit.");
+  }
+  if (isBillPayment && (!billerCode || !billAccountReference)) {
+    return failureResponse("Bill payments require billerCode and billAccountReference.");
   }
 
   const numericAmount = Number(amount);
@@ -141,10 +148,16 @@ Deno.serve(async (req) => {
     }
 
     // Insert transaction record
-    const txType = isMshwari ? "mshwari_deposit" : (type || "deposit");
+    const txType = isMshwari
+      ? "mshwari_deposit"
+      : isBillPayment
+        ? "bill_payment"
+        : (type || "deposit");
     const txDescription = isMshwari
       ? "Mshwari Savings Deposit"
-      : savingsTargetId
+      : isBillPayment
+        ? billName || "Bill Payment"
+        : savingsTargetId
         ? "Savings Deposit"
         : type === "contribution"
           ? "Contribution Payment"
@@ -166,6 +179,12 @@ Deno.serve(async (req) => {
           ...(origin ? { origin: String(origin) } : {}),
           phone_number: formattedPhone,
           ...(isMshwari ? { mshwari_phone: normalizedMshwariPhone, destination: "mshwari" } : {}),
+          ...(isBillPayment ? {
+            destination: "bill_payment",
+            biller_code: String(billerCode),
+            bill_account_reference: String(billAccountReference),
+            bill_name: billName || null,
+          } : {}),
           initiated_at: new Date().toISOString(),
         },
       }])
@@ -224,7 +243,11 @@ Deno.serve(async (req) => {
       date.getSeconds().toString().padStart(2, "0");
 
     // Mshwari uses paybill 512400; account reference = user's Mshwari phone number
-    const targetShortcode = isMshwari ? "512400" : shortcode;
+    const targetShortcode = isMshwari
+      ? "512400"
+      : isBillPayment
+        ? String(billerCode)
+        : shortcode;
     const targetPasskey = isMshwari
       ? (Deno.env.get("MPESA_MSHWARI_PASSKEY") || passkey)
       : passkey;
@@ -241,8 +264,16 @@ Deno.serve(async (req) => {
       PartyB: targetShortcode,
       PhoneNumber: formattedPhone,
       CallBackURL: callbackUrl,
-      AccountReference: isMshwari ? normalizedMshwariPhone! : "Ratibu",
-      TransactionDesc: isMshwari ? "Mshwari Savings" : "Chama Deposit",
+      AccountReference: isMshwari
+        ? normalizedMshwariPhone!
+        : isBillPayment
+          ? String(billAccountReference)
+          : "Ratibu",
+      TransactionDesc: isMshwari
+        ? "Mshwari Savings"
+        : isBillPayment
+          ? String(billName || "Bill Payment")
+          : "Chama Deposit",
     };
 
     const stkResp = await fetch(

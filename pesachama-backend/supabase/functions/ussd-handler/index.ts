@@ -712,6 +712,7 @@ async function recordSavingsTransaction(
     p_target_id: target.id,
     p_amount: amount,
     p_tx_type: type,
+    p_channel: "ussd",
   });
 
   if (error) {

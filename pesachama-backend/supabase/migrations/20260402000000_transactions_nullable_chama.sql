@@ -12,5 +12,9 @@ CREATE INDEX IF NOT EXISTS idx_transactions_savings_target_id
 
 -- Ensure at least one destination is set
 ALTER TABLE public.transactions
+  DROP CONSTRAINT IF EXISTS transactions_destination_check;
+
+ALTER TABLE public.transactions
   ADD CONSTRAINT transactions_destination_check
-    CHECK (chama_id IS NOT NULL OR savings_target_id IS NOT NULL);
+    CHECK (chama_id IS NOT NULL OR savings_target_id IS NOT NULL)
+    NOT VALID;

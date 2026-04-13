@@ -31,12 +31,15 @@ class SavingsTargetService {
     String? notes,
     bool isLocked = false,
     int? lockPeriodMonths,
+    int? savingsPeriodMonths,
+    double earlyWithdrawalPenaltyPercent = 5,
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('Not authenticated');
 
     DateTime? lockUntil;
     DateTime? lockStartedAt;
+    final savingsStartedAt = DateTime.now();
     if (isLocked && lockPeriodMonths != null) {
       lockStartedAt = DateTime.now();
       lockUntil = DateTime(
@@ -61,8 +64,37 @@ class SavingsTargetService {
       if (lockPeriodMonths != null) 'lock_period_months': lockPeriodMonths,
       if (lockUntil != null) 'lock_until': lockUntil.toIso8601String(),
       if (lockStartedAt != null) 'lock_started_at': lockStartedAt.toIso8601String(),
+      'savings_period_months': isLocked
+          ? (lockPeriodMonths ?? savingsPeriodMonths ?? 12)
+          : (savingsPeriodMonths ?? 12),
+      'savings_period_started_at': savingsStartedAt.toIso8601String(),
+      'early_withdrawal_penalty_percent': isLocked ? 0 : earlyWithdrawalPenaltyPercent,
       'status': isLocked ? 'locked' : 'active',
     });
+  }
+
+  Future<Map<String, dynamic>> processSavingsTransaction({
+    required String targetId,
+    required double amount,
+    required String type,
+    String channel = 'mobile',
+  }) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+
+    final response = await _supabase.rpc('process_ussd_savings_transaction', params: {
+      'p_user_id': user.id,
+      'p_target_id': targetId,
+      'p_amount': amount,
+      'p_tx_type': type,
+      'p_channel': channel,
+    });
+
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+
+    return Map<String, dynamic>.from(response as Map);
   }
 
   Future<void> updateCurrentAmount({
