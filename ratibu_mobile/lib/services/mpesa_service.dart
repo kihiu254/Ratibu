@@ -1,8 +1,26 @@
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
 class MpesaService {
   final _supabase = Supabase.instance.client;
+
+  bool _isNetworkError(Object error) {
+    final message = error.toString().toLowerCase();
+    return error is SocketException ||
+        message.contains('failed host lookup') ||
+        message.contains('clientexception') ||
+        message.contains('socketexception') ||
+        message.contains('connection reset by peer') ||
+        message.contains('network is unreachable');
+  }
+
+  String _friendlyErrorMessage(Object error) {
+    if (_isNetworkError(error)) {
+      return 'Unable to reach Ratibu servers. Check your internet connection and try again.';
+    }
+    return error.toString();
+  }
 
   /// Normalizes phone to 254XXXXXXXXX format.
   String _normalizePhone(String phone) {
@@ -63,7 +81,7 @@ class MpesaService {
       throw 'STK Push failed: $msg';
     } catch (e) {
       debugPrint('FULL GENERAL ERROR: $e');
-      throw 'STK Push failed: $e';
+      throw 'STK Push failed: ${_friendlyErrorMessage(e)}';
     }
   }
 

@@ -39,6 +39,23 @@ class TransactionAuthorizationService {
   final _supabase = Supabase.instance.client;
   final _biometricService = BiometricService();
 
+  bool _isNetworkError(Object error) {
+    final message = error.toString().toLowerCase();
+    return error is SocketException ||
+        message.contains('failed host lookup') ||
+        message.contains('clientexception') ||
+        message.contains('socketexception') ||
+        message.contains('connection reset by peer') ||
+        message.contains('network is unreachable');
+  }
+
+  String _friendlyErrorMessage(Object error) {
+    if (_isNetworkError(error)) {
+      return 'Unable to reach Ratibu servers. Check your internet connection and try again.';
+    }
+    return error.toString();
+  }
+
   Future<Map<String, dynamic>> _invokeAuth(Map<String, dynamic> body) async {
     Object? lastError;
     for (var i = 0; i < 3; i++) {
@@ -61,7 +78,7 @@ class TransactionAuthorizationService {
         await Future<void>.delayed(Duration(milliseconds: 300 * (i + 1)));
       }
     }
-    throw lastError ?? Exception('Request failed');
+    throw Exception(_friendlyErrorMessage(lastError ?? Exception('Request failed')));
   }
 
   Future<bool> confirmTransaction(
