@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Smartphone, Shield, Zap, CircleDollarSign, Fingerprint, Globe, BarChart3, LockKeyhole } from 'lucide-react';
+import { Smartphone, Shield, Zap, CircleDollarSign, Fingerprint, Globe, BarChart3, LockKeyhole, Landmark, Bolt } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 const Products = () => {
@@ -27,6 +27,18 @@ const Products = () => {
             description: "True financial inclusion means access without internet. Our USSD gateway ensures every member can transact, check balances, and borrow, using any basic mobile phone.",
             icon: <Globe className="w-10 h-10 text-white" />,
             color: "from-purple-500 to-indigo-400"
+        },
+        {
+            title: "KCB M-PESA",
+            description: "A launch point for KCB M-PESA savings and loan journeys, plus linked bill payments from the same Ratibu experience.",
+            icon: <Landmark className="w-10 h-10 text-white" />,
+            color: "from-emerald-500 to-green-400"
+        },
+        {
+            title: "KPLC Bills",
+            description: "Pay prepaid electricity tokens or postpaid bills from Ratibu using a guided mobile or web payment flow.",
+            icon: <Bolt className="w-10 h-10 text-white" />,
+            color: "from-amber-500 to-orange-400"
         }
     ];
 

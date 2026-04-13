@@ -969,7 +969,7 @@ const renderCreateChamaMenu = () =>
   `CON Ratibu\nCreate Chama\n1 Start\n2 Explore\n0 Back\n00 Home`;
 
 const renderProductsMenu = () =>
-  `CON Ratibu\nProducts\n1 Savings\n2 Loans\n0 Back\n00 Home`;
+  `CON Ratibu\nProducts\n1 Savings\n2 KCB M-PESA\n3 KPLC Bill\n4 Reversals\n0 Back\n00 Home`;
 
 const renderChoicePrompt = (message: string) =>
   `CON Ratibu\n${message}\n1 Main menu\n2 Exit`;
@@ -1520,7 +1520,11 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "1") {
             response = renderChoicePrompt("Ratibu\nSavings\nManage savings in the app.");
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nLoans\nLoan applications are handled in the app.");
+            response = renderChoicePrompt("Ratibu\nKCB M-PESA\nOpen KCB M-PESA in the app.");
+          } else if (menu[1] === "3") {
+            response = renderChoicePrompt("Ratibu\nKPLC Bill\nPay electricity tokens in the app.");
+          } else if (menu[1] === "4") {
+            response = renderChoicePrompt("Ratibu\nReversals\nAsk an admin to submit this in the app.");
           } else {
             response = renderMainMenu(displayName);
           }

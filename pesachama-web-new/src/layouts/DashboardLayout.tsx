@@ -18,6 +18,7 @@ import {
   ArrowLeftRight,
   ChevronDown,
   ChevronRight,
+  BadgeDollarSign,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { RatibuLogo, RatibuLogoDark } from '../components/RatibuLogo'
@@ -56,6 +57,8 @@ const menuGroups: MenuGroup[] = [
     label: 'Finance',
     items: [
       { name: 'Personal Savings', icon: PiggyBank, path: '/personal-savings' },
+      { name: 'KCB M-PESA', icon: BadgeDollarSign, path: '/kcb-mpesa' },
+      { name: 'KPLC Bills', icon: Wallet, path: '/kplc-bill' },
       { name: 'Rewards', icon: Trophy, path: '/rewards' },
       { name: 'Penalties', icon: Gavel, path: '/penalties' },
     ],

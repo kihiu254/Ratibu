@@ -43,10 +43,17 @@ const productCards = [
     icon: PiggyBank,
   },
   {
-    title: 'Loans',
-    description: 'Explore lending and credit products built for members and groups.',
-    href: '/products',
-    cta: 'View Loans',
+    title: 'KCB M-PESA',
+    description: 'Open the KCB M-PESA hub for savings, loans, and linked bill payments.',
+    href: '/kcb-mpesa',
+    cta: 'Open Hub',
+    icon: BadgeDollarSign,
+  },
+  {
+    title: 'KPLC Bills',
+    description: 'Pay for prepaid tokens or postpaid electricity bills from one place.',
+    href: '/kplc-bill',
+    cta: 'Pay KPLC',
     icon: BadgeDollarSign,
   },
 ]

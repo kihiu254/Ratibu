@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/savings_target.dart';
 import '../services/savings_target_service.dart';
@@ -627,7 +626,7 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
           if (target.isLocked && target.lockUntil != null) ...[
             const SizedBox(height: 6),
             Text(
-              'Locked until ${DateFormat('dd MMM yyyy').format(target.lockUntil!)}',
+              'Locked until ${_formatLockDate(target.lockUntil!)}',
               style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
             ),
           ] else if (target.savingsPeriodMonths != null && savingsEndsAt != null) ...[
@@ -652,6 +651,15 @@ class _PersonalSavingsScreenState extends ConsumerState<PersonalSavingsScreen> {
         ],
       ),
     );
+  }
+
+  String _formatLockDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '$day ${months[date.month - 1]} ${date.year}';
   }
 
   Widget _buildField(

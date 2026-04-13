@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { toast } from '../utils/toast'
 import { supabase } from '../lib/supabase'
@@ -21,7 +21,8 @@ import {
   Gavel,
   Plus,
   X,
-  Coins
+  Coins,
+  RotateCcw
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -120,6 +121,11 @@ export default function Profile() {
   const [newTransactionPin, setNewTransactionPin] = useState('')
   const [confirmTransactionPin, setConfirmTransactionPin] = useState('')
   const [resettingPin, setResettingPin] = useState(false)
+  const [reversalTransactionId, setReversalTransactionId] = useState('')
+  const [reversalAmount, setReversalAmount] = useState('')
+  const [reversalReceiverParty, setReversalReceiverParty] = useState('')
+  const [reversalRemarks, setReversalRemarks] = useState('Payment reversal')
+  const [requestingReversal, setRequestingReversal] = useState(false)
   const [newSavingsTarget, setNewSavingsTarget] = useState({
     name: '',
     purpose: 'rent' as SavingsPurpose,
@@ -142,6 +148,7 @@ export default function Profile() {
     avatar_url: '',
     referral_code: '',
     kyc_status: 'pending',
+    system_role: 'user',
     member_category: [] as string[]
   })
   
@@ -195,6 +202,7 @@ export default function Profile() {
           avatar_url: data.avatar_url || '',
           referral_code: data.referral_code || '',
           kyc_status: data.kyc_status || 'pending',
+          system_role: data.system_role || 'user',
           member_category: data.member_category || []
         })
       }
@@ -215,6 +223,39 @@ export default function Profile() {
       setLoading(false)
     }
   }, [navigate])
+
+  async function handleRequestReversal(e: FormEvent) {
+    e.preventDefault()
+    if (!['admin', 'super_admin'].includes(profile.system_role)) return
+    if (!reversalTransactionId.trim() || !reversalAmount.trim() || !reversalReceiverParty.trim()) {
+      toast.error('Fill in the transaction ID, amount, and receiver shortcode.')
+      return
+    }
+    setRequestingReversal(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Not authenticated')
+
+      const response = await supabase.functions.invoke('request-mpesa-reversal', {
+        body: {
+          transactionId: reversalTransactionId.trim(),
+          amount: Number(reversalAmount),
+          receiverParty: reversalReceiverParty.trim(),
+          remarks: reversalRemarks.trim() || 'Payment reversal',
+        },
+      })
+      if (response.error) throw response.error
+      toast.success('Reversal request sent successfully.')
+      setReversalTransactionId('')
+      setReversalAmount('')
+      setReversalReceiverParty('')
+      setReversalRemarks('Payment reversal')
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      setRequestingReversal(false)
+    }
+  }
 
   useEffect(() => {
     void fetchProfile()
@@ -1159,6 +1200,48 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {['admin', 'super_admin'].includes(profile.system_role) && (
+        <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2 mb-4">
+            <RotateCcw className="w-5 h-5 text-[#00C853]" />
+            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">M-Pesa Reversals</h3>
+          </div>
+          <form onSubmit={handleRequestReversal} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              value={reversalTransactionId}
+              onChange={(e) => setReversalTransactionId(e.target.value)}
+              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
+              placeholder="Transaction ID"
+            />
+            <input
+              value={reversalAmount}
+              onChange={(e) => setReversalAmount(e.target.value)}
+              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
+              placeholder="Amount (KES)"
+            />
+            <input
+              value={reversalReceiverParty}
+              onChange={(e) => setReversalReceiverParty(e.target.value)}
+              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white md:col-span-2"
+              placeholder="Receiver shortcode"
+            />
+            <input
+              value={reversalRemarks}
+              onChange={(e) => setReversalRemarks(e.target.value)}
+              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white md:col-span-2"
+              placeholder="Remarks"
+            />
+            <button
+              type="submit"
+              disabled={requestingReversal}
+              className="md:col-span-2 rounded-2xl bg-[#00C853] px-4 py-3 font-bold text-white disabled:opacity-60"
+            >
+              {requestingReversal ? 'Sending...' : 'Request Reversal'}
+            </button>
+          </form>
+        </div>
+      )}
 
       {showPinResetForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

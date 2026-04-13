@@ -23,6 +23,8 @@ import Penalties from '../pages/Penalties'
 import Swaps from '../pages/Swaps'
 import Pricing from '../pages/Pricing'
 import Products from '../pages/Products'
+import KcbMpesa from '../pages/KcbMpesa'
+import KplcBill from '../pages/KplcBill'
 import Profile from '../pages/Profile'
 import Register from '../pages/Register'
 import ResetPassword from '../pages/ResetPassword'
@@ -79,6 +81,8 @@ export function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/product/*" element={<Products />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/kcb-mpesa" element={<KcbMpesa />} />
+          <Route path="/kplc-bill" element={<KplcBill />} />
           <Route path="/opportunities" element={<Opportunities />} />
           <Route path="/resources/*" element={<Opportunities />} />
           <Route path="/legal/*" element={<Legal />} />

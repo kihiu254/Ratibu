@@ -53,6 +53,12 @@ const Hero = () => {
                         className="flex flex-col sm:flex-row gap-6 justify-center items-center pt-4"
                     >
                         <Button large>Create a Chama</Button>
+                        <Button variant="outline" large onClick={() => navigate('/kcb-mpesa')}>
+                           KCB M-PESA
+                        </Button>
+                        <Button variant="outline" large onClick={() => navigate('/kplc-bill')}>
+                           Pay KPLC
+                        </Button>
                         <Button variant="outline" large className="flex items-center gap-3 group border-slate-300 dark:border-white/10 text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/5">
                            <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                              <div className="w-0 h-0 border-t-[4px] border-t-transparent border-l-[7px] border-l-accent border-b-[4px] border-b-transparent ml-0.5" />
