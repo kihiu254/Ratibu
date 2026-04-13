@@ -5,7 +5,7 @@ from PIL import Image
 ROOT = Path(r"c:\Users\evince\Downloads\Ratibu")
 SOURCE = ROOT / "ratibu_mobile" / "mobile insignia.png"
 OUTPUT = ROOT / "ratibu_mobile" / "assets" / "images" / "app_icon.png"
-BACKGROUND = (0, 200, 83)
+BACKGROUND = (255, 255, 255)
 
 
 def crop_non_white(image: Image.Image, threshold: int = 245) -> Image.Image:
