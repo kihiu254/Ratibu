@@ -82,8 +82,11 @@ Deno.serve(async (req) => {
     origin,
   } = payload;
 
-  const isMshwari = destinationType === "mshwari";
-  const isBillPayment = destinationType === "bill_payment";
+  const resolvedDestinationType = destinationType
+    ?? (billerCode && billAccountReference ? "bill_payment" : null)
+    ?? (mshwariPhone ? "mshwari" : null);
+  const isMshwari = resolvedDestinationType === "mshwari";
+  const isBillPayment = resolvedDestinationType === "bill_payment";
 
   // Validate required fields
   if (!amount || !phoneNumber || !userId) {

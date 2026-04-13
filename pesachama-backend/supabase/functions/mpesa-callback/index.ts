@@ -17,6 +17,131 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+async function sendPush(
+  supabase: any,
+  userId: string,
+  title: string,
+  body: string,
+) {
+  const { data: tokens } = await supabase
+    .from("user_fcm_tokens")
+    .select("token")
+    .eq("user_id", userId);
+
+  if (!tokens?.length) return;
+
+  const fcmKey = Deno.env.get("FCM_SERVER_KEY");
+  if (!fcmKey) return;
+
+  for (const { token } of tokens) {
+    try {
+      await fetch("https://fcm.googleapis.com/fcm/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `key=${fcmKey}`,
+        },
+        body: JSON.stringify({
+          to: token,
+          notification: { title, body, sound: "default" },
+          priority: "high",
+        }),
+      });
+    } catch (e) {
+      console.error("FCM error:", e);
+    }
+  }
+}
+
+async function insertNotification(
+  supabase: any,
+  userId: string,
+  title: string,
+  message: string,
+  type: string,
+  link?: string | null,
+) {
+  const { error } = await (supabase.from("notifications") as any).insert({
+    user_id: userId,
+    title,
+    message,
+    type,
+    is_read: false,
+    link: link ?? null,
+  });
+
+  if (error) {
+    console.error("Failed to insert notification:", error);
+  }
+}
+
+function buildNotificationCopy(transaction: {
+  type?: string | null;
+  description?: string | null;
+  amount?: number | string | null;
+  metadata?: Record<string, unknown> | null;
+}) {
+  const amount = Number(transaction.amount ?? 0);
+  const txType = String(transaction.type ?? "");
+  const destination = String(transaction.metadata?.destination ?? "");
+  const billName = transaction.metadata?.bill_name?.toString() ?? "Bill payment";
+  const savingsName = transaction.metadata?.savings_target_name?.toString() ?? "Savings";
+  const chamaName = transaction.metadata?.chama_name?.toString() ?? "Chama";
+
+  if (destination === "bill_payment" || txType === "bill_payment") {
+    return {
+      successTitle: "Bill payment completed",
+      successBody: `${billName} of KES ${amount.toLocaleString()} was completed successfully.`,
+      failureTitle: "Bill payment failed",
+      failureBody: `${billName} of KES ${amount.toLocaleString()} failed.`,
+      link: "/kplc-bill",
+      type: "info",
+    };
+  }
+
+  if (destination === "mshwari" || txType === "mshwari_deposit") {
+    return {
+      successTitle: "Mshwari deposit completed",
+      successBody: `KES ${amount.toLocaleString()} was sent to Mshwari successfully.`,
+      failureTitle: "Mshwari deposit failed",
+      failureBody: `KES ${amount.toLocaleString()} to Mshwari failed.`,
+      link: "/accounts",
+      type: "info",
+    };
+  }
+
+  if (transaction.metadata?.savings_target_name) {
+    return {
+      successTitle: "Savings updated",
+      successBody: `KES ${amount.toLocaleString()} has been processed for ${savingsName}.`,
+      failureTitle: "Savings payment failed",
+      failureBody: `KES ${amount.toLocaleString()} for ${savingsName} failed.`,
+      link: "/personal-savings",
+      type: "success",
+    };
+  }
+
+  if (transaction.metadata?.chama_name || txType === "deposit" || txType === "contribution") {
+    return {
+      successTitle: "Chama deposit completed",
+      successBody: `KES ${amount.toLocaleString()} has been processed for ${chamaName}.`,
+      failureTitle: "Chama deposit failed",
+      failureBody: `KES ${amount.toLocaleString()} for ${chamaName} failed.`,
+      link: "/chamas",
+      type: "success",
+    };
+  }
+
+  return {
+    successTitle: "Payment completed",
+    successBody: `KES ${amount.toLocaleString()} payment completed successfully.`,
+    failureTitle: "Payment failed",
+    failureBody: `KES ${amount.toLocaleString()} payment failed.`,
+    link: "/statement?accountType=all&accountName=All+Transactions",
+    type: "info",
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -39,7 +164,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: transaction, error: fetchError } = await supabase
     .from("transactions")
-    .select("id, status, metadata")
+    .select("id, status, metadata, user_id, type, description, amount, chama_id, savings_target_id")
     .eq("metadata->>checkout_request_id", checkoutRequestId)
     .maybeSingle();
 
@@ -86,6 +211,22 @@ Deno.serve(async (req) => {
       console.error("Failed to update transaction:", updateError);
       return jsonResponse({ error: updateError.message }, 500);
     }
+
+    const copy = buildNotificationCopy(transaction);
+    await insertNotification(
+      supabase,
+      transaction.user_id,
+      copy.successTitle,
+      copy.successBody,
+      copy.type,
+      copy.link,
+    );
+    await sendPush(
+      supabase,
+      transaction.user_id,
+      copy.successTitle,
+      copy.successBody,
+    );
   } else if (transaction.status !== "completed") {
     const resultDesc = callback.ResultDesc || "Payment failed";
 
@@ -108,6 +249,23 @@ Deno.serve(async (req) => {
       console.error("Failed to record failed callback:", failureUpdateError);
       return jsonResponse({ error: failureUpdateError.message }, 500);
     }
+
+    const copy = buildNotificationCopy(transaction);
+    const failureMessage = `${copy.failureBody} ${resultDesc}`.trim();
+    await insertNotification(
+      supabase,
+      transaction.user_id,
+      copy.failureTitle,
+      failureMessage,
+      "error",
+      copy.link,
+    );
+    await sendPush(
+      supabase,
+      transaction.user_id,
+      copy.failureTitle,
+      failureMessage,
+    );
   }
 
   return jsonResponse({ message: "Callback received" });
