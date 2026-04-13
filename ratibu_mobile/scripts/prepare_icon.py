@@ -28,7 +28,7 @@ def crop_non_white(image: Image.Image, threshold: int = 245) -> Image.Image:
     if max_x < 0 or max_y < 0:
         return rgba
 
-    pad = int(max(width, height) * 0.02)
+    pad = int(max(width, height) * 0.01)
     left = max(0, min_x - pad)
     top = max(0, min_y - pad)
     right = min(width, max_x + pad + 1)
@@ -57,7 +57,7 @@ def prepare_icon() -> None:
     canvas_size = (1024, 1024)
     canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
 
-    target_size = int(min(canvas_size) * 0.98)
+    target_size = int(min(canvas_size) * 1.10)
     source.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
 
     offset = ((canvas_size[0] - source.size[0]) // 2, (canvas_size[1] - source.size[1]) // 2)
