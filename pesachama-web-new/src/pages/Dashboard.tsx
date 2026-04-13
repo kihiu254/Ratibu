@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, ArrowUpRight, ArrowDownLeft, Wallet } from 'lucide-react'
+import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, PiggyBank, BadgeDollarSign, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -33,6 +33,23 @@ interface SavingsTarget {
   allocation_value: number
   status: 'active' | 'paused' | 'completed'
 }
+
+const productCards = [
+  {
+    title: 'Savings',
+    description: 'Create goals, track progress, and manage personal or group savings.',
+    href: '/personal-savings',
+    cta: 'Open Savings',
+    icon: PiggyBank,
+  },
+  {
+    title: 'Loans',
+    description: 'Explore lending and credit products built for members and groups.',
+    href: '/products',
+    cta: 'View Loans',
+    icon: BadgeDollarSign,
+  },
+]
 
 function progressWidthClass(progress: number) {
   const pct = Math.max(0, Math.min(100, Math.round(progress)))
@@ -218,6 +235,54 @@ export default function Dashboard() {
              <p className="text-slate-500 dark:text-slate-400 font-medium">Pending Payments</p>
              <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">KES {stats.pendingPayments.toLocaleString()}</h3>
         </motion.div>
+      </div>
+
+      {/* Products */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-lg text-slate-900 dark:text-white">Products</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Quick access to savings and loan tools.</p>
+          </div>
+          <Link to="/products" className="text-sm text-[#00C853] hover:text-green-600 font-medium inline-flex items-center gap-1">
+            Explore all <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {productCards.map((product, index) => (
+              <motion.div
+                key={product.title}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * index }}
+                className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-5 flex flex-col gap-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#00C853]/10 text-[#00C853] flex items-center justify-center">
+                    <product.icon className="w-6 h-6" />
+                  </div>
+                  <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#00C853]/10 text-[#00C853]">
+                    Live
+                  </span>
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white text-lg">{product.title}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{product.description}</p>
+                </div>
+                <div className="mt-auto">
+                  <Link
+                    to={product.href}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#00C853] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-green-600"
+                  >
+                    {product.cta}
+                    <ArrowUpRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
