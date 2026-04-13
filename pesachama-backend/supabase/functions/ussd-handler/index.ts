@@ -1417,7 +1417,7 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "1") {
             response = renderChoicePrompt("Ratibu\nSavings\nManage savings in the app.");
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nLoans\nBrowse loan products in the app.");
+            response = renderChoicePrompt("Ratibu\nLoans\nLoan applications are handled in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
