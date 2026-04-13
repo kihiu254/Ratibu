@@ -462,6 +462,14 @@ async function verifyTransactionPin(
 }
 
 type ActiveChama = { id: string; name: string };
+type PublicChama = {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  total_members?: number | null;
+  member_limit?: number | null;
+};
 type ActiveSavingsTarget = {
   id: string;
   name: string;
@@ -838,6 +846,56 @@ async function fetchChamaNames(supabase: any, userId: string) {
   return [];
 }
 
+async function fetchPublicChamas(supabase: any): Promise<PublicChama[]> {
+  const { data, error } = await supabase
+    .from("chamas")
+    .select("id, name, description, category, total_members, member_limit, created_at")
+    .order("created_at", { ascending: false })
+    .limit(16);
+
+  if (error) {
+    return [];
+  }
+
+  return (data ?? []) as PublicChama[];
+}
+
+async function joinPublicChama(supabase: any, userId: string, chamaId: string) {
+  const { data: existing, error: existingError } = await supabase
+    .from("chama_members")
+    .select("chama_id, status")
+    .eq("user_id", userId)
+    .eq("chama_id", chamaId)
+    .maybeSingle();
+
+  if (!existingError && existing) {
+    return { ok: false, message: "You are already a member." };
+  }
+
+  const { error } = await supabase.from("chama_members").insert({
+    chama_id: chamaId,
+    user_id: userId,
+    role: "member",
+    status: "active",
+  });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  await logUssdAudit(supabase, {
+    userId,
+    action: "ussd_chama_joined",
+    resourceType: "chama",
+    resourceId: chamaId,
+    newValue: {
+      channel: "ussd",
+    },
+  });
+
+  return { ok: true, message: "Joined successfully." };
+}
+
 async function fetchSavingsTargets(supabase: any, userId: string) {
   const { data, count, error } = await supabase
     .from("user_savings_targets")
@@ -886,7 +944,7 @@ const renderMainMenu = (name: string) =>
   `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n10 Products\n00 Exit`;
 
 const renderChamasMenu = () =>
-  `CON Ratibu\nChamas\n1 View\n2 Discover\n3 Start\n0 Back\n00 Home`;
+  `CON Ratibu\nChamas\n1 My Chamas\n2 Discover & Join\n3 Start\n0 Back\n00 Home`;
 
 const renderAccountsMenu = () =>
   `CON Ratibu\nAccounts\n1 Chama Deposit\n2 Chama Withdrawal\n3 Savings Deposit\n4 Savings Withdrawal\n5 Mshwari\n0 Back\n00 Home`;
@@ -921,6 +979,15 @@ const renderLockedPinPrompt = () =>
 function renderSelectionPrompt(title: string, items: Array<{ name: string }>) {
   const lines = items.slice(0, 9).map((item, index) => `${index + 1} ${item.name}`);
   return `CON Ratibu\n${title}\n${lines.join("\n")}\n0 Back\n00 Home`;
+}
+
+function renderDiscoverPrompt(chamas: PublicChama[], page: number) {
+  const pageSize = 8;
+  const start = page * pageSize;
+  const current = chamas.slice(start, start + pageSize);
+  const lines = current.map((chama, index) => `${index + 1} ${chama.name}`);
+  const more = chamas.length > start + pageSize ? "\n9 More" : "";
+  return `CON Ratibu\nDiscover Chamas\n${lines.join("\n")}${more}\n0 Back\n00 Home`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -1059,7 +1126,42 @@ Deno.serve(async (req: Request) => {
               .join(", ") || "No chamas";
             response = renderChoicePrompt(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nDiscover Chamas\nBrowse chamas in the app.");
+            const publicChamas = await fetchPublicChamas(supabase);
+            if (publicChamas.length === 0) {
+              response = renderChoicePrompt("Ratibu\nDiscover Chamas\nNo public chamas yet.");
+            } else {
+              const discoverTokens = menu.slice(2);
+              const isSecondPage = discoverTokens[0] === "9";
+              const page = isSecondPage ? 1 : 0;
+
+              if (discoverTokens.length === 0 || (isSecondPage && discoverTokens.length === 1)) {
+                response = renderDiscoverPrompt(publicChamas, page);
+              } else {
+                const selectionToken = isSecondPage ? discoverTokens[1] : discoverTokens[0];
+                if (selectionToken === "0") {
+                  response = renderChamasMenu();
+                } else if (selectionToken === "00") {
+                  response = renderMainMenu(displayName);
+                } else if (selectionToken === "9" && page === 0) {
+                  response = renderDiscoverPrompt(publicChamas, 1);
+                } else {
+                  const selectedIndex = Number(selectionToken);
+                  const start = page * 8;
+                  const selectedChama = publicChamas[start + selectedIndex - 1];
+
+                  if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || !selectedChama) {
+                    response = renderDiscoverPrompt(publicChamas, page);
+                  } else if (!profile?.id) {
+                    response = "END Can't confirm account.";
+                  } else {
+                    const joinResult = await joinPublicChama(supabase, profile.id, selectedChama.id);
+                    response = joinResult.ok
+                      ? `END Joined ${selectedChama.name}. Open Chamas to manage it.`
+                      : `END ${joinResult.message || "Join failed."}`;
+                  }
+                }
+              }
+            }
           } else if (menu[1] === "3") {
             response = renderChoicePrompt("Ratibu\nCreate Chama\nStart in the app.");
           } else {
