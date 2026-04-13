@@ -75,23 +75,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
             ),
-            _drawerItem(context, Icons.account_balance_wallet, 'Accounts', '/accounts', Colors.teal),
-            _drawerItem(context, Icons.savings, 'Personal Savings', '/personal-savings', Colors.greenAccent),
-            _drawerItem(context, Icons.explore, 'Explore Chamas', '/join-chama', Colors.cyan),
-            _drawerItem(context, Icons.event, 'Meetings', '/meetings', Colors.lightBlue),
-            _drawerItem(context, Icons.calendar_month, 'Calendar', '/calendar', Colors.greenAccent),
-            _drawerItem(context, Icons.swap_horiz, 'Swaps', '/swaps', Colors.white70),
-            _drawerItem(context, Icons.emoji_events, 'Rewards', '/rewards', Colors.amber),
-            _drawerItem(context, Icons.gavel, 'Penalties', '/penalties', Colors.orange),
+            _drawerItem(context, Icons.account_balance_wallet, 'Accounts',
+                '/accounts', Colors.teal),
+            _drawerItem(context, Icons.savings, 'Personal Savings',
+                '/personal-savings', Colors.greenAccent),
+            _drawerItem(context, Icons.explore, 'Explore Chamas', '/join-chama',
+                Colors.cyan),
+            _drawerItem(context, Icons.event, 'Meetings', '/meetings',
+                Colors.lightBlue),
+            _drawerItem(context, Icons.calendar_month, 'Calendar', '/calendar',
+                Colors.greenAccent),
+            _drawerItem(
+                context, Icons.swap_horiz, 'Swaps', '/swaps', Colors.white70),
+            _drawerItem(context, Icons.emoji_events, 'Rewards', '/rewards',
+                Colors.amber),
+            _drawerItem(
+                context, Icons.gavel, 'Penalties', '/penalties', Colors.orange),
             const Divider(color: Colors.white10),
-            _drawerItem(context, Icons.inventory_2, 'Products', '/products', Colors.blue),
-            _drawerItem(context, Icons.rocket_launch, 'Opportunities', '/opportunities', Colors.green),
-            _drawerItem(context, Icons.star, 'Features', '/features', Colors.amber),
-            _drawerItem(context, Icons.payments, 'Pricing', '/pricing', Colors.purple),
+            _drawerItem(context, Icons.inventory_2, 'Products', '/products',
+                Colors.blue),
+            _drawerItem(context, Icons.rocket_launch, 'Opportunities',
+                '/opportunities', Colors.green),
+            _drawerItem(
+                context, Icons.star, 'Features', '/features', Colors.amber),
+            _drawerItem(
+                context, Icons.payments, 'Pricing', '/pricing', Colors.purple),
             const Divider(color: Colors.white10),
-            _drawerItem(context, Icons.admin_panel_settings, 'Privacy Policy', '/legal/Privacy%20Policy', Colors.white38),
-            _drawerItem(context, Icons.gavel, 'Terms of Service', '/legal/Terms%20of%20Service', Colors.white38),
-            _drawerItem(context, Icons.cookie, 'Cookie Policy', '/legal/Cookie%20Policy', Colors.white38),
+            _drawerItem(context, Icons.admin_panel_settings, 'Privacy Policy',
+                '/legal/Privacy%20Policy', Colors.white38),
+            _drawerItem(context, Icons.gavel, 'Terms of Service',
+                '/legal/Terms%20of%20Service', Colors.white38),
+            _drawerItem(context, Icons.cookie, 'Cookie Policy',
+                '/legal/Cookie%20Policy', Colors.white38),
           ],
         ),
       ),
@@ -100,7 +115,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Chamas'),
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         currentIndex: _selectedIndex,
@@ -118,7 +134,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _drawerItem(BuildContext context, IconData icon, String title, String route, Color color) {
+  Widget _drawerItem(BuildContext context, IconData icon, String title,
+      String route, Color color) {
     return ListTile(
       leading: Icon(icon, color: color),
       title: Text(title, style: const TextStyle(color: Colors.white)),
@@ -193,36 +210,36 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         .eq('user_id', user.id)
         .eq('status', 'active');
 
-    final chamaIds = (activeChamas as List)
-        .map((row) => row['chama_id'] as String)
-        .toList();
+    final chamaIds =
+        (activeChamas as List).map((row) => row['chama_id'] as String).toList();
 
     final upcomingMeetingsResponse = chamaIds.isEmpty
         ? <Map<String, dynamic>>[]
         : await supabase
             .from('meetings')
-            .select('id, title, date, venue, video_link, chama_id, chamas(name)')
+            .select(
+                'id, title, date, venue, video_link, chama_id, chamas(name)')
             .inFilter('chama_id', chamaIds)
             .gte('date', DateTime.now().toIso8601String())
             .order('date', ascending: true)
             .limit(3);
-    final upcomingMeetings = upcomingMeetingsResponse is List
-        ? upcomingMeetingsResponse
-        : const [];
+    final upcomingMeetings =
+        upcomingMeetingsResponse is List ? upcomingMeetingsResponse : const [];
 
     final allTransactionsResponse = await supabase
         .from('transactions')
         .select('amount, type')
         .eq('user_id', user.id)
         .eq('status', 'completed');
-    final allTransactions = allTransactionsResponse is List
-        ? allTransactionsResponse
-        : const [];
+    final allTransactions =
+        allTransactionsResponse is List ? allTransactionsResponse : const [];
 
     double totalBalance = 0;
     for (var tx in allTransactions) {
-      if (tx['type'] == 'deposit') totalBalance += (tx['amount'] as num).toDouble();
-      if (tx['type'] == 'withdrawal') totalBalance -= (tx['amount'] as num).toDouble();
+      if (tx['type'] == 'deposit')
+        totalBalance += (tx['amount'] as num).toDouble();
+      if (tx['type'] == 'withdrawal')
+        totalBalance -= (tx['amount'] as num).toDouble();
     }
 
     // Fetch display name from users table
@@ -258,8 +275,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         final totalBalance = data['totalBalance'] ?? 0.0;
         final activeChamas = data['activeChamas'] ?? 0;
         final pendingPayments = data['pendingPayments'] ?? 0.0;
-        final recentTransactions = data['recentTransactions'] as List<dynamic>? ?? [];
-        final upcomingMeetings = data['upcomingMeetings'] as List<dynamic>? ?? [];
+        final recentTransactions =
+            data['recentTransactions'] as List<dynamic>? ?? [];
+        final upcomingMeetings =
+            data['upcomingMeetings'] as List<dynamic>? ?? [];
         final displayName = data['displayName'] ?? 'User';
 
         return RefreshIndicator(
@@ -281,7 +300,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Hello,',
-                            style: TextStyle(color: Colors.grey[400], fontSize: 16)),
+                            style: TextStyle(
+                                color: Colors.grey[400], fontSize: 16)),
                         Text(
                           displayName,
                           style: const TextStyle(
@@ -297,7 +317,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                     clipBehavior: Clip.none,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.notifications, color: Colors.white),
+                        icon: const Icon(Icons.notifications,
+                            color: Colors.white),
                         onPressed: () => context.push('/notifications'),
                       ),
                       if (_unreadNotificationsStream != null)
@@ -310,15 +331,20 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                               final unreadCount = (snapshot.data ?? [])
                                   .where((item) => item['is_read'] == false)
                                   .length;
-                              if (unreadCount == 0) return const SizedBox.shrink();
+                              if (unreadCount == 0)
+                                return const SizedBox.shrink();
 
                               return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 2),
+                                constraints: const BoxConstraints(
+                                    minWidth: 18, minHeight: 18),
                                 decoration: BoxDecoration(
                                   color: Colors.redAccent,
                                   borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: const Color(0xFF0f172a), width: 1.5),
+                                  border: Border.all(
+                                      color: const Color(0xFF0f172a),
+                                      width: 1.5),
                                 ),
                                 child: Text(
                                   unreadCount > 9 ? '9+' : '$unreadCount',
@@ -343,7 +369,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                   Expanded(
                     child: _StatCard(
                       title: 'Total Balance',
-                      value: 'KES ${NumberFormat("#,##0").format(totalBalance)}',
+                      value:
+                          'KES ${NumberFormat("#,##0").format(totalBalance)}',
                       icon: Icons.account_balance_wallet,
                       color: Colors.green,
                     ),
@@ -379,7 +406,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                 runSpacing: 16,
                 alignment: WrapAlignment.spaceAround,
                 children: [
-                  _ActionButton(icon: Icons.add, label: 'Deposit', onTap: () => context.push('/accounts')),
+                  _ActionButton(
+                      icon: Icons.add,
+                      label: 'Deposit',
+                      onTap: () => context.push('/accounts')),
                   _ActionButton(
                       icon: Icons.arrow_outward,
                       label: 'Withdraw',
@@ -412,6 +442,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       icon: Icons.gavel,
                       label: 'Penalties',
                       onTap: () => context.push('/penalties')),
+                  _ActionButton(
+                      icon: Icons.undo,
+                      label: 'Reversal',
+                      onTap: () => context.push('/mpesa-reversal')),
                 ],
               ),
               const SizedBox(height: 24),
@@ -473,7 +507,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
       if (!mounted) return;
       if (chamas.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No chamas found. Join or create one first.')),
+          const SnackBar(
+              content: Text('No chamas found. Join or create one first.')),
         );
         return;
       }
@@ -483,7 +518,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
         builder: (context) => StatefulBuilder(
           builder: (context, setS) => AlertDialog(
             backgroundColor: const Color(0xFF1e293b),
-            title: const Text('Select Chama', style: TextStyle(color: Colors.white)),
+            title: const Text('Select Chama',
+                style: TextStyle(color: Colors.white)),
             content: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 280),
               child: DropdownButtonFormField<String>(
@@ -507,7 +543,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Colors.white54)),
               ),
               TextButton(
                 onPressed: selectedChamaId == null
@@ -615,7 +652,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                   return;
                 }
                 try {
-                  final approved = await transactionAuthorizationService.confirmTransaction(
+                  final approved =
+                      await transactionAuthorizationService.confirmTransaction(
                     context,
                     actionLabel: 'withdrawal',
                     amount: amount,
@@ -635,8 +673,9 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red));
                   }
                 }
               },
@@ -733,7 +772,8 @@ class _UpcomingMeetingsCard extends StatelessWidget {
                   color: const Color(0xFF00C853).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.calendar_month, color: Color(0xFF00C853), size: 22),
+                child: const Icon(Icons.calendar_month,
+                    color: Color(0xFF00C853), size: 22),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -770,9 +810,13 @@ class _UpcomingMeetingsCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ...meetings.map((meeting) {
-            final date = DateTime.tryParse(meeting['date']?.toString() ?? '')?.toLocal();
-            final isVirtual = (meeting['video_link'] ?? '').toString().isNotEmpty;
-            final chamaName = (meeting['chamas'] as Map<String, dynamic>?)?['name'] ?? 'Chama';
+            final date =
+                DateTime.tryParse(meeting['date']?.toString() ?? '')?.toLocal();
+            final isVirtual =
+                (meeting['video_link'] ?? '').toString().isNotEmpty;
+            final chamaName =
+                (meeting['chamas'] as Map<String, dynamic>?)?['name'] ??
+                    'Chama';
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -814,7 +858,8 @@ class _UpcomingMeetingsCard extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           chamaName.toString(),
-                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -822,7 +867,8 @@ class _UpcomingMeetingsCard extends StatelessWidget {
                           const SizedBox(height: 3),
                           Text(
                             DateFormat('EEE, MMM d • h:mm a').format(date),
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11),
                           ),
                         ],
                       ],
@@ -844,7 +890,8 @@ class _UpcomingMeetingsCard extends StatelessWidget {
                       TextButton(
                         onPressed: () => context.push('/meetings'),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -890,7 +937,8 @@ class _ActionButton extends StatelessWidget {
             child: Icon(icon, color: Colors.white),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
         ],
       ),
     );
@@ -916,7 +964,8 @@ class _TransactionItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: const Color(0xFF1e293b), borderRadius: BorderRadius.circular(12)),
+          color: const Color(0xFF1e293b),
+          borderRadius: BorderRadius.circular(12)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -947,7 +996,8 @@ class _TransactionItem extends StatelessWidget {
                               color: Colors.white, fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis),
                       Text(date,
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 12)),
                     ],
                   ),
                 ),

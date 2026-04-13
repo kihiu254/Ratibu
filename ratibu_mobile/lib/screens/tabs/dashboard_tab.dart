@@ -11,13 +11,15 @@ class DashboardTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final homeState = ref.watch(homeProvider);
-    final currencyFormat = NumberFormat.currency(symbol: 'KES ', decimalDigits: 0);
+    final currencyFormat =
+        NumberFormat.currency(symbol: 'KES ', decimalDigits: 0);
 
     if (homeState.isLoading &&
         homeState.transactions.isEmpty &&
         homeState.totalBalance == 0 &&
         homeState.savingsBalance == 0) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)));
+      return const Center(
+          child: CircularProgressIndicator(color: Color(0xFF00C853)));
     }
 
     return RefreshIndicator(
@@ -59,7 +61,6 @@ class DashboardTab extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 24),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -85,7 +86,8 @@ class DashboardTab extends ConsumerWidget {
                     right: 0,
                     child: Opacity(
                       opacity: 0.1,
-                      child: Icon(LucideIcons.wallet, color: Colors.white, size: 80),
+                      child: Icon(LucideIcons.wallet,
+                          color: Colors.white, size: 80),
                     ),
                   ),
                   Column(
@@ -93,7 +95,10 @@ class DashboardTab extends ConsumerWidget {
                     children: [
                       Text(
                         'Total Balance',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -106,7 +111,8 @@ class DashboardTab extends ConsumerWidget {
                       ),
                       const SizedBox(height: 16),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFF4ade80).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
@@ -114,11 +120,13 @@ class DashboardTab extends ConsumerWidget {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(LucideIcons.database, color: Color(0xFF4ade80), size: 14),
+                            Icon(LucideIcons.database,
+                                color: Color(0xFF4ade80), size: 14),
                             SizedBox(width: 4),
                             Text(
                               'Live data',
-                              style: TextStyle(color: Color(0xFF4ade80), fontSize: 12),
+                              style: TextStyle(
+                                  color: Color(0xFF4ade80), fontSize: 12),
                             ),
                           ],
                         ),
@@ -128,9 +136,7 @@ class DashboardTab extends ConsumerWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
             Row(
               children: [
                 Expanded(
@@ -152,9 +158,7 @@ class DashboardTab extends ConsumerWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             _StatCard(
               title: 'Pending Payments',
               value: currencyFormat.format(homeState.pendingPayments),
@@ -162,9 +166,7 @@ class DashboardTab extends ConsumerWidget {
               color: Colors.orange,
               fullWidth: true,
             ),
-
             const SizedBox(height: 16),
-
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF0f172a),
@@ -180,13 +182,17 @@ class DashboardTab extends ConsumerWidget {
                       children: [
                         const Text(
                           'Quick Services',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
                         ),
                         TextButton(
                           onPressed: () => context.push('/kcb-mpesa'),
                           child: const Text(
                             'Open KCB M-PESA',
-                            style: TextStyle(color: Color(0xFF00C853), fontSize: 14),
+                            style: TextStyle(
+                                color: Color(0xFF00C853), fontSize: 14),
                           ),
                         ),
                       ],
@@ -211,7 +217,17 @@ class DashboardTab extends ConsumerWidget {
                             icon: LucideIcons.zap,
                             title: 'KPLC Bill',
                             subtitle: 'Tokens & postpaid',
-                            onTap: () => context.push('/kplc-bill?type=prepaid'),
+                            onTap: () =>
+                                context.push('/kplc-bill?type=prepaid'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: LucideIcons.rotateCcw,
+                            title: 'Reversal',
+                            subtitle: 'Reverse a transaction',
+                            onTap: () => context.push('/mpesa-reversal'),
                           ),
                         ),
                       ],
@@ -220,9 +236,7 @@ class DashboardTab extends ConsumerWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             if (homeState.upcomingMeetings.isNotEmpty)
               Container(
                 decoration: BoxDecoration(
@@ -239,13 +253,17 @@ class DashboardTab extends ConsumerWidget {
                         children: [
                           const Text(
                             'Upcoming Meetings',
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
                           ),
                           TextButton(
                             onPressed: () => context.push('/calendar'),
                             child: const Text(
                               'Calendar',
-                              style: TextStyle(color: Color(0xFF00C853), fontSize: 14),
+                              style: TextStyle(
+                                  color: Color(0xFF00C853), fontSize: 14),
                             ),
                           ),
                         ],
@@ -253,12 +271,19 @@ class DashboardTab extends ConsumerWidget {
                     ),
                     const Divider(color: Color(0xFF1e293b), height: 1),
                     ...homeState.upcomingMeetings.take(3).map((meeting) {
-                      final date = DateTime.tryParse(meeting['date']?.toString() ?? '')?.toLocal();
-                      final chamaName = (meeting['chamas'] as Map<String, dynamic>?)?['name']?.toString() ?? 'Chama';
+                      final date =
+                          DateTime.tryParse(meeting['date']?.toString() ?? '')
+                              ?.toLocal();
+                      final chamaName =
+                          (meeting['chamas'] as Map<String, dynamic>?)?['name']
+                                  ?.toString() ??
+                              'Chama';
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
                         decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Color(0xFF1e293b))),
+                          border: Border(
+                              bottom: BorderSide(color: Color(0xFF1e293b))),
                         ),
                         child: Row(
                           children: [
@@ -269,7 +294,8 @@ class DashboardTab extends ConsumerWidget {
                                 color: Color(0xFF1e293b),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.event, color: Color(0xFF00C853), size: 20),
+                              child: const Icon(Icons.event,
+                                  color: Color(0xFF00C853), size: 20),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -278,17 +304,22 @@ class DashboardTab extends ConsumerWidget {
                                 children: [
                                   Text(
                                     meeting['title']?.toString() ?? 'Meeting',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     chamaName,
-                                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                    style: TextStyle(
+                                        color: Colors.grey[500], fontSize: 13),
                                   ),
                                   if (date != null)
                                     Text(
                                       DateFormat('MMM d, h:mm a').format(date),
-                                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                      style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 13),
                                     ),
                                 ],
                               ),
@@ -300,7 +331,6 @@ class DashboardTab extends ConsumerWidget {
                   ],
                 ),
               ),
-
             if (homeState.error != null) ...[
               const SizedBox(height: 16),
               Container(
@@ -313,21 +343,21 @@ class DashboardTab extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.redAccent),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         homeState.error!,
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12),
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-
             const SizedBox(height: 24),
-
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF0f172a),
@@ -343,11 +373,17 @@ class DashboardTab extends ConsumerWidget {
                       children: [
                         const Text(
                           'Recent Transactions',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
                         ),
                         Text(
                           '${homeState.transactions.length} shown',
-                          style: const TextStyle(color: Color(0xFF00C853), fontSize: 14, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              color: Color(0xFF00C853),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -356,15 +392,18 @@ class DashboardTab extends ConsumerWidget {
                   if (homeState.transactions.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(24.0),
-                      child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
+                      child: Text('No transactions yet',
+                          style: TextStyle(color: Colors.grey)),
                     )
                   else
                     ...homeState.transactions.take(5).map((tx) {
                       final isDeposit = tx.type != 'withdrawal';
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
                         decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Color(0xFF1e293b))),
+                          border: Border(
+                              bottom: BorderSide(color: Color(0xFF1e293b))),
                         ),
                         child: Row(
                           children: [
@@ -376,8 +415,12 @@ class DashboardTab extends ConsumerWidget {
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                isDeposit ? LucideIcons.arrowUpRight : LucideIcons.arrowDownLeft,
-                                color: isDeposit ? const Color(0xFF22c55e) : const Color(0xFFef4444),
+                                isDeposit
+                                    ? LucideIcons.arrowUpRight
+                                    : LucideIcons.arrowDownLeft,
+                                color: isDeposit
+                                    ? const Color(0xFF22c55e)
+                                    : const Color(0xFFef4444),
                                 size: 20,
                               ),
                             ),
@@ -387,13 +430,20 @@ class DashboardTab extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    tx.description ?? (isDeposit ? 'Monthly Contribution' : 'Withdrawal'),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                    tx.description ??
+                                        (isDeposit
+                                            ? 'Monthly Contribution'
+                                            : 'Withdrawal'),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    DateFormat('MMM d, h:mm a').format(tx.createdAt),
-                                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                    DateFormat('MMM d, h:mm a')
+                                        .format(tx.createdAt),
+                                    style: TextStyle(
+                                        color: Colors.grey[500], fontSize: 13),
                                   ),
                                 ],
                               ),
@@ -401,7 +451,9 @@ class DashboardTab extends ConsumerWidget {
                             Text(
                               '${isDeposit ? '+' : '-'} ${currencyFormat.format(tx.amount)}',
                               style: TextStyle(
-                                color: isDeposit ? const Color(0xFF22c55e) : Colors.white,
+                                color: isDeposit
+                                    ? const Color(0xFF22c55e)
+                                    : Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -414,7 +466,8 @@ class DashboardTab extends ConsumerWidget {
                     child: SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () => context.push('/statement?accountType=all&accountName=All+Transactions'),
+                        onPressed: () => context.push(
+                            '/statement?accountType=all&accountName=All+Transactions'),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFF00C853)),
                           foregroundColor: const Color(0xFF00C853),
@@ -463,9 +516,12 @@ class _QuickActionCard extends StatelessWidget {
             children: [
               Icon(icon, color: const Color(0xFF00C853)),
               const SizedBox(height: 14),
-              Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(title,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              Text(subtitle,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
             ],
           ),
         ),
