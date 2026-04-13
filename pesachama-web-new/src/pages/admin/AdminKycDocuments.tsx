@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { notifyUser } from '../../lib/notify'
 import { toast } from 'sonner'
 
 interface KycUser {
@@ -241,6 +242,13 @@ function KycModal({ user, onClose, onStatusChange }: {
     try {
       const { error } = await supabase.from('users').update({ kyc_status: status }).eq('id', user.id)
       if (error) throw error
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'KYC status updated',
+        message: `Your KYC status has been updated to ${status.replace('_', ' ')}.`,
+        type: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+        emailSubject: 'Your Ratibu KYC status changed',
+      })
       toast.success(`KYC status updated to ${status}`)
       onStatusChange(user.id, status)
       onClose()

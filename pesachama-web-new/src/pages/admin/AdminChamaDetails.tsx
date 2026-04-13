@@ -10,6 +10,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { notifyAudience, notifyUser } from '../../lib/notify'
 import { toast } from 'sonner'
 
 interface ChamaDetails {
@@ -90,6 +91,28 @@ export default function AdminChamaDetails() {
         .eq('user_id', userId)
 
       if (error) throw error
+
+      const removedMember = members.find((member) => member.user_id === userId)
+      if (removedMember?.users?.email) {
+        await notifyUser({
+          targetUserId: userId,
+          title: 'Removed from chama',
+          message: `You have been removed from ${chama?.name || 'the chama'}.`,
+          type: 'warning',
+          link: '/chamas',
+          emailSubject: `You were removed from ${chama?.name || 'a chama'}`,
+        })
+      }
+
+      await notifyAudience({
+        audience: 'chama_admins',
+        chamaId: id || '',
+        title: 'Chama membership updated',
+        message: `A member was removed from ${chama?.name || 'a chama'}.`,
+        type: 'info',
+        link: '/admin/chamas',
+        emailSubject: 'Chama membership updated',
+      })
 
       toast.success('Member removed successfully')
       setMembers(members.filter(m => m.user_id !== userId))

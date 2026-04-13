@@ -165,6 +165,72 @@ class NotificationHelper {
     }
   }
 
+  static Future<void> notifyUser({
+    required String targetUserId,
+    required String title,
+    required String message,
+    String type = 'info',
+    String? link,
+    String? emailSubject,
+    String? emailHtml,
+  }) async {
+    try {
+      final response = await _supabase.functions.invoke(
+        'notify-user',
+        body: {
+          'targetUserId': targetUserId,
+          'title': title,
+          'message': message,
+          'type': type,
+          if (link != null) 'link': link,
+          if (emailSubject != null) 'emailSubject': emailSubject,
+          if (emailHtml != null) 'emailHtml': emailHtml,
+        },
+      );
+
+      if (response.status != 200) {
+        debugPrint('Failed to notify user: ${response.data}');
+      }
+    } catch (e) {
+      debugPrint('Error notifying user: $e');
+    }
+  }
+
+  static Future<void> notifyAudience({
+    required String audience,
+    required String title,
+    required String message,
+    String type = 'info',
+    String? link,
+    String? chamaId,
+    String? emailSubject,
+    String? emailHtml,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'audience': audience,
+        'title': title,
+        'message': message,
+        'type': type,
+        if (link != null) 'link': link,
+        if (chamaId != null) 'chamaId': chamaId,
+        if (emailSubject != null) 'emailSubject': emailSubject,
+        if (emailHtml != null) 'emailHtml': emailHtml,
+      };
+
+      final response = await _supabase.functions.invoke(
+        'notify-audience',
+        body: body,
+      );
+
+      if (response.status != 200) {
+        debugPrint('Failed to notify audience: ${response.data}');
+      }
+    } catch (e) {
+      debugPrint('Error notifying audience: $e');
+    }
+  }
+
   // New method for in-app toasts
   static void showToast(BuildContext context, {required String title, required String message, String type = 'success'}) {
     RatibuToast.show(context, title: title, message: message, type: type);

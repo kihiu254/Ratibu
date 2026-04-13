@@ -161,21 +161,32 @@ class TransactionService {
       'description': 'Withdrawal: $reason',
     }));
 
-    // Notify User and Admin via Email
-    if (user.email != null) {
-      NotificationHelper.sendEmail(
-        to: user.email!,
-        subject: 'Withdrawal Request Received',
-        html: '''
-          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #FF9800;">Withdrawal Requested</h2>
-            <p>Your request to withdraw <b>KES $amount</b> has been received and is pending approval.</p>
-            <p><b>Reason:</b> $reason</p>
-            <p>You will be notified once the request is processed.</p>
-            <br>
-            <p>Best regards,<br>The Ratibu Team</p>
-          </div>
-        ''',
+    await NotificationHelper.notifyUser(
+      targetUserId: user.id,
+      title: 'Withdrawal request received',
+      message: 'Your withdrawal request has been received and is pending approval.',
+      type: 'warning',
+      link: '/chamas',
+      emailSubject: 'Withdrawal request received',
+    );
+
+    final admins = await _retry(() => _supabase
+        .from('chama_members')
+        .select('user_id')
+        .eq('chama_id', chamaId)
+        .inFilter('role', ['admin', 'treasurer', 'secretary'])
+        .eq('status', 'active'));
+
+    for (final admin in (admins as List)) {
+      final adminId = admin['user_id']?.toString();
+      if (adminId == null || adminId == user.id) continue;
+      await NotificationHelper.notifyUser(
+        targetUserId: adminId,
+        title: 'Withdrawal request',
+        message: 'A chama withdrawal request needs review.',
+        type: 'info',
+        link: '/chamas',
+        emailSubject: 'Chama withdrawal request',
       );
     }
   }

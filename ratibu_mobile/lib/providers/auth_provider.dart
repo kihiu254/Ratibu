@@ -145,6 +145,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
           type: 'success',
           userId: res.user!.id,
         );
+        await NotificationHelper.notifyUser(
+          targetUserId: res.user!.id,
+          title: 'Welcome to Ratibu!',
+          message: 'Your account has been created successfully. Please log in to continue.',
+          type: 'success',
+          emailSubject: 'Welcome to Ratibu',
+        );
 
         // Send Welcome Email
         NotificationHelper.sendEmail(
@@ -213,6 +220,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         otpVerified: otpVerified,
         legalAccepted: legalAccepted,
       );
+      await NotificationHelper.notifyUser(
+        targetUserId: res.user!.id,
+        title: 'Welcome back!',
+        message: 'You have successfully signed in to your Ratibu account.',
+        type: 'success',
+        emailSubject: 'Ratibu sign-in alert',
+      );
       
     } on AuthException catch (e) {
       debugPrint('AuthException during signIn: ${e.message}');
@@ -248,6 +262,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
           message: 'You have successfully signed in to your Ratibu account.',
           type: 'success',
           userId: currentState.user.id,
+        );
+        await NotificationHelper.notifyUser(
+          targetUserId: currentState.user.id,
+          title: 'Welcome back!',
+          message: 'You have successfully signed in to your Ratibu account.',
+          type: 'success',
+          emailSubject: 'Ratibu sign-in alert',
         );
       } else {
         state = AuthStateAwaiting2FA(

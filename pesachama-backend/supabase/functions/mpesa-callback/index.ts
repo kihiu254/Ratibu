@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendFirebasePush } from "../_shared/firebase.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
@@ -30,23 +31,9 @@ async function sendPush(
 
   if (!tokens?.length) return;
 
-  const fcmKey = Deno.env.get("FCM_SERVER_KEY");
-  if (!fcmKey) return;
-
   for (const { token } of tokens) {
     try {
-      await fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `key=${fcmKey}`,
-        },
-        body: JSON.stringify({
-          to: token,
-          notification: { title, body, sound: "default" },
-          priority: "high",
-        }),
-      });
+      await sendFirebasePush(token, title, body);
     } catch (e) {
       console.error("FCM error:", e);
     }

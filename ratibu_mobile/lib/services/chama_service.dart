@@ -72,6 +72,33 @@ class ChamaService {
     return message.isEmpty ? fallback : message;
   }
 
+  Future<void> _notifyUser({
+    required String targetUserId,
+    required String title,
+    required String message,
+    String type = 'info',
+    String? link,
+    String? emailSubject,
+    String? emailHtml,
+  }) async {
+    try {
+      await _supabase.functions.invoke(
+        'notify-user',
+        body: {
+          'targetUserId': targetUserId,
+          'title': title,
+          'message': message,
+          'type': type,
+          if (link != null) 'link': link,
+          if (emailSubject != null) 'emailSubject': emailSubject,
+          if (emailHtml != null) 'emailHtml': emailHtml,
+        },
+      );
+    } catch (e) {
+      debugPrint('Notification dispatch failed: $e');
+    }
+  }
+
   Future<void> _sendSwapEmail({
     required String swapId,
     required String event,
@@ -174,6 +201,24 @@ class ChamaService {
         'role': 'admin',
         'status': 'active',
       });
+
+      await _notifyUser(
+        targetUserId: user.id,
+        title: 'Chama created',
+        message: 'Your chama "$name" was created successfully.',
+        type: 'success',
+        link: '/chamas',
+        emailSubject: 'Your chama is ready on Ratibu',
+      );
+
+      await NotificationHelper.notifyAudience(
+        audience: 'admins',
+        title: 'New chama created',
+        message: 'A new chama called "$name" was created.',
+        type: 'info',
+        link: '/admin/chamas',
+        emailSubject: 'A new chama was created',
+      );
     } catch (e) {
       throw Exception(_friendlyError(e, 'Failed to create chama.'));
     }
@@ -254,39 +299,27 @@ class ChamaService {
         'venue': venue,
         'video_link': videoLink,
       });
-    } catch (e) {
-      throw Exception(_friendlyError(e, 'Failed to schedule meeting.'));
-    }
 
-    try {
-      // Notify members via email without blocking the successful insert.
       final members = await _supabase
           .from('chama_members')
-          .select('users:user_id(email)')
-          .eq('chama_id', chamaId);
+          .select('user_id')
+          .eq('chama_id', chamaId)
+          .eq('status', 'active');
 
-      for (var member in members) {
-        final email = member['users']?['email'];
-        if (email != null) {
-          NotificationHelper.sendEmail(
-            to: email,
-            subject: 'New Meeting Scheduled: $title',
-            html: '''
-              <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
-                <h2 style="color: #00C853;">New Meeting for your Chama</h2>
-                <p><b>Title:</b> $title</p>
-                <p><b>Date:</b> ${date.toLocal().toString()}</p>
-                <p><b>Venue:</b> $venue</p>
-                <p><b>Description:</b> $description</p>
-                ${videoLink != null ? '<p><b>Join Link:</b> <a href="$videoLink">$videoLink</a></p>' : ''}
-                <p>Log in to the Ratibu app for more details.</p>
-              </div>
-            ''',
-          );
-        }
+      for (final member in (members as List)) {
+        final memberId = member['user_id']?.toString();
+        if (memberId == null) continue;
+        await _notifyUser(
+          targetUserId: memberId,
+          title: 'New meeting scheduled',
+          message: 'A new chama meeting has been scheduled.',
+          type: 'info',
+          link: '/meetings',
+          emailSubject: 'New chama meeting scheduled',
+        );
       }
     } catch (e) {
-      debugPrint('Error sending meeting notification emails: $e');
+      throw Exception(_friendlyError(e, 'Failed to schedule meeting.'));
     }
   }
 
@@ -310,36 +343,25 @@ class ChamaService {
       'target_member_ids': targetMemberIds,
     });
 
-    // Notify Targeted Members via Email
-    try {
-      if (targetMemberIds != null && targetMemberIds.isNotEmpty) {
-        final users = await _supabase
-            .from('users')
-            .select('email')
-            .inFilter('id', targetMemberIds);
+    final recipients = targetMemberIds ??
+        (await _supabase
+            .from('chama_members')
+            .select('user_id')
+            .eq('chama_id', chamaId)
+            .eq('status', 'active'))
+            as List;
 
-        for (var user in users) {
-          final email = user['email'];
-          if (email != null) {
-            NotificationHelper.sendEmail(
-              to: email,
-              subject: 'Payment Requested: $title',
-              html: '''
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
-                  <h2 style="color: #00C853;">Payment Prompt</h2>
-                  <p>You have a new payment request for your Chama.</p>
-                  <p><b>Title:</b> $title</p>
-                  <p><b>Amount:</b> KES $amount</p>
-                  ${dueDate != null ? '<p><b>Due Date:</b> ${dueDate.toString()}</p>' : ''}
-                  <p>Please open the Ratibu app to complete the transaction.</p>
-                </div>
-              ''',
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error sending payment prompt emails: $e');
+    for (final row in recipients) {
+      final memberId = row is Map ? row['user_id']?.toString() : null;
+      if (memberId == null || memberId == user.id) continue;
+      await _notifyUser(
+        targetUserId: memberId,
+        title: 'Payment request',
+        message: 'You have a new payment request for your chama.',
+        type: 'warning',
+        link: '/chamas',
+        emailSubject: 'New chama payment request',
+      );
     }
   }
 

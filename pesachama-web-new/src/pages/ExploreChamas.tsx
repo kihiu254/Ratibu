@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { notifyAudience, notifyUser } from '../lib/notify'
 import { Search, Users, Loader2, CheckCircle2, Star } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Button from '../components/Button'
@@ -89,6 +90,25 @@ export default function ExploreChamas() {
         })
 
       if (error) throw error
+
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Joined chama',
+        message: `You successfully joined ${chamaId}. Check your chama dashboard for updates.`,
+        type: 'success',
+        link: '/chamas',
+        emailSubject: 'You joined a chama on Ratibu',
+      })
+
+      await notifyAudience({
+        audience: 'chama_admins',
+        chamaId,
+        title: 'New chama member',
+        message: 'A member joined your chama.',
+        type: 'info',
+        link: '/chamas',
+        emailSubject: 'A member joined your chama',
+      })
 
       setJoinedIds(prev => new Set([...prev, chamaId]))
       

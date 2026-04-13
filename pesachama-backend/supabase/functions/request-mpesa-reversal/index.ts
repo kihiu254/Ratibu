@@ -160,6 +160,26 @@ Deno.serve(async (req) => {
     }, response.status);
   }
 
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/notify-user`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        targetUserId: userId,
+        title: "Reversal requested",
+        message: `Your reversal request for transaction ${transactionId} has been submitted.`,
+        type: "info",
+        link: "/reversals",
+        emailSubject: "Ratibu reversal request submitted",
+      }),
+    });
+  } catch (e) {
+    console.warn("Failed to send reversal notification:", e);
+  }
+
   return jsonResponse({
     success: true,
     data: body,

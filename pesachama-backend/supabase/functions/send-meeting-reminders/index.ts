@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import { sendFirebasePush } from "../_shared/firebase.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -44,7 +45,7 @@ async function sendEmail(to: string, subject: string, html: string) {
 }
 
 async function sendPush(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   userId: string,
   title: string,
   body: string,
@@ -55,23 +56,9 @@ async function sendPush(
     .eq("user_id", userId);
   if (!tokens?.length) return;
 
-  const fcmKey = Deno.env.get("FCM_SERVER_KEY");
-  if (!fcmKey) return;
-
   for (const { token } of tokens) {
     try {
-      await fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `key=${fcmKey}`,
-        },
-        body: JSON.stringify({
-          to: token,
-          notification: { title, body, sound: "default" },
-          priority: "high",
-        }),
-      });
+      await sendFirebasePush(token, title, body);
     } catch (e) {
       console.error("FCM error:", e);
     }

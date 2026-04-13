@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { toast } from '../utils/toast'
 import { supabase } from '../lib/supabase'
+import { notifyUser } from '../lib/notify'
 import { resetTransactionPin } from '../lib/transactionAuth'
 import { isDuplicatePhoneError, isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
 import { getKenyanPhoneVariants } from '../lib/phone'
@@ -334,6 +335,14 @@ export default function Profile() {
         return
       }
       if (error) throw error
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Savings target created',
+        message: `Your savings target "${newSavingsTarget.name}" was created successfully.`,
+        type: 'success',
+        link: '/personal-savings',
+        emailSubject: 'Your savings target is ready',
+      })
 
       setNewSavingsTarget({
         name: '',
@@ -361,6 +370,7 @@ export default function Profile() {
 
   async function handleSavingsTargetStatusChange(id: string, status: SavingsStatus) {
     try {
+      if (!user) return
       const { error } = await supabase
         .from('user_savings_targets')
         .update({ status, updated_at: new Date().toISOString() })
@@ -371,6 +381,14 @@ export default function Profile() {
       setSavingsTargets((current) => current.map((target) =>
         target.id === id ? { ...target, status } : target
       ))
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Savings target updated',
+        message: `Your savings target "${savingsTargets.find((target) => target.id === id)?.name || 'target'}" is now ${status}.`,
+        type: 'info',
+        link: '/personal-savings',
+        emailSubject: 'Your savings target status changed',
+      })
       toast.success(`Savings target ${status}`)
     } catch (err: unknown) {
       toast.error(getErrorMessage(err) || 'Failed to update savings target')
@@ -452,6 +470,13 @@ export default function Profile() {
       if (error) {
         throw error
       }
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Profile updated',
+        message: 'Your profile changes were saved successfully.',
+        type: 'success',
+        emailSubject: 'Your Ratibu profile was updated',
+      })
       setMessage({ type: 'success', text: 'Profile updated successfully!' })
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'code' in err && 'message' in err && isDuplicatePhoneError(err as { code?: string; message?: string; details?: string; hint?: string })
@@ -496,6 +521,13 @@ export default function Profile() {
         .eq('id', user.id)
 
       if (updateError) throw updateError
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Avatar updated',
+        message: 'Your profile photo was updated successfully.',
+        type: 'success',
+        emailSubject: 'Your Ratibu profile photo was updated',
+      })
       
       setMessage({ type: 'success', text: 'Avatar updated!' })
     } catch (err: unknown) {
@@ -527,6 +559,15 @@ export default function Profile() {
     try {
       setResettingPin(true)
       await resetTransactionPin(newTransactionPin)
+      if (user) {
+        await notifyUser({
+          targetUserId: user.id,
+          title: 'Transaction PIN updated',
+          message: 'Your transaction PIN was changed successfully.',
+          type: 'success',
+          emailSubject: 'Your Ratibu PIN was updated',
+        })
+      }
       setShowPinResetForm(false)
       setNewTransactionPin('')
       setConfirmTransactionPin('')

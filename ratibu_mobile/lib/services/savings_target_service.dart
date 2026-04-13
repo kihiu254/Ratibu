@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/savings_target.dart';
+import '../utils/notification_helper.dart';
 
 class SavingsTargetService {
   final _supabase = Supabase.instance.client;
@@ -71,6 +72,17 @@ class SavingsTargetService {
       'early_withdrawal_penalty_percent': isLocked ? 0 : earlyWithdrawalPenaltyPercent,
       'status': isLocked ? 'locked' : 'active',
     });
+
+    await NotificationHelper.notifyUser(
+      targetUserId: user.id,
+      title: isLocked ? 'Lock savings created' : 'Savings plan created',
+      message: isLocked
+          ? 'Your lock savings plan "$name" was created successfully.'
+          : 'Your savings plan "$name" was created successfully.',
+      type: 'success',
+      link: '/personal-savings',
+      emailSubject: isLocked ? 'Your lock savings plan is ready' : 'Your savings plan is ready',
+    );
   }
 
   Future<Map<String, dynamic>> processSavingsTransaction({
@@ -91,6 +103,18 @@ class SavingsTargetService {
     });
 
     if (response is Map<String, dynamic>) {
+      final title = type == 'deposit' ? 'Savings deposit recorded' : 'Savings withdrawal recorded';
+      final message = response['message']?.toString() ?? (type == 'deposit'
+          ? 'Your savings deposit was recorded successfully.'
+          : 'Your savings withdrawal was recorded successfully.');
+      await NotificationHelper.notifyUser(
+        targetUserId: user.id,
+        title: title,
+        message: message,
+        type: 'success',
+        link: '/personal-savings',
+        emailSubject: title,
+      );
       return response;
     }
 
@@ -121,5 +145,17 @@ class SavingsTargetService {
           'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', targetId);
+
+    final user = _supabase.auth.currentUser;
+    if (user != null) {
+      await NotificationHelper.notifyUser(
+        targetUserId: user.id,
+        title: 'Savings plan updated',
+        message: 'Your savings plan status is now $status.',
+        type: 'info',
+        link: '/personal-savings',
+        emailSubject: 'Your savings plan status changed',
+      );
+    }
   }
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { notifyAudience, notifyUser } from '../lib/notify'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Users, FileText, Calendar, DollarSign, Loader2, Plus, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -78,6 +79,22 @@ export default function CreateChama() {
       setError('Chama created but failed to add you as member: ' + memberError.message)
       setLoading(false)
     } else {
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Chama created',
+        message: `Your chama "${formData.name}" was created successfully.`,
+        type: 'success',
+        link: '/chamas',
+        emailSubject: 'Your chama is ready on Ratibu',
+      })
+      await notifyAudience({
+        audience: 'admins',
+        title: 'New chama created',
+        message: `A new chama called "${formData.name}" was created.`,
+        type: 'info',
+        link: '/admin/chamas',
+        emailSubject: 'A new chama was created',
+      })
       navigate('/dashboard')
     }
   }

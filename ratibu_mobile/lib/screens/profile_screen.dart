@@ -13,6 +13,7 @@ import '../services/security_service.dart';
 import '../services/transaction_authorization_service.dart';
 import '../services/savings_target_service.dart';
 import '../utils/phone_utils.dart';
+import '../utils/notification_helper.dart';
 import '../models/savings_target.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -210,6 +211,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _adminResetting = true);
     try {
       await _transactionAuthorizationService.adminResetTransactionPin(target['id'] as String);
+      await NotificationHelper.notifyUser(
+        targetUserId: target['id'] as String,
+        title: 'Transaction PIN reset',
+        message: 'An admin reset your transaction PIN. You can set a new one now.',
+        type: 'warning',
+        emailSubject: 'Your Ratibu PIN was reset',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Transaction PIN reset successfully.')),
@@ -264,6 +272,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         email,
         redirectTo: 'https://ratibu.vercel.app/reset-password',
       );
+      await NotificationHelper.notifyUser(
+        targetUserId: target['id'] as String,
+        title: 'Password reset email sent',
+        message: 'A password reset link has been sent to your email address.',
+        type: 'info',
+        emailSubject: 'Password reset request sent',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password reset email sent.')),
@@ -316,6 +331,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .from('users')
           .update({'avatar_url': publicUrl})
           .eq('id', user.id);
+
+      await NotificationHelper.notifyUser(
+        targetUserId: user.id,
+        title: 'Avatar updated',
+        message: 'Your profile photo was updated successfully.',
+        type: 'success',
+        emailSubject: 'Your Ratibu profile photo was updated',
+      );
 
       setState(() {
         _avatarUrl = publicUrl;
@@ -379,6 +402,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         );
       }
+
+      await NotificationHelper.notifyUser(
+        targetUserId: user.id,
+        title: 'Profile updated',
+        message: 'Your Ratibu profile changes were saved successfully.',
+        type: 'success',
+        emailSubject: 'Your Ratibu profile was updated',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

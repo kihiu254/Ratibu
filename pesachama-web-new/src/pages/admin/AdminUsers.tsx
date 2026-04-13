@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { notifyUser } from '../../lib/notify'
 import { toast } from 'sonner'
 
 interface UserProfile {
@@ -51,6 +52,13 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
     try {
       const { error } = await supabase.from('users').update({ kyc_status: status }).eq('id', user.id)
       if (error) throw error
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'KYC status updated',
+        message: `Your KYC status has been updated to ${status.replace('_', ' ')}.`,
+        type: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+        emailSubject: 'Your Ratibu KYC status changed',
+      })
       toast.success(`KYC status updated to ${status}`)
       onStatusChange(user.id, status)
       onClose()
@@ -75,6 +83,14 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
       })
 
       if (error) throw error
+
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Transaction PIN reset',
+        message: 'An admin reset your transaction PIN. You can set a new one now.',
+        type: 'warning',
+        emailSubject: 'Your Ratibu PIN was reset',
+      })
 
       toast.success('PIN reset')
       onStatusChange(user.id, user.kyc_status || 'not_started')
@@ -101,6 +117,14 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
       })
 
       if (error) throw error
+
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'Password reset email sent',
+        message: 'A password reset link has been sent to your email address.',
+        type: 'info',
+        emailSubject: 'Your Ratibu password reset link',
+      })
 
       toast.success('Password reset email sent')
       onClose()

@@ -77,30 +77,28 @@ class _JoinChamaScreenState extends State<JoinChamaScreen> {
         'status': 'active',
       });
 
-      NotificationHelper.sendNotification(
-        title: 'Successfully Joined!',
-        message: 'You have joined a new Chama. Check your dashboard to see updates.',
-        type: 'success',
-      );
-
-      // Send Email Notification
       final user = _supabase.auth.currentUser;
-      if (user?.email != null) {
+      if (user != null) {
         final chamaNode = _chamas.firstWhere((c) => c['id'] == chamaId);
-        NotificationHelper.sendEmail(
-          to: user!.email!,
-          subject: 'Welcome to ${chamaNode['name']}! ðŸŽŠ',
-          html: '''
-            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-              <h2 style="color: #00C853;">Joined Successfully!</h2>
-              <p>You have successfully joined <b>${chamaNode['name']}</b>.</p>
-              <p>You can now participate in meetings, contribute funds, and participate in Chama activities.</p>
-              <br>
-              <p>Best regards,<br>The Ratibu Team</p>
-            </div>
-          ''',
+        await NotificationHelper.notifyUser(
+          targetUserId: user.id,
+          title: 'Joined chama',
+          message: 'You successfully joined ${chamaNode['name']}.',
+          type: 'success',
+          link: '/chamas',
+          emailSubject: 'You joined a chama on Ratibu',
         );
       }
+
+      await NotificationHelper.notifyAudience(
+        audience: 'chama_admins',
+        chamaId: chamaId,
+        title: 'New chama member',
+        message: 'A member joined your chama.',
+        type: 'info',
+        link: '/chamas',
+        emailSubject: 'A member joined your chama',
+      );
 
       setState(() {
         _joinedIds.add(chamaId);

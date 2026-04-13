@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'security_service.dart';
+import '../utils/notification_helper.dart';
 
 enum _ApprovalChoice { biometric, pin }
 
@@ -358,6 +359,14 @@ class TransactionAuthorizationService {
     if (status != 200 || response['success'] != true) {
       throw response['error']?.toString() ?? 'Failed to reset transaction PIN';
     }
+
+    await NotificationHelper.notifyUser(
+      targetUserId: targetUserId,
+      title: 'Transaction PIN reset',
+      message: 'An admin reset your transaction PIN. You can set a new one now.',
+      type: 'warning',
+      emailSubject: 'Your Ratibu PIN was reset',
+    );
   }
 
   Future<Map<String, dynamic>> requestMpesaReversal({
@@ -366,6 +375,7 @@ class TransactionAuthorizationService {
     required String receiverParty,
     required String remarks,
   }) async {
+    final user = _supabase.auth.currentUser;
     final response = await _supabase.functions.invoke(
       'request-mpesa-reversal',
       body: {
@@ -378,6 +388,16 @@ class TransactionAuthorizationService {
 
     if (response.status != 200) {
       throw 'Reversal request failed: ${response.data}';
+    }
+
+    if (user != null) {
+      await NotificationHelper.notifyUser(
+        targetUserId: user.id,
+        title: 'Reversal requested',
+        message: 'Your M-Pesa reversal request has been submitted.',
+        type: 'info',
+        emailSubject: 'Ratibu reversal request submitted',
+      );
     }
 
     if (response.data is Map<String, dynamic>) {

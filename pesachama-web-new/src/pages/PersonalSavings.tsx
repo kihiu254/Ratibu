@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowDownCircle, ArrowUpCircle, FileText, Lock, Pause, Play, Plus, Target, Wallet, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { notifyUser } from '../lib/notify'
 import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
 import { toast } from '../utils/toast'
 
@@ -221,6 +222,17 @@ export default function PersonalSavings() {
       }
       if (error) throw error
 
+      await notifyUser({
+        targetUserId: userId,
+        title: isLocked ? 'Lock savings created' : 'Savings plan created',
+        message: isLocked
+          ? `Your lock savings plan "${newSavingsTarget.name}" was created successfully.`
+          : `Your savings plan "${newSavingsTarget.name}" was created successfully.`,
+        type: 'success',
+        link: '/personal-savings',
+        emailSubject: isLocked ? 'Your lock savings plan is ready' : 'Your savings plan is ready',
+      })
+
       setNewSavingsTarget(emptySavingsTarget)
       setShowForm(null)
       toast.success(`${isLocked ? 'Lock savings' : 'Savings'} plan created`)
@@ -248,6 +260,14 @@ export default function PersonalSavings() {
       setSavingsTargets((current) => current.map((item) =>
         item.id === target.id ? { ...item, status: nextStatus } : item
       ))
+      await notifyUser({
+        targetUserId: userId as string,
+        title: 'Savings plan updated',
+        message: `Your savings plan "${target.name}" is now ${nextStatus}.`,
+        type: 'info',
+        link: '/personal-savings',
+        emailSubject: 'Your savings plan status changed',
+      })
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to update savings plan'))
     }
@@ -289,6 +309,16 @@ export default function PersonalSavings() {
 
       const next = Number(result.next_amount ?? target.current_amount)
       setSavingsTargets(prev => prev.map(t => t.id === target.id ? { ...t, current_amount: next } : t))
+      await notifyUser({
+        targetUserId: userId,
+        title: type === 'deposit' ? 'Savings deposit recorded' : 'Savings withdrawal recorded',
+        message: result.message || (type === 'deposit'
+          ? `Your deposit to "${target.name}" was recorded successfully.`
+          : `Your withdrawal from "${target.name}" was recorded successfully.`),
+        type: 'success',
+        link: '/personal-savings',
+        emailSubject: type === 'deposit' ? 'Savings deposit recorded' : 'Savings withdrawal recorded',
+      })
       toast.success(result.message || (type === 'deposit' ? 'Deposit recorded' : 'Withdrawal recorded'))
       setTxModal(null)
       setTxAmount('')

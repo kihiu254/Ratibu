@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/county_picker_field.dart';
 import '../utils/notification_helper.dart';
 
 class KycFormScreen extends ConsumerStatefulWidget {
@@ -155,25 +156,23 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
         'category_other_specification': _selectedCategories.contains('Others') ? _otherCategoryController.text : null,
       }).eq('id', user.id);
 
-      // Send Onboarding/KYC Success Email
-      if (user.email != null) {
-        NotificationHelper.sendEmail(
-          to: user.email!,
-          subject: 'Onboarding Documents Received ðŸ“‹',
-          html: '''
-            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
-              <h2 style="color: #00C853;">Onboarding Update</h2>
-              <p>Hi ${_firstNameController.text},</p>
-              <p>We've successfully received your KYC verification documents. Our team is now reviewing them.</p>
-              <p><b>Status:</b> Pending Review</p>
-              <p>This process usually takes 24-48 hours. We'll notify you as soon as your account is fully verified.</p>
-              <p>Thank you for your patience!</p>
-              <br>
-              <p>Best regards,<br>The Ratibu Team</p>
-            </div>
-          ''',
-        );
-      }
+      await NotificationHelper.notifyAudience(
+        audience: 'admins',
+        title: 'New KYC submission',
+        message: '${_firstNameController.text} ${_lastNameController.text} submitted KYC for review.',
+        type: 'info',
+        link: '/admin/kyc-documents',
+        emailSubject: 'A new KYC submission is waiting',
+      );
+
+      await NotificationHelper.notifyUser(
+        targetUserId: user.id,
+        title: 'KYC submitted',
+        message: 'Your KYC documents were submitted successfully and are pending review.',
+        type: 'success',
+        link: '/dashboard',
+        emailSubject: 'Your KYC submission is pending review',
+      );
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('pending_onboarding', false);
@@ -479,7 +478,12 @@ class _KycFormScreenState extends ConsumerState<KycFormScreen> {
                   )).toList(),
                 ),
                 const SizedBox(height: 16),
-                _buildTextField(label: 'County', controller: _countyController, icon: Icons.location_on_outlined),
+                CountyPickerField(
+                  label: 'County',
+                  controller: _countyController,
+                  icon: Icons.location_on_outlined,
+                  hintText: 'Search and select county',
+                ),
                 const SizedBox(height: 16),
                 _buildTextField(label: 'Sub-County', controller: _subCountyController, icon: Icons.location_city_outlined),
                 const SizedBox(height: 16),

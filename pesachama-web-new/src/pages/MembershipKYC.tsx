@@ -15,6 +15,7 @@ import {
   Users
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { notifyAudience, notifyUser } from '../lib/notify'
 import { toast } from '../utils/toast'
 
 const CATEGORIES = [
@@ -131,6 +132,24 @@ export default function MembershipKYC() {
         .eq('id', user.id)
 
       if (updateError) throw updateError
+
+      await notifyUser({
+        targetUserId: user.id,
+        title: 'KYC submitted',
+        message: 'Your KYC documents were submitted successfully and are pending review.',
+        type: 'success',
+        link: '/dashboard',
+        emailSubject: 'Your KYC submission is pending review',
+      })
+
+      await notifyAudience({
+        audience: 'admins',
+        title: 'New KYC submission',
+        message: `${personalDetails.firstName} ${personalDetails.lastName} submitted KYC for review.`,
+        type: 'info',
+        link: '/admin/kyc-documents',
+        emailSubject: 'A new KYC submission is waiting',
+      })
 
       toast.success('KYC submitted! Our team will review your documents.')
       navigate('/dashboard')
