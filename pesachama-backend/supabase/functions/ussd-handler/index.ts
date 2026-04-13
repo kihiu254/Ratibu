@@ -883,7 +883,7 @@ const renderPinPrompt = (name: string, needsSetup = false) =>
     : `CON Ratibu\n${getTimeGreeting()} ${name}\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
-  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n00 Exit`;
+  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n10 Products\n00 Exit`;
 
 const renderChamasMenu = () =>
   `CON Ratibu\nChamas\n1 View\n2 Discover\n3 Start\n0 Back\n00 Home`;
@@ -908,6 +908,9 @@ const renderRewardsMenu = () =>
 
 const renderCreateChamaMenu = () =>
   `CON Ratibu\nCreate Chama\n1 Start\n2 Explore\n0 Back\n00 Home`;
+
+const renderProductsMenu = () =>
+  `CON Ratibu\nProducts\n1 Savings\n2 Loans\n0 Back\n00 Home`;
 
 const renderChoicePrompt = (message: string) =>
   `CON Ratibu\n${message}\n1 Main menu\n2 Exit`;
@@ -1405,6 +1408,16 @@ Deno.serve(async (req: Request) => {
             response = renderChoicePrompt("Ratibu\nCreate Chama\nComplete in the app.");
           } else if (menu[1] === "2") {
             response = renderChoicePrompt("Ratibu\nExplore Chamas\nBrowse chamas in the app.");
+          } else {
+            response = renderMainMenu(displayName);
+          }
+        } else if (menu[0] === "10") {
+          if (menu.length === 1) {
+            response = renderProductsMenu();
+          } else if (menu[1] === "1") {
+            response = renderChoicePrompt("Ratibu\nSavings\nManage savings in the app.");
+          } else if (menu[1] === "2") {
+            response = renderChoicePrompt("Ratibu\nLoans\nBrowse loan products in the app.");
           } else {
             response = renderMainMenu(displayName);
           }
