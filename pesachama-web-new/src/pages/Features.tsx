@@ -3,6 +3,7 @@ import { ShieldCheck, Zap, Globe, RefreshCcw, Bell, LineChart, FileCheck, Users,
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 const Features = () => {
     const navigate = useNavigate();
@@ -30,6 +31,11 @@ const Features = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+            <Seo
+              title="Ratibu Chama Features"
+              description="Explore Ratibu Chama features for USSD banking, digital savings, group contributions, automation, reporting, notifications, and secure chama management."
+              canonicalPath="/features"
+            />
             <Navbar />
             
             <section className="pt-40 pb-20 relative overflow-hidden">

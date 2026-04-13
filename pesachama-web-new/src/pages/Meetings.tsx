@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Calendar, MapPin, Video, Plus, X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { notifyAudience } from '../lib/notify'
 import { toast } from '../utils/toast'
 import { format } from 'date-fns'
 
@@ -200,6 +201,16 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
         video_link: videoLink,
       })
       if (error) throw error
+      const chamaName = chamas.find((item) => item.id === chamaId)?.name || 'Chama'
+      void notifyAudience({
+        audience: 'chama_members',
+        chamaId,
+        title: `${chamaName} meeting scheduled`,
+        message: `${title.trim()} is scheduled for ${format(new Date(datetime), 'PPP p')}.`,
+        type: 'info',
+        link: '/meetings',
+        emailSubject: `${chamaName} meeting scheduled`,
+      }).catch(() => {})
       toast.success('Meeting scheduled!')
       onCreated()
       onClose()

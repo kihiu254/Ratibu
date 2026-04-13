@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeftRight, ChevronLeft, ChevronRight, CheckCircle, XCircle, Clock, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { notifyUser } from '../lib/notify'
 import { toast } from '../utils/toast'
 import { format, addMonths, subMonths, startOfMonth } from 'date-fns'
 
@@ -260,6 +261,8 @@ export default function Swaps() {
         throw new Error('No internet connection. Reconnect and try again.')
       }
 
+      const cancelledSwap = swapRequests.find((swap) => swap.id === id)
+
       const { error } = await supabase
         .from('allocation_swap_requests')
         .update({ status: 'cancelled' })
@@ -268,6 +271,16 @@ export default function Swaps() {
         .eq('status', 'pending')
 
       if (error) throw error
+      if (cancelledSwap?.target_user_id) {
+        void notifyUser({
+          targetUserId: cancelledSwap.target_user_id,
+          title: 'Swap request cancelled',
+          message: 'A pending swap request in your chama was cancelled.',
+          type: 'warning',
+          link: '/swaps',
+          emailSubject: 'Swap request cancelled',
+        }).catch(() => {})
+      }
       toast.success('Swap request cancelled.')
       void loadData()
     } catch (error: unknown) {

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Smartphone, Shield, Zap, CircleDollarSign, Fingerprint, Globe, BarChart3, LockKeyhole, Landmark, Bolt } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import Seo from '../components/Seo';
 
 const Products = () => {
     const mainFeatures = [
@@ -51,6 +52,12 @@ const Products = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+            <Seo
+              title="Ratibu Chama Products"
+              description="Discover Ratibu Chama products including digital wallets, Chama OS, instant credit, USSD access, KCB M-PESA, and KPLC bill payments."
+              canonicalPath="/products"
+              keywords={['digital wallets Kenya', 'chama OS', 'instant credit', 'USSD access']}
+            />
             <Navbar />
             
             {/* Hero Section */}

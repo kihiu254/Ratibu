@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
+import Seo from '../components/Seo'
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Something went wrong'
@@ -76,6 +77,12 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+      <Seo
+        title="Ratibu Chama Reset Password"
+        description="Reset your Ratibu Chama password securely and return to your account."
+        canonicalPath="/reset-password"
+        noIndex
+      />
       <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 relative overflow-hidden py-12">
         <div className="absolute inset-0 z-0 overflow-hidden">
           <div className="absolute inset-0 dark:bg-slate-950/60 z-10 backdrop-blur-[2px] transition-colors duration-300" />

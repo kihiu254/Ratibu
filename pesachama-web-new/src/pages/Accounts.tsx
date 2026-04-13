@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowDownToLine, FileText, Layers, PiggyBank, Target, Wallet, Landmark, Pencil, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { notifyUser } from '../lib/notify'
 import { isMissingOrUnauthorizedSavingsTargets } from '../lib/supabaseErrors'
 import TransactionApprovalModal from '../components/TransactionApprovalModal'
 import { toast } from '../utils/toast'
@@ -399,6 +400,14 @@ export default function Accounts() {
     const { error } = await supabase.from('users').update({ mshwari_phone: phone }).eq('id', user.id)
     if (error) throw error
     setMshwariPhone(phone)
+    void notifyUser({
+      targetUserId: user.id,
+      title: 'Mshwari account linked',
+      message: 'Your Mshwari phone number was saved successfully.',
+      type: 'success',
+      link: '/accounts',
+      emailSubject: 'Mshwari account linked',
+    }).catch(() => {})
     toast.success('Mshwari account linked!')
   }
 

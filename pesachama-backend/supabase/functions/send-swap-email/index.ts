@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendFirebasePush } from "../_shared/firebase.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,22 +17,19 @@ type SwapRow = {
   month: string;
   requester_day: number;
   target_day: number;
-  requester: { email?: string; first_name?: string; last_name?: string } | null;
-  target: { email?: string; first_name?: string; last_name?: string } | null;
+  requester_id: string | null;
+  target_user_id: string | null;
+  requester: { id?: string; email?: string; first_name?: string; last_name?: string } | null;
+  target: { id?: string; email?: string; first_name?: string; last_name?: string } | null;
   chama: { name?: string } | null;
 };
 
-function fullName(user: { first_name?: string; last_name?: string } | null, fallback: string) {
-  const name = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
-  return name || fallback;
-}
-
-function monthLabel(month: string) {
-  return new Date(`${month}T00:00:00`).toLocaleDateString("en-KE", {
-    month: "long",
-    year: "numeric",
-  });
-}
+type Recipient = {
+  id?: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+};
 
 async function sendMail(to: string, subject: string, html: string) {
   if (!RESEND_API_KEY || !EMAIL_FROM) {
@@ -60,88 +58,67 @@ async function sendMail(to: string, subject: string, html: string) {
   }
 }
 
-function buildMessages(event: SwapEvent, swap: SwapRow) {
-  const chamaName = swap.chama?.name || "your chama";
-  const requesterName = fullName(swap.requester, "A member");
-  const targetName = fullName(swap.target, "A member");
-  const period = monthLabel(swap.month);
+function displayName(user: Recipient | null, fallback: string) {
+  const name = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
+  return name || fallback;
+}
 
-  switch (event) {
-    case "request_created":
-      return swap.target?.email
-        ? [{
-            to: swap.target.email,
-            subject: `New swap request in ${chamaName}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
-                <h2 style="color: #00C853; margin-top: 0;">New allocation swap request</h2>
-                <p>${requesterName} requested to swap allocation days with you in <strong>${chamaName}</strong>.</p>
-                <p><strong>Month:</strong> ${period}</p>
-                <p><strong>Your current day:</strong> Day ${swap.target_day}</p>
-                <p><strong>Requested day:</strong> Day ${swap.requester_day}</p>
-                <p>Open Ratibu to approve or reject the request.</p>
-              </div>`,
-          }]
-        : [];
-    case "approved":
-      return [
-        swap.requester?.email
-          ? {
-              to: swap.requester.email,
-              subject: `Swap approved in ${chamaName}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
-                  <h2 style="color: #00C853; margin-top: 0;">Swap approved</h2>
-                  <p>${targetName} approved your swap request in <strong>${chamaName}</strong>.</p>
-                  <p><strong>Month:</strong> ${period}</p>
-                  <p>Your allocation has moved from Day ${swap.requester_day} to Day ${swap.target_day}.</p>
-                </div>`,
-            }
-          : null,
-        swap.target?.email
-          ? {
-              to: swap.target.email,
-              subject: `Swap confirmed in ${chamaName}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
-                  <h2 style="color: #00C853; margin-top: 0;">Swap confirmed</h2>
-                  <p>You approved ${requesterName}'s swap request in <strong>${chamaName}</strong>.</p>
-                  <p><strong>Month:</strong> ${period}</p>
-                  <p>Your allocation has moved from Day ${swap.target_day} to Day ${swap.requester_day}.</p>
-                </div>`,
-            }
-          : null,
-      ].filter(Boolean) as Array<{ to: string; subject: string; html: string }>;
-    case "rejected":
-      return [
-        swap.requester?.email
-          ? {
-              to: swap.requester.email,
-              subject: `Swap request declined in ${chamaName}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
-                  <h2 style="color: #ef4444; margin-top: 0;">Swap declined</h2>
-                  <p>${targetName} declined your swap request in <strong>${chamaName}</strong>.</p>
-                  <p><strong>Month:</strong> ${period}</p>
-                  <p>Your allocation stays on Day ${swap.requester_day}.</p>
-                </div>`,
-            }
-          : null,
-        swap.target?.email
-          ? {
-              to: swap.target.email,
-              subject: `You declined a swap request in ${chamaName}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
-                  <h2 style="color: #f59e0b; margin-top: 0;">Swap declined</h2>
-                  <p>You declined ${requesterName}'s swap request in <strong>${chamaName}</strong>.</p>
-                  <p><strong>Month:</strong> ${period}</p>
-                  <p>Your allocation stays on Day ${swap.target_day}.</p>
-                </div>`,
-            }
-          : null,
-      ].filter(Boolean) as Array<{ to: string; subject: string; html: string }>;
+function buildNotification(event: SwapEvent, swap: SwapRow) {
+  const chamaName = swap.chama?.name || "your chama";
+  const requesterName = displayName(swap.requester, "A member");
+  const targetName = displayName(swap.target, "A member");
+  const period = new Date(`${swap.month}T00:00:00`).toLocaleDateString("en-KE", {
+    month: "long",
+    year: "numeric",
+  });
+
+  if (event === "request_created") {
+    return {
+      title: `New swap request in ${chamaName}`,
+      message: `${requesterName} requested a swap for ${period}.`,
+      recipients: swap.target ? [swap.target] : [],
+      emailSubject: `New swap request in ${chamaName}`,
+      emailHtml: `
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
+          <h2 style="color: #00C853; margin-top: 0;">New allocation swap request</h2>
+          <p>${requesterName} requested to swap allocation days with you in <strong>${chamaName}</strong>.</p>
+          <p><strong>Month:</strong> ${period}</p>
+          <p><strong>Your current day:</strong> Day ${swap.target_day}</p>
+          <p><strong>Requested day:</strong> Day ${swap.requester_day}</p>
+          <p>Open Ratibu to approve or reject the request.</p>
+        </div>`,
+    };
   }
+
+  if (event === "approved") {
+    return {
+      title: `Swap approved in ${chamaName}`,
+      message: `${targetName} approved the swap request for ${period}.`,
+      recipients: [swap.requester, swap.target].filter(Boolean) as Recipient[],
+      emailSubject: `Swap approved in ${chamaName}`,
+      emailHtml: `
+        <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
+          <h2 style="color: #00C853; margin-top: 0;">Swap approved</h2>
+          <p>The swap request in <strong>${chamaName}</strong> was approved.</p>
+          <p><strong>Month:</strong> ${period}</p>
+          <p>Allocation days have been updated.</p>
+        </div>`,
+    };
+  }
+
+  return {
+    title: `Swap declined in ${chamaName}`,
+    message: `${targetName} declined the swap request for ${period}.`,
+    recipients: [swap.requester, swap.target].filter(Boolean) as Recipient[],
+    emailSubject: `Swap request declined in ${chamaName}`,
+    emailHtml: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
+        <h2 style="color: #ef4444; margin-top: 0;">Swap declined</h2>
+        <p>The swap request in <strong>${chamaName}</strong> was declined.</p>
+        <p><strong>Month:</strong> ${period}</p>
+        <p>Your allocation remains unchanged.</p>
+      </div>`,
+  };
 }
 
 serve(async (req: Request) => {
@@ -174,8 +151,8 @@ serve(async (req: Request) => {
         month,
         requester_day,
         target_day,
-        requester:users!allocation_swap_requests_requester_id_fkey(email, first_name, last_name),
-        target:users!allocation_swap_requests_target_user_id_fkey(email, first_name, last_name),
+        requester:users!allocation_swap_requests_requester_id_fkey(id, email, first_name, last_name),
+        target:users!allocation_swap_requests_target_user_id_fkey(id, email, first_name, last_name),
         chama:chamas(name)
       `)
       .eq("id", swapId)
@@ -189,12 +166,38 @@ serve(async (req: Request) => {
       });
     }
 
-    const messages = buildMessages(event, data as unknown as SwapRow);
-    for (const message of messages) {
-      await sendMail(message.to, message.subject, message.html);
+    const notification = buildNotification(event, data as unknown as SwapRow);
+    const recipients = notification.recipients.filter((recipient) => recipient?.id);
+
+    for (const recipient of recipients) {
+      const targetId = String(recipient.id);
+      const { error: notificationError } = await supabase.from("notifications").insert({
+        user_id: targetId,
+        title: notification.title,
+        message: notification.message,
+        type: event === "approved" ? "success" : event === "rejected" ? "warning" : "info",
+        is_read: false,
+        link: `/swaps`,
+      });
+      if (notificationError) {
+        console.error("Failed to insert swap notification:", notificationError);
+      }
+
+      if (recipient.email) {
+        await sendMail(recipient.email, notification.emailSubject, notification.emailHtml);
+      }
+
+      const { data: tokens } = await supabase
+        .from("user_fcm_tokens")
+        .select("token")
+        .eq("user_id", targetId);
+
+      for (const row of tokens ?? []) {
+        await sendFirebasePush(row.token, notification.title, notification.message, { link: `/swaps` });
+      }
     }
 
-    return new Response(JSON.stringify({ message: "Swap email notifications sent", sent: messages.length }), {
+    return new Response(JSON.stringify({ message: "Swap notifications sent", sent: recipients.length }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -22,7 +22,7 @@ export async function notifyUser(payload: NotifyPayload) {
 }
 
 type NotifyAudiencePayload = {
-  audience: 'admins' | 'chama_admins'
+  audience: 'admins' | 'chama_admins' | 'chama_members'
   title: string
   message: string
   type?: string

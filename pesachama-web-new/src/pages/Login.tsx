@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Lock, Mail, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
+import Seo from '../components/Seo'
 
 export default function Login() {
   const savedEmail = localStorage.getItem('remember_me_email') ?? ''
@@ -130,6 +131,12 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+      <Seo
+        title="Ratibu Chama Login"
+        description="Sign in to Ratibu Chama to manage chamas, savings, loans, statements, KCB M-PESA, KPLC bills, and USSD banking."
+        canonicalPath="/login"
+        noIndex
+      />
       <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 relative overflow-hidden py-12">
         {/* Animated Background Video */}
         <div className="absolute inset-0 z-0 overflow-hidden">

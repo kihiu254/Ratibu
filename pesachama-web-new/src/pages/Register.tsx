@@ -5,6 +5,7 @@ import { Lock, Mail, User, Phone, Loader2, ArrowRight, Eye, EyeOff } from 'lucid
 import { motion } from 'framer-motion'
 import { getKenyanPhoneVariants } from '../lib/phone'
 import { isDuplicatePhoneError } from '../lib/supabaseErrors'
+import Seo from '../components/Seo'
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -101,6 +102,12 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+      <Seo
+        title="Ratibu Chama Register"
+        description="Create a Ratibu Chama account to join chamas, save together, pay bills, manage KYC, and track contributions."
+        canonicalPath="/register"
+        noIndex
+      />
       <div className="flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 relative overflow-hidden py-12">
         {/* Animated Background Video */}
         <div className="absolute inset-0 z-0 overflow-hidden">

@@ -69,6 +69,28 @@ async function getRecipients(supabase: any, audience: string, callerId: string, 
     return (data ?? []).filter((row: any) => row.id !== callerId);
   }
 
+  if (audience === "chama_members") {
+    if (!chamaId) {
+      throw new Error("chamaId is required for chama_members audience");
+    }
+
+    const { data, error } = await supabase
+      .from("chama_members")
+      .select("user_id, users(id, email, first_name, last_name)")
+      .eq("chama_id", chamaId)
+      .eq("status", "active");
+    if (error) throw error;
+
+    const seen = new Set<string>();
+    return (data ?? [])
+      .map((row: any) => row.users)
+      .filter((user: any) => {
+        if (!user?.id || user.id === callerId || seen.has(user.id)) return false;
+        seen.add(user.id);
+        return true;
+      });
+  }
+
   if (audience === "chama_admins") {
     if (!chamaId) {
       throw new Error("chamaId is required for chama_admins audience");

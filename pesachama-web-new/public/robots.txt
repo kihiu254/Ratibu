@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /accounts
+Disallow: /chamas
+Disallow: /create-chama
+Disallow: /explore
+Disallow: /profile
+Disallow: /statement
+Disallow: /swaps
+Disallow: /meetings
+Disallow: /personal-savings
+Disallow: /rewards
+Disallow: /penalties
+Disallow: /kcb-mpesa
+Disallow: /kplc-bill
+Disallow: /membership-kyc
+Disallow: /onboarding
+Disallow: /verify-otp
+
+Sitemap: https://www.ratibuchama.com/sitemap.xml

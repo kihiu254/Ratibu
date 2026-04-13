@@ -1,5 +1,6 @@
 import Navbar from '../components/Navbar';
 import { useLocation } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 const Legal = () => {
     const location = useLocation();
@@ -10,6 +11,12 @@ const Legal = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+            <Seo
+              title={`Ratibu Chama ${title}`}
+              description="Ratibu Chama legal and policy information for web, mobile, and USSD users in Kenya."
+              canonicalPath={location.pathname}
+              noIndex
+            />
             <Navbar />
             
             <main className="flex-grow pt-32 pb-20 px-6">

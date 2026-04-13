@@ -3,6 +3,7 @@ import { Check, X } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 const Pricing = () => {
     const navigate = useNavigate();
@@ -68,6 +69,11 @@ const Pricing = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+            <Seo
+              title="Ratibu Chama Pricing"
+              description="Compare Ratibu Chama pricing plans for small groups, growing SACCOs, and enterprise fintech integrations."
+              canonicalPath="/pricing"
+            />
             <Navbar />
             
             <section className="pt-40 pb-20 relative overflow-hidden">

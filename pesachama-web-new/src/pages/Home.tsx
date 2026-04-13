@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Button from '../components/Button';
 import { RatibuHeroLogo } from '../components/RatibuHeroLogo';
+import Seo from '../components/Seo';
 import { supabase } from '../lib/supabase';
 
 const Hero = () => {
@@ -196,6 +197,26 @@ const AccessDevices = () => {
 export default function Home() {
     return (
         <main className="bg-slate-50 dark:bg-midnight min-h-screen font-sans transition-colors duration-300">
+            <Seo
+              title="Ratibu Chama | Digital Banking for Chamas, Savings & Loans"
+              description="Ratibu Chama is the official digital banking platform for chamas, savings groups, loans, USSD banking, KCB M-PESA, KPLC bills, and transaction statements in Kenya."
+              canonicalPath="/"
+              jsonLd={[
+                {
+                  '@context': 'https://schema.org',
+                  '@type': 'Organization',
+                  name: 'Ratibu Chama',
+                  url: 'https://www.ratibuchama.com',
+                  logo: 'https://www.ratibuchama.com/logo.png',
+                },
+                {
+                  '@context': 'https://schema.org',
+                  '@type': 'WebSite',
+                  name: 'Ratibu Chama',
+                  url: 'https://www.ratibuchama.com',
+                },
+              ]}
+            />
             <Hero />
             <SolutionPillars />
             <AccessDevices />

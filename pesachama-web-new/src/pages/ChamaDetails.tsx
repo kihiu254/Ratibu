@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from '../utils/toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { notifyAudience, notifyUser } from '../lib/notify'
 import { mpesaService } from '../services/mpesaService'
 import TransactionApprovalModal from '../components/TransactionApprovalModal'
 import { 
@@ -397,6 +398,15 @@ export default function ChamaDetails() {
       })
       if (error) throw error
       fetchAllocations()
+      void notifyAudience({
+        audience: 'chama_members',
+        chamaId: id,
+        title: `${data?.name || 'Chama'} allocations ready`,
+        message: `The allocation schedule for ${monthLabel} is ready.`,
+        type: 'info',
+        link: `/chama/${id}`,
+        emailSubject: `${data?.name || 'Chama'} allocations ready`,
+      }).catch(() => {})
       toast.success('Allocations generated')
     } catch (err: unknown) {
       toast.error('Failed to generate allocations', getErrorMessage(err))
@@ -420,6 +430,15 @@ export default function ChamaDetails() {
 
       setData((current) => current ? { ...current, description: descriptionDraft.trim() || null } : current)
       setEditingDescription(false)
+      void notifyAudience({
+        audience: 'chama_members',
+        chamaId: id,
+        title: `${data.name} description updated`,
+        message: 'The chama description was updated.',
+        type: 'info',
+        link: `/chama/${id}`,
+        emailSubject: `${data.name} description updated`,
+      }).catch(() => {})
       toast.success('Chama description updated')
     } catch (error) {
       toast.error('Failed to update chama description', getErrorMessage(error))
@@ -527,8 +546,19 @@ export default function ChamaDetails() {
         .eq('id', swapId)
         .eq('requester_id', user.id)
         .eq('status', 'pending')
-  
+
       if (error) throw error
+      const cancelledSwap = swapRequests.find((swap) => swap.id === swapId)
+      if (cancelledSwap) {
+        void notifyUser({
+          targetUserId: cancelledSwap.target_user_id,
+          title: `Swap cancelled in ${data?.name || 'your chama'}`,
+          message: 'A pending swap request was cancelled.',
+          type: 'warning',
+          link: '/swaps',
+          emailSubject: `Swap cancelled in ${data?.name || 'your chama'}`,
+        }).catch(() => {})
+      }
       toast.success('Swap cancelled')
       fetchSwapRequests()
     } catch (err: unknown) {
@@ -603,12 +633,23 @@ export default function ChamaDetails() {
 
   const handleUpdateRole = async (memberId: string, newRole: string) => {
       try {
+          const member = data?.members.find((item) => item.id === memberId)
           const { error } = await supabase
               .from('chama_members')
               .update({ role: newRole })
               .eq('id', memberId)
           
           if (error) throw error
+          if (member?.user_id) {
+            void notifyUser({
+              targetUserId: member.user_id,
+              title: `Your role changed in ${data?.name || 'the chama'}`,
+              message: `Your role was updated to ${newRole}.`,
+              type: 'info',
+              link: `/chama/${id}`,
+              emailSubject: `Your role changed in ${data?.name || 'the chama'}`,
+            }).catch(() => {})
+          }
           fetchChamaDetails() // Refresh
       } catch (err: unknown) {
           toast.error('Failed to update role', getErrorMessage(err))
@@ -631,6 +672,15 @@ export default function ChamaDetails() {
       })
       
       if (balanceError) throw balanceError
+      void notifyAudience({
+        audience: 'chama_admins',
+        chamaId: id,
+        title: `Balance refresh requested for ${data.name}`,
+        message: 'A live M-Pesa balance refresh was requested.',
+        type: 'info',
+        link: `/chama/${id}`,
+        emailSubject: `Balance refresh requested for ${data.name}`,
+      }).catch(() => {})
       toast.info('Balance Request Sent', 'Waiting for M-Pesa response...')
       
       if (id) setTimeout(() => fetchRealTimeBalance(id), 5000)
@@ -657,6 +707,15 @@ export default function ChamaDetails() {
       })
 
       if (error) throw error
+      void notifyAudience({
+        audience: 'chama_admins',
+        chamaId: id,
+        title: `Withdrawal initiated in ${data?.name || 'your chama'}`,
+        message: `A withdrawal of KES ${amount.toLocaleString()} was initiated.`,
+        type: 'warning',
+        link: `/chama/${id}`,
+        emailSubject: `Withdrawal initiated in ${data?.name || 'your chama'}`,
+      }).catch(() => {})
       toast.success('Withdrawal Initiated', 'Your request has been processed successfully.')
       setWithdrawModalOpen(false)
       fetchChamaDetails()
@@ -1302,6 +1361,7 @@ export default function ChamaDetails() {
             isOpen={promptModalOpen}
             onClose={() => setPromptModalOpen(false)}
             chamaId={id}
+            chamaName={data.name}
             members={data.members}
             onSuccess={() => {
                 setPromptModalOpen(false)
@@ -1379,6 +1439,15 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
 
       if (response.error) throw response.error
 
+      void notifyAudience({
+        audience: 'chama_admins',
+        chamaId: chama.id,
+        title: `${chama.name} standing order started`,
+        message: `A standing order for KES ${Number(amount).toLocaleString()} was initiated.`,
+        type: 'info',
+        link: `/chama/${chama.id}`,
+        emailSubject: `${chama.name} standing order started`,
+      }).catch(() => {})
       toast.success('Standing Order Initiated!', 'Please check your phone for the M-Pesa PIN prompt to authorize.')
       onClose()
     } catch (err: unknown) {
@@ -1507,7 +1576,7 @@ function StandingOrderModal({ isOpen, onClose, chama }: { isOpen: boolean, onClo
   )
 }
 
-function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, members: ChamaMember[], onSuccess: () => void }) {
+function CreatePromptModal({ isOpen, onClose, chamaId, chamaName, members, onSuccess }: { isOpen: boolean, onClose: () => void, chamaId: string, chamaName: string, members: ChamaMember[], onSuccess: () => void }) {
     const [title, setTitle] = useState('')
     const [amount, setAmount] = useState('')
     const [dueDate, setDueDate] = useState('')
@@ -1534,6 +1603,29 @@ function CreatePromptModal({ isOpen, onClose, chamaId, members, onSuccess }: { i
                 })
             
             if (error) throw error
+            if (targetAll) {
+                void notifyAudience({
+                    audience: 'chama_members',
+                    chamaId,
+                    title: `${chamaName} payment request`,
+                    message: `${title} is now due for payment.`,
+                    type: 'warning',
+                    link: `/chama/${chamaId}`,
+                    emailSubject: `${chamaName} payment request`,
+                }).catch(() => {})
+            } else {
+                const recipients = members.filter((member) => selectedUsers.includes(member.user_id))
+                for (const member of recipients) {
+                    void notifyUser({
+                        targetUserId: member.user_id,
+                        title: `${chamaName} payment request`,
+                        message: `${title} is now due for payment.`,
+                        type: 'warning',
+                        link: `/chama/${chamaId}`,
+                        emailSubject: `${chamaName} payment request`,
+                    }).catch(() => {})
+                }
+            }
             onSuccess()
         } catch (err: unknown) {
             toast.error('Failed to create prompt', getErrorMessage(err))

@@ -3,6 +3,7 @@ import { Network, TrendingUp, Handshake, Lightbulb, ArrowRight, Wallet, Users, S
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 const Opportunities = () => {
     const navigate = useNavigate();
@@ -43,6 +44,11 @@ const Opportunities = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
+            <Seo
+              title="Ratibu Chama Opportunities"
+              description="Partner with Ratibu Chama through agent partnerships, developer APIs, institutional investment, and innovation grants."
+              canonicalPath="/opportunities"
+            />
             <Navbar />
             
             {/* Hero Banner */}
