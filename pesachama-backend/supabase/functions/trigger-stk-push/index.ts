@@ -76,14 +76,20 @@ Deno.serve(async (req) => {
     mshwariPhone,
     billerCode,
     billAccountReference,
+    accountReference,
+    meterNumber,
     billName,
     requestId,
     type,
     origin,
   } = payload;
 
+  const resolvedBillAccountReference = billAccountReference
+    ?? accountReference
+    ?? meterNumber
+    ?? null;
   const resolvedDestinationType = destinationType
-    ?? (billerCode && billAccountReference ? "bill_payment" : null)
+    ?? (billerCode && resolvedBillAccountReference ? "bill_payment" : null)
     ?? (mshwariPhone ? "mshwari" : null);
   const isMshwari = resolvedDestinationType === "mshwari";
   const isBillPayment = resolvedDestinationType === "bill_payment";
@@ -93,13 +99,15 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Missing required fields: amount, phoneNumber, userId" }, 400);
   }
   if (!isMshwari && !isBillPayment && !chamaId && !savingsTargetId) {
-    return jsonResponse({ error: "Provide chamaId, savingsTargetId, or destinationType: mshwari" }, 400);
+    return jsonResponse({
+      error: "Provide chamaId, savingsTargetId, destinationType: mshwari, or bill_payment details.",
+    }, 400);
   }
   if (isMshwari && !mshwariPhone) {
     return failureResponse("Mshwari phone is required for this deposit.");
   }
-  if (isBillPayment && (!billerCode || !billAccountReference)) {
-    return failureResponse("Bill payments require billerCode and billAccountReference.");
+  if (isBillPayment && (!billerCode || !resolvedBillAccountReference)) {
+    return failureResponse("Bill payments require billerCode and billAccountReference/accountReference.");
   }
 
   const numericAmount = Number(amount);
@@ -185,7 +193,7 @@ Deno.serve(async (req) => {
           ...(isBillPayment ? {
             destination: "bill_payment",
             biller_code: String(billerCode),
-            bill_account_reference: String(billAccountReference),
+            bill_account_reference: String(resolvedBillAccountReference),
             bill_name: billName || null,
           } : {}),
           initiated_at: new Date().toISOString(),
@@ -270,7 +278,7 @@ Deno.serve(async (req) => {
       AccountReference: isMshwari
         ? normalizedMshwariPhone!
         : isBillPayment
-          ? String(billAccountReference)
+          ? String(resolvedBillAccountReference)
           : "Ratibu",
       TransactionDesc: isMshwari
         ? "Mshwari Savings"

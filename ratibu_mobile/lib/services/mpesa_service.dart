@@ -69,6 +69,7 @@ class MpesaService {
       if (mshwariPhone != null) 'mshwariPhone': _normalizePhone(mshwariPhone),
       if (billerCode != null) 'billerCode': billerCode,
       if (billAccountReference != null) 'billAccountReference': billAccountReference,
+      if (billAccountReference != null) 'accountReference': billAccountReference,
       if (billName != null) 'billName': billName,
     };
 

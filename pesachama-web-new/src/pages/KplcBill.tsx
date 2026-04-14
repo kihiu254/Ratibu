@@ -35,6 +35,7 @@ export default function KplcBill() {
         destinationType: 'bill_payment',
         billerCode: billType === 'prepaid' ? '888880' : '888888',
         billAccountReference: meterNumber,
+        accountReference: meterNumber,
         billName: billType === 'prepaid' ? 'KPLC Prepaid Token' : 'KPLC Postpaid Bill',
       },
     })
