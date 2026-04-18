@@ -404,6 +404,15 @@ function isValidPin(pin: string) {
   return /^\d{4,6}$/.test(pin);
 }
 
+function findLatestValidPinIndex(parts: string[]) {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    if (isValidPin(parts[index] ?? "")) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 function splitFullName(fullName: string | null | undefined) {
   const name = (fullName ?? "").trim();
   if (!name) return { first_name: "", last_name: "" };
@@ -1074,6 +1083,21 @@ const renderChoicePrompt = (message: string) =>
 const renderLockedPinPrompt = () =>
   `CON Ratibu\nPIN locked. Ask an admin to reset your PIN.\n1 Main menu\n2 Exit`;
 
+function renderChoicePromptWithActions(message: string, menu: string[], displayName: string) {
+  const choice = menu.at(-1);
+  if (choice === "1") {
+    return renderMainMenu(displayName);
+  }
+  if (choice === "2" || choice === "00") {
+    return "END Thank you for using Ratibu.";
+  }
+  return renderChoicePrompt(message);
+}
+
+function isFollowUpChoiceResponse(responseText: string) {
+  return /\n1 Main menu\n2 Exit(?:\n|$)/.test(responseText);
+}
+
 function renderSelectionPrompt(title: string, items: Array<{ name: string }>) {
   const lines = items.slice(0, 9).map((item, index) => `${index + 1} ${item.name}`);
   return `CON Ratibu\n${title}\n${lines.join("\n")}\n0 Back\n00 Home`;
@@ -1183,6 +1207,25 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const lastToken = text.split("*").filter(Boolean).at(-1) ?? "";
+    const parentText = text.includes("*") ? text.slice(0, text.lastIndexOf("*")) : "";
+    if (parentText && lastToken) {
+      const parentResponse = await getCachedUssdResponse(supabase, buildRequestKey(sessionId, parentText));
+      if (parentResponse && isFollowUpChoiceResponse(parentResponse)) {
+        let response = parentResponse;
+        if (lastToken === "1" || lastToken === "0") {
+          response = renderMainMenu(displayName);
+        } else if (lastToken === "2" || lastToken === "00") {
+          response = "END Thank you for using Ratibu.";
+        }
+
+        await storeUssdResponse(supabase, sessionId, requestKey, phoneNumber, response);
+        return new Response(response, {
+          headers: { ...corsHeaders, "Content-Type": "text/plain" },
+        });
+      }
+    }
+
     const recentRequestCount = await countRecentUssdRequests(supabase, phoneNumber);
     if (recentRequestCount >= 20) {
       const response = "END Too many requests. Try again soon.";
@@ -1197,7 +1240,7 @@ Deno.serve(async (req: Request) => {
     if (!profile) {
       response = "END This number is not registered in Ratibu.";
     } else {
-      const pinIndex = normalizedParts.findIndex((part) => isValidPin(part));
+      const pinIndex = findLatestValidPinIndex(normalizedParts);
       const pin = pinIndex >= 0 ? normalizedParts[pinIndex] : null;
       const menu = pinIndex >= 0 ? normalizedParts.slice(pinIndex + 1) : normalizedParts;
       const awaitingPin = initialRequest;
@@ -1252,8 +1295,10 @@ Deno.serve(async (req: Request) => {
               .from("meetings")
               .select("id", { count: "exact", head: true });
 
-            response = renderChoicePrompt(
+            response = renderChoicePromptWithActions(
               `Ratibu\nDashboard\nChamas ${chamaCount}\nSavings ${savingsCount ?? 0}\nMeetings ${meetingCount ?? 0}`,
+              menu,
+              displayName,
             );
           } else {
             response = renderMainMenu(displayName);
@@ -1271,11 +1316,11 @@ Deno.serve(async (req: Request) => {
               .filter(Boolean)
               .slice(0, 3)
               .join(", ") || "No chamas";
-            response = renderChoicePrompt(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`);
+            response = renderChoicePromptWithActions(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`, menu, displayName);
           } else if (menu[1] === "2") {
             const publicChamas = await fetchPublicChamas(supabase);
             if (publicChamas.length === 0) {
-              response = renderChoicePrompt("Ratibu\nDiscover Chamas\nNo public chamas yet.");
+              response = renderChoicePromptWithActions("Ratibu\nDiscover Chamas\nNo public chamas yet.", menu, displayName);
             } else {
               const discoverTokens = menu.slice(2);
               const isSecondPage = discoverTokens[0] === "9";
@@ -1310,7 +1355,7 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nCreate Chama\nStart in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nCreate Chama\nStart in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1326,7 +1371,7 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nJoin a chama first.");
+                response = renderChoicePromptWithActions("Ratibu\nJoin a chama first.", menu, displayName);
               }
             } else if (menu.length === 2) {
               response = renderSelectionPrompt("Chama Deposit", chamas);
@@ -1361,9 +1406,17 @@ Deno.serve(async (req: Request) => {
                     });
 
                     if (!result.ok) {
-                      response = `END Deposit failed. ${extractFunctionError(result)}`;
+                      response = renderChoicePromptWithActions(
+                        `Ratibu\nDeposit failed. ${extractFunctionError(result)}\nAnything else?`,
+                        menu,
+                        displayName,
+                      );
                     } else {
-                      response = "END Deposit sent. Check your phone.";
+                      response = renderChoicePromptWithActions(
+                        "Ratibu\nDeposit sent. Check your phone.\nAnything else?",
+                        menu,
+                        displayName,
+                      );
                     }
 
                     await logUssdAudit(supabase, {
@@ -1390,7 +1443,7 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nJoin a chama first.");
+                response = renderChoicePromptWithActions("Ratibu\nJoin a chama first.", menu, displayName);
               }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.`;
@@ -1403,8 +1456,16 @@ Deno.serve(async (req: Request) => {
               } else {
                 const result = await requestChamaWithdrawal(supabase, profile.id, chama, amount);
                 response = result.ok
-                  ? "END Request sent. You'll be notified."
-                  : `END Withdrawal failed. ${result.message}`;
+                  ? renderChoicePromptWithActions(
+                    "Ratibu\nRequest sent. You'll be notified.\nAnything else?",
+                    menu,
+                    displayName,
+                  )
+                  : renderChoicePromptWithActions(
+                    `Ratibu\nWithdrawal failed. ${result.message}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
               }
             }
           } else if (menu[1] === "3") {
@@ -1416,7 +1477,7 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
+                response = renderChoicePromptWithActions("Ratibu\nCreate a savings target first.", menu, displayName);
               }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Deposit\n${target.name}\nEnter amount.`;
@@ -1429,8 +1490,16 @@ Deno.serve(async (req: Request) => {
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "deposit");
                 response = result.ok
-                  ? `END Deposit recorded. New balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.`
-                  : `END Deposit failed. ${result.message}`;
+                  ? renderChoicePromptWithActions(
+                    `Ratibu\nDeposit recorded.\nNew balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.\nAnything else?`,
+                    menu,
+                    displayName,
+                  )
+                  : renderChoicePromptWithActions(
+                    `Ratibu\nDeposit failed. ${result.message}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
               }
             }
           } else if (menu[1] === "4") {
@@ -1442,7 +1511,7 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
+                response = renderChoicePromptWithActions("Ratibu\nCreate a savings target first.", menu, displayName);
               }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount.`;
@@ -1455,8 +1524,16 @@ Deno.serve(async (req: Request) => {
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "withdrawal");
                 response = result.ok
-                  ? `END Withdrawal recorded. New balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.`
-                  : `END Withdrawal failed. ${result.message}`;
+                  ? renderChoicePromptWithActions(
+                    `Ratibu\nWithdrawal recorded.\nNew balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.\nAnything else?`,
+                    menu,
+                    displayName,
+                  )
+                  : renderChoicePromptWithActions(
+                    `Ratibu\nWithdrawal failed. ${result.message}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
               }
             }
           } else if (menu[1] === "5") {
@@ -1468,7 +1545,7 @@ Deno.serve(async (req: Request) => {
                   ? renderMainMenu(displayName)
                   : "END Thank you for using Ratibu.";
               } else {
-                response = renderChoicePrompt("Ratibu\nLink Mshwari in the app.");
+                response = renderChoicePromptWithActions("Ratibu\nLink Mshwari in the app.", menu, displayName);
               }
             } else if (menu.length === 2) {
               response = `CON Ratibu\nMshwari Deposit\n${mshwariPhone}\nEnter amount.`;
@@ -1491,9 +1568,17 @@ Deno.serve(async (req: Request) => {
                 });
 
                 if (!result.ok) {
-                  response = `END Mshwari deposit failed. ${extractFunctionError(result)}`;
+                  response = renderChoicePromptWithActions(
+                    `Ratibu\nMshwari deposit failed. ${extractFunctionError(result)}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
                 } else {
-                  response = "END Mshwari deposit sent. Check your phone.";
+                  response = renderChoicePromptWithActions(
+                    "Ratibu\nMshwari deposit sent. Check your phone.\nAnything else?",
+                    menu,
+                    displayName,
+                  );
                 }
 
                 await logUssdAudit(supabase, {
@@ -1523,13 +1608,13 @@ Deno.serve(async (req: Request) => {
               .slice(0, 3)
               .map((target) => `${target.name}: KES ${Number(target.current_amount || 0).toLocaleString()} / KES ${Number(target.target_amount || 0).toLocaleString()}`)
               .join("\n") || "No savings plans yet";
-            response = renderChoicePrompt(`Ratibu\nPersonal Savings\n${summary}\nPlans ${count}`);
+            response = renderChoicePromptWithActions(`Ratibu\nPersonal Savings\n${summary}\nPlans ${count}`, menu, displayName);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nPersonal Savings\nCreate plans in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nPersonal Savings\nCreate plans in the app.", menu, displayName);
           } else if (menu[1] === "3") {
             const targets = profile?.id ? await fetchActiveSavingsTargets(supabase, profile.id) : [];
             if (targets.length === 0) {
-              response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
+              response = renderChoicePromptWithActions("Ratibu\nCreate a savings target first.", menu, displayName);
             } else if (menu.length === 2) {
               response = renderSelectionPrompt("Savings Deposit", targets);
             } else {
@@ -1554,8 +1639,16 @@ Deno.serve(async (req: Request) => {
                   } else {
                     const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "deposit");
                     response = result.ok
-                      ? `END Deposit recorded. New balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.`
-                      : `END Deposit failed. ${result.message}`;
+                      ? renderChoicePromptWithActions(
+                        `Ratibu\nDeposit recorded.\nNew balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.\nAnything else?`,
+                        menu,
+                        displayName,
+                      )
+                      : renderChoicePromptWithActions(
+                        `Ratibu\nDeposit failed. ${result.message}\nAnything else?`,
+                        menu,
+                        displayName,
+                      );
                   }
                 }
               }
@@ -1563,7 +1656,7 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "4") {
             const target = profile?.id ? await fetchFirstActiveSavingsTarget(supabase, profile.id) : null;
             if (!target) {
-              response = renderChoicePrompt("Ratibu\nCreate a savings target first.");
+                response = renderChoicePromptWithActions("Ratibu\nCreate a savings target first.", menu, displayName);
             } else if (menu.length === 2) {
               response = `CON Ratibu\nSavings Withdrawal\n${target.name}\nEnter amount.`;
             } else {
@@ -1575,12 +1668,20 @@ Deno.serve(async (req: Request) => {
               } else {
                 const result = await recordSavingsTransaction(supabase, profile.id, target, amount, "withdrawal");
                 response = result.ok
-                  ? `END Withdrawal recorded. New balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.`
-                  : `END Withdrawal failed. ${result.message}`;
+                  ? renderChoicePromptWithActions(
+                    `Ratibu\nWithdrawal recorded.\nNew balance: KES ${Number(result.nextAmount ?? 0).toLocaleString()}.\nAnything else?`,
+                    menu,
+                    displayName,
+                  )
+                  : renderChoicePromptWithActions(
+                    `Ratibu\nWithdrawal failed. ${result.message}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
               }
             }
           } else if (menu[1] === "5") {
-            response = renderChoicePrompt("Ratibu\nLock Savings\nManage locked savings in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nLock Savings\nManage locked savings in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1597,24 +1698,26 @@ Deno.serve(async (req: Request) => {
               : null;
 
             if (!chamaId) {
-              response = renderChoicePrompt("Ratibu\nJoin a chama first.");
+              response = renderChoicePromptWithActions("Ratibu\nJoin a chama first.", menu, displayName);
             } else {
               const meeting = await fetchUpcomingMeeting(supabase, chamaId);
               if (meeting) {
                 const scheduledAt = meeting.date || meeting.scheduled_at || "";
                 const date = new Date(scheduledAt).toLocaleDateString();
                 const time = new Date(scheduledAt).toLocaleTimeString();
-                response = renderChoicePrompt(
+                response = renderChoicePromptWithActions(
                   `Ratibu\nUpcoming Meeting\n${meeting.title || "Meeting"}\n${date} ${time}\n${meeting.agenda || "General"}`,
+                  menu,
+                  displayName,
                 );
               } else {
-                response = renderChoicePrompt("Ratibu\nUpcoming Meetings\nNo upcoming meetings.");
+                response = renderChoicePromptWithActions("Ratibu\nUpcoming Meetings\nNo upcoming meetings.", menu, displayName);
               }
             }
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nSchedule Meetings\nIn the app.");
+            response = renderChoicePromptWithActions("Ratibu\nSchedule Meetings\nIn the app.", menu, displayName);
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nRatibu Meet\nJoin meetings in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nRatibu Meet\nJoin meetings in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1622,9 +1725,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderSwapsMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nRequest Swap\nIn the app.");
+            response = renderChoicePromptWithActions("Ratibu\nRequest Swap\nIn the app.", menu, displayName);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nMy Swaps\nView swaps in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nMy Swaps\nView swaps in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1632,11 +1735,11 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderProfileMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt(`Ratibu\nProfile\n${displayName}\n${profile?.phone_number || phoneNumber}`);
+            response = renderChoicePromptWithActions(`Ratibu\nProfile\n${displayName}\n${profile?.phone_number || phoneNumber}`, menu, displayName);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nEdit Profile\nUpdate details in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nEdit Profile\nUpdate details in the app.", menu, displayName);
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nKYC\nVerify in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nKYC\nVerify in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1644,9 +1747,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderRewardsMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nRewards\nView rewards in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nRewards\nView rewards in the app.", menu, displayName);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nLeaderboard\nView leaderboard in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nLeaderboard\nView leaderboard in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1654,9 +1757,9 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderCreateChamaMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nCreate Chama\nComplete in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nCreate Chama\nComplete in the app.", menu, displayName);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nExplore Chamas\nBrowse chamas in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nExplore Chamas\nBrowse chamas in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1664,11 +1767,11 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderProductsMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePrompt("Ratibu\nSavings\nManage savings in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nSavings\nManage savings in the app.", menu, displayName);
           } else if (menu[1] === "2") {
-            response = renderChoicePrompt("Ratibu\nKCB M-PESA\nOpen KCB M-PESA in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nKCB M-PESA\nOpen KCB M-PESA in the app.", menu, displayName);
           } else if (menu[1] === "3") {
-            response = renderChoicePrompt("Ratibu\nKPLC Bill\nPay electricity tokens in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nKPLC Bill\nPay electricity tokens in the app.", menu, displayName);
           } else if (menu[1] === "4") {
             const { data: loanData } = await supabase
               .from("loans")
@@ -1678,7 +1781,7 @@ Deno.serve(async (req: Request) => {
               .limit(3);
             response = renderLoansMenu(Array.isArray(loanData) ? loanData as UssdLoanRecord[] : []);
           } else if (menu[1] === "5") {
-            response = renderChoicePrompt("Ratibu\nReversals\nAsk an admin to submit this in the app.");
+            response = renderChoicePromptWithActions("Ratibu\nReversals\nAsk an admin to submit this in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
           }
