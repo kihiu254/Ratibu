@@ -24,6 +24,7 @@ import Swaps from '../pages/Swaps'
 import Pricing from '../pages/Pricing'
 import Products from '../pages/Products'
 import KcbMpesa from '../pages/KcbMpesa'
+import Loans from '../pages/Loans'
 import KplcBill from '../pages/KplcBill'
 import Profile from '../pages/Profile'
 import Register from '../pages/Register'
@@ -100,6 +101,7 @@ export function AppRoutes() {
           <Route path="/explore" element={<ExploreChamas />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/kcb-mpesa" element={<KcbMpesa />} />
+          <Route path="/loans" element={<Loans />} />
           <Route path="/kplc-bill" element={<KplcBill />} />
           <Route path="/statement" element={<Statement />} />
           <Route path="/personal-savings" element={<PersonalSavings />} />

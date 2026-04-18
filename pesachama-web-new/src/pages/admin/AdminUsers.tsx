@@ -6,6 +6,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { notifyUser } from '../../lib/notify'
+import { adminResetTransactionPin } from '../../lib/transactionAuth'
 import { toast } from 'sonner'
 
 interface UserProfile {
@@ -75,22 +76,19 @@ function KycModal({ user, onClose, onStatusChange }: { user: UserProfile, onClos
 
     setResettingPin(true)
     try {
-      const { error } = await supabase.functions.invoke('transaction-auth', {
-        body: {
-          action: 'admin_reset',
+      await adminResetTransactionPin(user.id)
+
+      try {
+        await notifyUser({
           targetUserId: user.id,
-        },
-      })
-
-      if (error) throw error
-
-      await notifyUser({
-        targetUserId: user.id,
-        title: 'Transaction PIN reset',
-        message: 'An admin reset your transaction PIN. You can set a new one now.',
-        type: 'warning',
-        emailSubject: 'Your Ratibu PIN was reset',
-      })
+          title: 'Transaction PIN reset',
+          message: 'An admin reset your transaction PIN. You can set a new one now.',
+          type: 'warning',
+          emailSubject: 'Your Ratibu PIN was reset',
+        })
+      } catch (notifyError) {
+        console.warn('PIN reset notification failed:', notifyError)
+      }
 
       toast.success('PIN reset')
       onStatusChange(user.id, user.kyc_status || 'not_started')

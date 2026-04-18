@@ -10,6 +10,12 @@ const actions = [
     icon: PiggyBank,
   },
   {
+    title: 'Loans & Credit',
+    desc: 'Open your loan records, balances, and repayment timing in one place.',
+    href: '/loans',
+    icon: BadgeDollarSign,
+  },
+  {
     title: 'KPLC Electricity',
     desc: 'Pay prepaid tokens or postpaid bills from the same payment rails.',
     href: '/kplc-bill',

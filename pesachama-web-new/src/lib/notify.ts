@@ -11,11 +11,14 @@ type NotifyPayload = {
 }
 
 export async function notifyUser(payload: NotifyPayload) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData.session?.access_token
   const { error } = await supabase.functions.invoke('notify-user', {
     body: {
       type: payload.type ?? 'info',
       ...payload,
     },
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
   })
 
   if (error) throw error
@@ -33,11 +36,14 @@ type NotifyAudiencePayload = {
 }
 
 export async function notifyAudience(payload: NotifyAudiencePayload) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData.session?.access_token
   const { error } = await supabase.functions.invoke('notify-audience', {
     body: {
       type: payload.type ?? 'info',
       ...payload,
     },
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
   })
 
   if (error) throw error

@@ -50,6 +50,13 @@ const productCards = [
     icon: BadgeDollarSign,
   },
   {
+    title: 'Loans & Credit',
+    description: 'Review your loan records and repayment timelines in one secure view.',
+    href: '/loans',
+    cta: 'Open Loans',
+    icon: Wallet,
+  },
+  {
     title: 'KPLC Bills',
     description: 'Pay for prepaid tokens or postpaid electricity bills from one place.',
     href: '/kplc-bill',

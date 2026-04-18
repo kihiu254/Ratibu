@@ -271,7 +271,6 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
           <button
             type="button"
             onClick={() => setIsVirtual(!isVirtual)}
-            aria-pressed={isVirtual}
             aria-label={isVirtual ? 'Disable virtual meeting' : 'Enable virtual meeting'}
             className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all ${
               isVirtual

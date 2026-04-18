@@ -170,7 +170,6 @@ export default function Navbar() {
             type="button"
             className="md:hidden text-white p-2 hover:bg-white/5 rounded-lg transition-colors shrink-0"
             onClick={() => setOpen(!open)}
-            aria-expanded={open ? "true" : "false"}
             aria-controls="mobile-navigation-menu"
             aria-label={open ? "Close navigation menu" : "Open navigation menu"}
           >

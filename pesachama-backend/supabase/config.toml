@@ -404,6 +404,21 @@ verify_jwt = false
 import_map = "./functions/transaction-auth/deno.json"
 entrypoint = "./functions/transaction-auth/index.ts"
 
+[functions.send-otp]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-otp/index.ts"
+
+[functions.verify-otp]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verify-otp/index.ts"
+
+[functions.notify-user]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/notify-user/index.ts"
+
 [functions.trigger-stk-push]
 enabled = true
 verify_jwt = false
@@ -430,3 +445,9 @@ entrypoint = "./functions/mpesa-callback/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-swap-email/index.ts"
+
+[functions.kcb-vending-gateway]
+enabled = true
+verify_jwt = false
+import_map = "./functions/kcb-vending-gateway/deno.json"
+entrypoint = "./functions/kcb-vending-gateway/index.ts"

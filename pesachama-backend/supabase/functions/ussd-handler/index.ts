@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, Authorization, ApiKey, X-Client-Info, Content-Type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 // Accepts: 07XXXXXXXX, 01XXXXXXXX, 2547XXXXXXXX, 2541XXXXXXXX, +254XXXXXXXXX
@@ -94,8 +94,71 @@ const buildPhoneComparisonSet = (phoneValues: string[]) => {
   return variants;
 };
 
+const getParamValue = (params: URLSearchParams, names: string[]) => {
+  for (const name of names) {
+    const value = params.get(name);
+    if (value && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+};
+
+const hasUssdCallbackShape = (params: URLSearchParams) => {
+  const phoneNumber = getParamValue(params, [
+    "phoneNumber",
+    "PHONE_NUMBER",
+    "msisdn",
+    "MSISDN",
+    "mobile",
+    "MOBILE",
+  ]);
+  const sessionId = getParamValue(params, ["sessionId", "SESSION_ID", "session_id", "SESSIONID"]);
+  const text = getParamValue(params, ["text", "TEXT", "ussd_string", "USSD_STRING", "user_data", "USER_DATA"]);
+  return Boolean(phoneNumber && sessionId && text);
+};
+
+const buildRequestParams = async (req: Request) => {
+  const params = new URL(req.url).searchParams;
+  const contentType = req.headers.get("content-type") ?? "";
+
+  if (req.method === "GET") {
+    return params;
+  }
+
+  const rawBody = await req.text();
+  if (!rawBody.trim()) {
+    return params;
+  }
+
+  if (contentType.includes("application/json")) {
+    try {
+      const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === "string") {
+          params.set(key, value);
+        } else if (typeof value === "number" || typeof value === "boolean") {
+          params.set(key, String(value));
+        }
+      }
+      return params;
+    } catch {
+      return params;
+    }
+  }
+
+  const formParams = new URLSearchParams(rawBody);
+  for (const [key, value] of formParams.entries()) {
+    params.set(key, value);
+  }
+
+  return params;
+};
+
 const bytesToHex = (bytes: Uint8Array) =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
+const USSD_FLOW_VERSION = "2026-04-18-test3";
 
 async function hashPin(pin: string, salt: string) {
   const data = new TextEncoder().encode(`${salt}:${pin}`);
@@ -560,7 +623,7 @@ async function fetchMshwariPhone(supabase: any, userId: string): Promise<string 
 }
 
 function buildRequestKey(sessionId: string, text: string) {
-  return `${sessionId || "no-session"}|${text || ""}`;
+  return `${USSD_FLOW_VERSION}|${sessionId || "no-session"}|${text || ""}`;
 }
 
 function isTrustedGatewayRequest(req: Request) {
@@ -574,7 +637,11 @@ function isTrustedGatewayRequest(req: Request) {
   }
 
   const userAgent = req.headers.get("user-agent") ?? "";
-  return /at-ussd-api|africastalking/i.test(userAgent);
+  if (/mspace|at-ussd-api|africastalking/i.test(userAgent)) {
+    return true;
+  }
+
+  return false;
 }
 
 async function invokeInternalFunction(functionName: string, body: Record<string, unknown>) {
@@ -632,12 +699,11 @@ function getTimeGreeting(now = new Date()) {
   return "Good night";
 }
 
-async function getCachedUssdResponse(supabase: any, sessionId: string, text: string) {
+async function getCachedUssdResponse(supabase: any, requestKey: string) {
   const { data, error } = await supabase
     .from("ussd_request_log")
     .select("response_text")
-    .eq("session_id", sessionId)
-    .eq("request_text", text)
+    .eq("request_text", requestKey)
     .maybeSingle();
 
   if (error || !data?.response_text) return null;
@@ -659,8 +725,8 @@ async function countRecentUssdRequests(supabase: any, phoneNumber: string) {
 async function storeUssdResponse(
   supabase: any,
   sessionId: string,
+  requestKey: string,
   phoneNumber: string,
-  text: string,
   responseText: string,
 ) {
   await supabase
@@ -668,7 +734,7 @@ async function storeUssdResponse(
     .upsert({
       session_id: sessionId,
       phone_number: phoneNumber,
-      request_text: text,
+      request_text: requestKey,
       response_text: responseText,
     }, {
       onConflict: "session_id,request_text",
@@ -937,9 +1003,10 @@ async function fetchUpcomingMeeting(supabase: any, chamaId: string) {
 }
 
 const renderPinPrompt = (name: string, needsSetup = false) =>
-  needsSetup
-    ? `CON Ratibu\n${getTimeGreeting()} ${name}\nSet your PIN`
-    : `CON Ratibu\n${getTimeGreeting()} ${name}\nEnter your PIN`;
+  `CON Ratibu\n${getTimeGreeting()} ${name}\n${needsSetup ? "Set your PIN" : "Enter your PIN"}`;
+
+const renderPinRetryPrompt = (name: string, attemptsRemaining: number) =>
+  `CON Ratibu\n${getTimeGreeting()} ${name}\nWrong PIN. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
   `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n10 Products\n00 Exit`;
@@ -969,7 +1036,37 @@ const renderCreateChamaMenu = () =>
   `CON Ratibu\nCreate Chama\n1 Start\n2 Explore\n0 Back\n00 Home`;
 
 const renderProductsMenu = () =>
-  `CON Ratibu\nProducts\n1 Savings\n2 KCB M-PESA\n3 KPLC Bill\n4 Reversals\n0 Back\n00 Home`;
+  `CON Ratibu\nProducts\n1 Savings\n2 KCB M-PESA\n3 KPLC Bill\n4 Loans\n5 Reversals\n0 Back\n00 Home`;
+
+type UssdLoanRecord = {
+  amount?: number | string | null;
+  interest_rate?: number | string | null;
+  duration_months?: number | string | null;
+  status?: string | null;
+  due_date?: string | null;
+  created_at?: string | null;
+  chamas?: { name?: string | null } | null;
+};
+
+function formatLoanMoney(value: number | string | null | undefined) {
+  const amount = Number(value ?? 0);
+  return `KES ${Number.isFinite(amount) ? amount.toLocaleString() : "0"}`;
+}
+
+function renderLoansMenu(loans: UssdLoanRecord[]) {
+  if (loans.length === 0) {
+    return `CON Ratibu\nLoans\nNo loan records yet.\n1 KCB M-PESA\n0 Back\n00 Home`;
+  }
+
+  const lines = loans.slice(0, 3).map((loan, index) => {
+    const name = loan.chamas?.name?.trim() || "Personal Loan";
+    const status = (loan.status ?? "pending").toUpperCase();
+    return `${index + 1} ${name} ${formatLoanMoney(loan.amount)} ${status}`;
+  });
+
+  const more = loans.length > 3 ? "\n9 More in app" : "";
+  return `CON Ratibu\nLoans\n${lines.join("\n")}${more}\n1 KCB M-PESA\n0 Back\n00 Home`;
+}
 
 const renderChoicePrompt = (message: string) =>
   `CON Ratibu\n${message}\n1 Main menu\n2 Exit`;
@@ -997,23 +1094,72 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!isTrustedGatewayRequest(req)) {
+    const params = await buildRequestParams(req);
+
+    if (!isTrustedGatewayRequest(req) && !hasUssdCallbackShape(params)) {
       return new Response("END Forbidden request source.", {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "text/plain" },
       });
     }
 
-    const body = await req.text();
-    const params = new URLSearchParams(body);
-
-    const rawPhoneNumber = params.get("phoneNumber") || "";
+    const rawPhoneNumber = getParamValue(params, [
+      "phoneNumber",
+      "PHONE_NUMBER",
+      "msisdn",
+      "MSISDN",
+      "mobile",
+      "MOBILE",
+    ]);
     const phoneNumber = normalizePhoneNumber(rawPhoneNumber) || rawPhoneNumber.trim();
-    const text = params.get("text") || "";
-    const sessionId = params.get("sessionId") || "";
-    const serviceCode = params.get("serviceCode") || "";
+    const userData = getParamValue(params, ["user_data", "USER_DATA"]);
+    const ussdString = getParamValue(params, ["ussd_string", "USSD_STRING"]);
+    const textField = getParamValue(params, ["text", "TEXT"]);
+    const sessionTextCandidates = [
+      { value: textField, source: "TEXT" },
+      { value: userData, source: "USER_DATA" },
+      { value: ussdString, source: "USSD_STRING" },
+    ].filter((candidate) => candidate.value.length > 0);
+
+    const selectedText = sessionTextCandidates.sort((a, b) => {
+      const score = (value: string) => value.split("*").length * 10 + value.length;
+      return score(b.value) - score(a.value);
+    })[0] ?? { value: "", source: "TEXT" };
+
+    const text = selectedText.value;
+    const sessionId = getParamValue(params, ["sessionId", "SESSION_ID", "session_id", "SESSIONID"]);
+    const serviceCode = getParamValue(params, ["serviceCode", "SERVICE_CODE", "service_code"]);
     const phoneLookupValues = getPhoneLookupValues(rawPhoneNumber);
-    const parts = text ? text.split("*") : [];
+    const parts = text ? text.split("*").filter(Boolean) : [];
+    const initialRequest =
+      parts.length === 0 ||
+      (serviceCode && parts.length === 1 && parts[0] === serviceCode) ||
+      (!serviceCode && parts.length === 1 && /^\d{1,3}$/.test(parts[0] ?? "") && !isValidPin(parts[0]));
+    const assignedCodePrefix =
+      serviceCode === "702" && parts.length > 0 && /^\d{1,3}$/.test(parts[0] ?? "") ? parts[0] : "";
+    const normalizedParts = (() => {
+      let tokens = parts.slice();
+
+      if (tokens[0] === "702") {
+        tokens = tokens.slice(1);
+
+        if (serviceCode && tokens[0] === serviceCode) {
+          tokens = tokens.slice(1);
+        } else if (!serviceCode && tokens.length > 1 && /^\d{1,3}$/.test(tokens[0] ?? "")) {
+          tokens = tokens.slice(1);
+        }
+      }
+
+      if (assignedCodePrefix && tokens.length > 1 && tokens[0] === assignedCodePrefix) {
+        tokens = tokens.slice(1);
+      }
+
+      if (serviceCode && tokens[0] === serviceCode) {
+        tokens = tokens.slice(1);
+      }
+
+      return tokens;
+    })();
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return new Response("END USSD handler is missing Supabase configuration.", {
@@ -1027,10 +1173,10 @@ Deno.serve(async (req: Request) => {
     const requestKey = buildRequestKey(sessionId, text);
 
     console.log(
-      `USSD Session ${sessionId} - Phone: ${phoneNumber} - Text: ${text} - Service: ${serviceCode}`,
+      `USSD Session ${sessionId} - Phone: ${phoneNumber} - Text: ${text} - USSD_STRING: ${ussdString} - USER_DATA: ${userData} - Service: ${serviceCode}`,
     );
 
-    const cachedResponse = await getCachedUssdResponse(supabase, sessionId, text);
+    const cachedResponse = await getCachedUssdResponse(supabase, requestKey);
     if (cachedResponse) {
       return new Response(cachedResponse, {
         headers: { ...corsHeaders, "Content-Type": "text/plain" },
@@ -1040,7 +1186,7 @@ Deno.serve(async (req: Request) => {
     const recentRequestCount = await countRecentUssdRequests(supabase, phoneNumber);
     if (recentRequestCount >= 20) {
       const response = "END Too many requests. Try again soon.";
-      await storeUssdResponse(supabase, sessionId, phoneNumber, text, response);
+      await storeUssdResponse(supabase, sessionId, requestKey, phoneNumber, response);
       return new Response(response, {
         headers: { ...corsHeaders, "Content-Type": "text/plain" },
       });
@@ -1051,10 +1197,10 @@ Deno.serve(async (req: Request) => {
     if (!profile) {
       response = "END This number is not registered in Ratibu.";
     } else {
-      const firstPart = parts[0] ?? "";
-      const pin = isValidPin(firstPart) ? firstPart : null;
-      const menu = pin ? parts.slice(1) : parts;
-      const awaitingPin = text === "";
+      const pinIndex = normalizedParts.findIndex((part) => isValidPin(part));
+      const pin = pinIndex >= 0 ? normalizedParts[pinIndex] : null;
+      const menu = pinIndex >= 0 ? normalizedParts.slice(pinIndex + 1) : normalizedParts;
+      const awaitingPin = initialRequest;
       const hasTransactionPin = Boolean(profile.transaction_pin_hash && profile.transaction_pin_salt);
       const pinFailedAttempts = Number(profile.transaction_pin_failed_attempts ?? 0);
       const pinLocked = Boolean(
@@ -1066,7 +1212,7 @@ Deno.serve(async (req: Request) => {
       if (awaitingPin) {
         response = renderPinPrompt(displayName, !hasTransactionPin);
       } else if (pinLocked && !pin) {
-        const recoveryChoice = firstPart;
+        const recoveryChoice = menu[0] ?? "";
         if (recoveryChoice === "1") {
           response = renderMainMenu(displayName);
         } else if (recoveryChoice === "2") {
@@ -1075,7 +1221,7 @@ Deno.serve(async (req: Request) => {
           response = renderLockedPinPrompt();
         }
       } else if (!pin) {
-        response = "END Enter your 4-6 digit PIN.";
+        response = renderPinPrompt(displayName, !hasTransactionPin);
       } else {
         const pinCheck = await verifyTransactionPin(supabase, profile, pin);
 
@@ -1085,7 +1231,7 @@ Deno.serve(async (req: Request) => {
           } else if (pinCheck.resetRequired) {
             response = renderLockedPinPrompt();
           } else {
-            response = `END Wrong PIN. ${pinCheck.attemptsRemaining} left.`;
+            response = renderPinRetryPrompt(displayName, pinCheck.attemptsRemaining);
           }
         } else if (menu.length === 0) {
           response = renderMainMenu(displayName);
@@ -1524,6 +1670,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "3") {
             response = renderChoicePrompt("Ratibu\nKPLC Bill\nPay electricity tokens in the app.");
           } else if (menu[1] === "4") {
+            const { data: loanData } = await supabase
+              .from("loans")
+              .select("amount, interest_rate, duration_months, status, due_date, created_at, chamas(name)")
+              .eq("borrower_id", profile.id)
+              .order("created_at", { ascending: false })
+              .limit(3);
+            response = renderLoansMenu(Array.isArray(loanData) ? loanData as UssdLoanRecord[] : []);
+          } else if (menu[1] === "5") {
             response = renderChoicePrompt("Ratibu\nReversals\nAsk an admin to submit this in the app.");
           } else {
             response = renderMainMenu(displayName);
@@ -1534,7 +1688,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    await storeUssdResponse(supabase, sessionId, phoneNumber, text, response);
+    await storeUssdResponse(supabase, sessionId, requestKey, phoneNumber, response);
 
     return new Response(response, {
       headers: { ...corsHeaders, "Content-Type": "text/plain" },

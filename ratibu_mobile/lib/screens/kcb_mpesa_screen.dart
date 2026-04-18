@@ -40,6 +40,13 @@ class KcbMpesaScreen extends StatelessWidget {
             const SizedBox(height: 12),
             _ActionCard(
               icon: Icons.payments,
+              title: 'Loans & Credit',
+              subtitle: 'Open the loan hub to review active and historical loans.',
+              onTap: () => context.push('/loans'),
+            ),
+            const SizedBox(height: 12),
+            _ActionCard(
+              icon: Icons.payments,
               title: 'Pay KPLC electricity',
               subtitle: 'Buy tokens or pay a postpaid electricity bill from the same flow.',
               onTap: () => context.push('/kplc-bill?type=prepaid'),

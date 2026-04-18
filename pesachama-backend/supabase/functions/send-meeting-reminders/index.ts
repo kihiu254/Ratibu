@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import { sendResendEmail } from "../_shared/resend.ts";
 import { sendFirebasePush } from "../_shared/firebase.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -26,23 +26,6 @@ const REMINDER_WINDOWS = [
 
 // ±7 min tolerance so a cron running every 15 min never misses a window
 const TOLERANCE_MINUTES = 7;
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const host = Deno.env.get("SMTP_HOST");
-  const port = parseInt(Deno.env.get("SMTP_PORT") || "465");
-  const user = Deno.env.get("SMTP_USER");
-  const pass = Deno.env.get("SMTP_PASS");
-  const from = Deno.env.get("SMTP_FROM");
-  if (!host || !user || !pass || !from) return;
-  const client = new SmtpClient();
-  try {
-    await client.connectTLS({ hostname: host, port, username: user, password: pass });
-    await client.send({ from, to, subject, content: "Please view in HTML client", html });
-    await client.close();
-  } catch (e) {
-    console.error("SMTP error:", e);
-  }
-}
 
 async function sendPush(
   supabase: any,
@@ -153,12 +136,23 @@ Deno.serve(async (req) => {
             : "Member";
 
           // Email
-          await sendEmail(
-            user.email,
-            `⏰ "${meeting.title}" starts in ${window.label}`,
-            buildEmailHtml(memberName, chamaName, meeting.title,
-              meetingDate, venue, videoLink, window.label),
-          );
+          try {
+            await sendResendEmail({
+              to: user.email,
+              subject: `⏰ "${meeting.title}" starts in ${window.label}`,
+              html: buildEmailHtml(
+                memberName,
+                chamaName,
+                meeting.title,
+                meetingDate,
+                venue,
+                videoLink,
+                window.label,
+              ),
+            });
+          } catch (e) {
+            console.error("Resend email error:", e);
+          }
 
           // Push notification
           await sendPush(

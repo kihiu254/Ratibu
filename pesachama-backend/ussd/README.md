@@ -6,20 +6,21 @@ This folder is the local USSD research area for the Ratibu backend.
 
 - `test-ussd.ps1` runs a repeatable set of USSD requests against the deployed handler.
 - `.env.example` lists the environment variables you can override for local testing.
-- The handler is written to work with both the older `profiles.phone_number` shape and the newer `users.phone` shape, so it can survive the schema drift in this repo.
+- The handler works with both the older `profiles.phone_number` shape and the newer `users.phone` shape, so it can survive the schema drift in this repo.
 
-## Africa's Talking setup
+## Gateway setup
 
-1. If you are testing in the simulator, use the **sandbox** dashboard at `https://account.africastalking.com/apps/sandbox`.
-2. If you are testing a live shared code like `*384*38070#`, use the **Service Codes** page in the live dashboard.
-3. Point the callback URL to your deployed Supabase Edge Function:
+1. If you are testing in the MSpace environment, use the MSpace USSD dashboard and service-code setup.
+2. If you are testing in an Africa's Talking environment, use its sandbox or live service-code setup.
+3. Register the client service code, then the gateway will call your callback through its USSD route.
+4. Point the callback URL to your deployed Supabase Edge Function:
    `https://<your-project-ref>.supabase.co/functions/v1/ussd-handler`
-4. Use `POST` requests with form-encoded fields matching Africa's Talking's USSD payload:
-   `sessionId`, `serviceCode`, `phoneNumber`, and `text`.
-5. Make sure the function is deployed with `verify_jwt = false` so Africa's Talking can reach it.
-6. Use the sandbox/production numbers and short code from your Africa's Talking account when you test.
-7. If you see the simulator saying it reached Africa's Talking USSD Services, that usually means the sandbox channel is not set up yet or you are using the live service-code page instead of the sandbox simulator.
-8. If your current Supabase branch uses `users` instead of `profiles`, the handler will still resolve the member by phone and show the same menus.
+5. Use `POST` requests with form-encoded fields matching the gateway payload:
+   `SESSION_ID`, `SERVICE_CODE`, `MSISDN`, `USSD_STRING`, or the equivalent `sessionId`, `serviceCode`, `phoneNumber`, and `text`.
+6. Make sure the function is deployed with `verify_jwt = false` so the gateway can reach it.
+7. Use the service code assigned to your account when you test.
+8. If you see the phone showing a carrier-style popup instead of a Ratibu menu, the shortcode is still landing in the wrong USSD route.
+9. If your current Supabase branch uses `users` instead of `profiles`, the handler will still resolve the member by phone and show the same menus.
 
 ## Local research flow
 
@@ -29,7 +30,7 @@ This folder is the local USSD research area for the Ratibu backend.
 
 ## USSD Shape
 
-The sandbox handler now starts with a transaction PIN prompt and then follows the app's own navigation model with short, keypad-friendly labels:
+The sandbox handler starts with a transaction PIN prompt and then follows the app's own navigation model with short, keypad-friendly labels:
 
 - `1` Dashboard
 - `2` Chamas
@@ -53,14 +54,17 @@ USSD transaction shortcuts:
 
 Security notes:
 
-- The handler now rejects direct requests unless they come from the Africa's Talking USSD user agent, unless `USSD_ALLOW_UNTRUSTED_REQUESTS=true` is set for local testing.
+- The handler rejects direct requests unless they come from a trusted gateway user agent or carry a recognizable USSD callback payload, unless `USSD_ALLOW_UNTRUSTED_REQUESTS=true` is set for local testing.
+- MSpace callbacks are accepted when they carry a normal USSD payload shape such as `MSISDN`, `SESSION_ID`, and `USSD_STRING`.
+- Africa's Talking callbacks are accepted when they carry its standard `phoneNumber`, `sessionId`, `serviceCode`, and `text` fields.
+- If either gateway uses a custom user agent in your environment, you can add it to the handler's trust check without changing the menu logic.
 - Repeated USSD payloads for the same session are replayed from the request log to avoid duplicate deposits.
-- Savings transactions are now processed through a database function so the balance update and transaction insert stay in sync.
+- Savings transactions are processed through a database function so the balance update and transaction insert stay in sync.
 
 ## Notes
 
-- The handler now accepts common Kenya phone formats such as `07XXXXXXXX`, `01XXXXXXXX`, `2547XXXXXXXX`, and `+2547XXXXXXXX`.
+- The handler accepts common Kenya phone formats such as `07XXXXXXXX`, `01XXXXXXXX`, `2547XXXXXXXX`, and `+2547XXXXXXXX`.
 - The handler blocks unregistered phone numbers before the menu, so only numbers already stored in Supabase can continue.
 - The meeting lookup accepts both `meetings.date` and the older `meetings.scheduled_at` field.
 - If your phone numbers are stored in a different format than the examples above, standardize them or extend the lookup variants in `ussd-handler/index.ts`.
-- Africa's Talking USSD menus should stay short and avoid special characters, so the handler keeps the labels plain and keypad-friendly.
+- USSD menus should stay short and avoid special characters, so the handler keeps the labels plain and keypad-friendly.

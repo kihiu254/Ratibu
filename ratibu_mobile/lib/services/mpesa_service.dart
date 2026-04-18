@@ -22,6 +22,58 @@ class MpesaService {
     return error.toString();
   }
 
+  bool _isMissingEdgeFunctionError(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('requested function was not found')) return true;
+    if (message.contains('not_found')) return true;
+    if (message.contains('functionexception(status: 404')) return true;
+    if (error is FunctionException) {
+      final details = error.details;
+      if (error.status == 404) return true;
+      if (details is Map) {
+        final code = details['code']?.toString().toUpperCase();
+        if (code == 'NOT_FOUND') return true;
+      }
+    }
+    return false;
+  }
+
+  bool _isMissingKcbConfigError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('missing kcb buni credentials') ||
+        message.contains('kcb buni not configured') ||
+        message.contains('kcb gateway is not configured') ||
+        message.contains('kcb_buni_not_configured');
+  }
+
+  Future<Map<String, dynamic>> _invokeKcbGateway({
+    required String action,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _supabase.functions.invoke(
+      'kcb-vending-gateway',
+      body: {
+        'action': action,
+        'payload': payload,
+      },
+    );
+
+    if (response.status != 200) {
+      throw 'KCB gateway request failed: ${response.data}';
+    }
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    return {'raw': data};
+  }
+
+  Future<Map<String, dynamic>> debugKcbGateway({
+    required String action,
+    required Map<String, dynamic> payload,
+  }) {
+    return _invokeKcbGateway(action: action, payload: payload);
+  }
+
   /// Normalizes phone to 254XXXXXXXXX format.
   String _normalizePhone(String phone) {
     final trimmed = phone.replaceAll(RegExp(r'\s+'), '');
@@ -103,6 +155,35 @@ class MpesaService {
     required String accountReference,
     required String billName,
   }) async {
+    try {
+      await _invokeKcbGateway(
+        action: 'validate-request',
+        payload: {
+          'billerCode': billerCode,
+          'accountReference': accountReference,
+          'amount': amount,
+          'phoneNumber': _normalizePhone(phoneNumber),
+          'billName': billName,
+          'transactionType': 'bill_payment',
+          'source': 'ratibu_mobile',
+        },
+      );
+    } on FunctionException catch (e) {
+      if (_isMissingEdgeFunctionError(e) || _isMissingKcbConfigError(e)) {
+        debugPrint('KCB vending gateway is not deployed yet. Continuing with STK push for bill payment.');
+      } else {
+        final msg = (e.details as Map?)?['error'] ?? e.toString();
+        throw 'KCB vending validation failed: $msg';
+      }
+    } catch (e) {
+      if (_isMissingEdgeFunctionError(e) || _isMissingKcbConfigError(e)) {
+        debugPrint('KCB vending gateway is not deployed yet. Continuing with STK push for bill payment.');
+      } else {
+        final msg = _friendlyErrorMessage(e);
+        throw 'KCB vending validation failed: $msg';
+      }
+    }
+
     await initiateStkPush(
       phoneNumber: phoneNumber,
       amount: amount,
@@ -136,5 +217,43 @@ class MpesaService {
     } catch (e) {
       throw 'QR Code generation failed: $e';
     }
+  }
+
+  Future<Map<String, dynamic>> previewKcbPurchase({
+    required String phoneNumber,
+    required double amount,
+    required String billerCode,
+    required String accountReference,
+    required String billName,
+    String? transactionReference,
+    String? narration,
+  }) async {
+    return _invokeKcbGateway(
+      action: 'vendor-confirmation',
+      payload: {
+        'billerCode': billerCode,
+        'accountReference': accountReference,
+        'transactionAmount': amount.toString(),
+        'chargeFees': '0',
+        'transactionReference': transactionReference ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        'billReference': accountReference,
+        'narration': narration ?? billName,
+        'phoneNumber': _normalizePhone(phoneNumber),
+        'billName': billName,
+        'transactionType': 'bill_payment',
+        'source': 'ratibu_mobile',
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> checkKcbTransactionStatus({
+    required String originatorRequestId,
+  }) {
+    return _invokeKcbGateway(
+      action: 'transaction-status',
+      payload: {
+        'originatorRequestId': originatorRequestId,
+      },
+    );
   }
 }

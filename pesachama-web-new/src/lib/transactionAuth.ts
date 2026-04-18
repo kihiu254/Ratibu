@@ -11,10 +11,7 @@ async function invokeTransactionAuth(body: Record<string, unknown>) {
   let lastError: unknown = null
   for (let i = 0; i < 3; i += 1) {
     try {
-      const { data, error } = await supabase.functions.invoke('transaction-auth', {
-        body,
-      })
-
+      const { data, error } = await supabase.rpc('manage_transaction_pin', body)
       if (error) throw error
       return data as Record<string, unknown>
     } catch (error) {
@@ -49,6 +46,10 @@ export async function setTransactionPin(pin: string) {
 
 export async function resetTransactionPin(pin: string) {
   await invokeTransactionAuth({ action: 'reset', pin })
+}
+
+export async function adminResetTransactionPin(targetUserId: string) {
+  await invokeTransactionAuth({ action: 'admin_reset', target_user_id: targetUserId })
 }
 
 export async function verifyTransactionPin(pin: string): Promise<boolean> {

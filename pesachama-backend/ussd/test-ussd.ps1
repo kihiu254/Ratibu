@@ -23,6 +23,11 @@ if ([string]::IsNullOrWhiteSpace($Pin)) {
     $Pin = "1234"
 }
 
+$UserAgent = $env:USSD_USER_AGENT
+if ([string]::IsNullOrWhiteSpace($UserAgent)) {
+    $UserAgent = "mspace-ussd-api/1.0"
+}
+
 function Invoke-UssdRequest {
     param (
         [Parameter(Mandatory = $true)]
@@ -42,7 +47,7 @@ function Invoke-UssdRequest {
             -Method Post `
             -Body $body `
             -ContentType "application/x-www-form-urlencoded" `
-            -UserAgent "at-ussd-api/1.0"
+            -UserAgent $UserAgent
 
         Write-Host "Request: text='$Text'" -ForegroundColor Cyan
         Write-Host "Response: $response" -ForegroundColor Green

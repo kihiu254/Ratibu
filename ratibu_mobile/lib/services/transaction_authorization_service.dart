@@ -61,10 +61,10 @@ class TransactionAuthorizationService {
     Object? lastError;
     for (var i = 0; i < 3; i++) {
       try {
-        final response = await _supabase.functions.invoke('transaction-auth', body: body);
+        final data = await _supabase.rpc('manage_transaction_pin', params: body);
         return {
-          'status': response.status,
-          'data': response.data,
+          'status': 200,
+          'data': data,
         };
       } catch (e) {
         lastError = e;
@@ -352,7 +352,7 @@ class TransactionAuthorizationService {
   Future<void> adminResetTransactionPin(String targetUserId) async {
     final result = await _invokeAuth({
       'action': 'admin_reset',
-      'targetUserId': targetUserId,
+      'target_user_id': targetUserId,
     });
     final response = result['data'] as Map<String, dynamic>;
     final status = result['status'] as int;

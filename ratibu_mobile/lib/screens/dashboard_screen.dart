@@ -80,6 +80,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 '/accounts', Colors.teal),
             _drawerItem(context, Icons.savings, 'Personal Savings',
                 '/personal-savings', Colors.greenAccent),
+            _drawerItem(context, Icons.payments, 'Loans & Credit',
+                '/loans', Colors.orangeAccent),
             _drawerItem(context, Icons.explore, 'Explore Chamas', '/join-chama',
                 Colors.cyan),
             _drawerItem(context, Icons.event, 'Meetings', '/meetings',
@@ -448,6 +450,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       label: 'KCB M-PESA',
                       onTap: () => context.push('/kcb-mpesa')),
                   _ActionButton(
+                      icon: Icons.inventory_2,
+                      label: 'Products',
+                      onTap: () => context.push('/products')),
+                  _ActionButton(
                       icon: Icons.bolt,
                       label: 'Pay KPLC',
                       onTap: () => context.push('/kplc-bill?type=prepaid')),
@@ -578,6 +584,7 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
   }
 
   void _showWithdrawDialog(BuildContext context, WidgetRef ref) async {
+    final screenContext = context;
     final amountController = TextEditingController();
     final reasonController = TextEditingController();
     String? selectedChamaId;
@@ -586,8 +593,8 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
     if (!context.mounted) return;
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setS) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setS) => AlertDialog(
           backgroundColor: const Color(0xFF1e293b),
           title: const Text('Request Withdrawal',
               style: TextStyle(color: Colors.white)),
@@ -644,26 +651,26 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
               onPressed: () async {
                 if (selectedChamaId == null || amountController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(screenContext).showSnackBar(
                       const SnackBar(content: Text('Please fill all fields')));
                   return;
                 }
                 final amount = double.tryParse(amountController.text);
                 if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(screenContext).showSnackBar(
                       const SnackBar(content: Text('Invalid amount')));
                   return;
                 }
                 try {
                   final approved =
                       await transactionAuthorizationService.confirmTransaction(
-                    context,
+                    screenContext,
                     actionLabel: 'withdrawal',
                     amount: amount,
                   );
@@ -673,16 +680,16 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                         amount: amount,
                         reason: reasonController.text,
                       );
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  if (screenContext.mounted) {
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(screenContext).showSnackBar(const SnackBar(
                       content: Text('Withdrawal request submitted!'),
                       backgroundColor: Color(0xFF00C853),
                     ));
                   }
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  if (screenContext.mounted) {
+                    ScaffoldMessenger.of(screenContext).showSnackBar(SnackBar(
                         content: Text('Error: $e'),
                         backgroundColor: Colors.red));
                   }

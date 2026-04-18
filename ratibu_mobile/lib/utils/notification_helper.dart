@@ -139,6 +139,8 @@ class NotificationHelper {
     String? html,
   }) async {
     try {
+      final session = _supabase.auth.currentSession;
+      final accessToken = session?.accessToken;
       final response = await _supabase.functions.invoke(
         'send-email',
         body: {
@@ -146,6 +148,9 @@ class NotificationHelper {
           'subject': subject,
           'body': body,
           'html': html,
+        },
+        headers: {
+          if (accessToken != null && accessToken.isNotEmpty) 'Authorization': 'Bearer $accessToken',
         },
       );
 
@@ -175,6 +180,8 @@ class NotificationHelper {
     String? emailHtml,
   }) async {
     try {
+      final session = _supabase.auth.currentSession;
+      final accessToken = session?.accessToken;
       final response = await _supabase.functions.invoke(
         'notify-user',
         body: {
@@ -185,6 +192,9 @@ class NotificationHelper {
           if (link != null) 'link': link,
           if (emailSubject != null) 'emailSubject': emailSubject,
           if (emailHtml != null) 'emailHtml': emailHtml,
+        },
+        headers: {
+          if (accessToken != null && accessToken.isNotEmpty) 'Authorization': 'Bearer $accessToken',
         },
       );
 
@@ -207,6 +217,8 @@ class NotificationHelper {
     String? emailHtml,
   }) async {
     try {
+      final session = _supabase.auth.currentSession;
+      final accessToken = session?.accessToken;
       final body = <String, dynamic>{
         'audience': audience,
         'title': title,
@@ -221,6 +233,9 @@ class NotificationHelper {
       final response = await _supabase.functions.invoke(
         'notify-audience',
         body: body,
+        headers: {
+          if (accessToken != null && accessToken.isNotEmpty) 'Authorization': 'Bearer $accessToken',
+        },
       );
 
       if (response.status != 200) {

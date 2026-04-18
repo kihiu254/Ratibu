@@ -1,56 +1,72 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class ProductsScreen extends StatelessWidget {
   const ProductsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    const products = <_Product>[
+      _Product(
+        icon: Icons.account_balance_wallet,
+        color: Color(0xFF38BDF8),
+        title: 'Digital Wallets',
+      ),
+      _Product(
+        icon: Icons.groups,
+        color: Color(0xFF22C55E),
+        title: 'Chama OS',
+      ),
+      _Product(
+        icon: Icons.payments,
+        color: Color(0xFFF59E0B),
+        title: 'Loans & Credit',
+      ),
+      _Product(
+        icon: Icons.swap_horiz,
+        color: Color(0xFF8B5CF6),
+        title: 'USSD Offline Access',
+      ),
+      _Product(
+        icon: Icons.account_balance,
+        color: Color(0xFF10B981),
+        title: 'KCB M-PESA',
+      ),
+      _Product(
+        icon: Icons.electrical_services,
+        color: Color(0xFFFB923C),
+        title: 'KPLC Bill Payments',
+      ),
+      _Product(
+        icon: Icons.repeat,
+        color: Color(0xFF94A3B8),
+        title: 'Standing Orders',
+      ),
+      _Product(
+        icon: Icons.verified_user,
+        color: Color(0xFF06B6D4),
+        title: 'Secure Payments',
+      ),
+    ];
+
     return Scaffold(
+      backgroundColor: const Color(0xFF0f172a),
       appBar: AppBar(
-        title: const Text('Our Products'),
+        title: const Text('Products'),
         backgroundColor: const Color(0xFF1e293b),
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Built for the Next Economy',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Ratibu provides a comprehensive suite of financial tools designed specifically for informal savings groups and modern SMEs.',
-              style: TextStyle(fontSize: 16, color: Colors.white70),
-            ),
-            const SizedBox(height: 32),
-            _buildProductCard(
-              icon: Icons.account_balance_wallet,
-              color: Colors.blue,
-              title: 'Digital Wallets',
-              description: 'Secure, automated group accounts that hold funds transparently. Every member has real-time visibility into balances.',
-            ),
-            const SizedBox(height: 16),
-            _buildProductCard(
-              icon: Icons.group_work,
-              color: Colors.green,
-              title: 'Chama OS',
-              description: 'The complete operating system for investment groups. Automate ledgers, track contributions, and manage multi-signature withdrawals.',
-            ),
-             const SizedBox(height: 16),
-            _buildProductCard(
-              icon: Icons.payments,
-              color: Colors.purple,
-              title: 'Instant Credit',
-              description: 'Access low-interest loans collateralized by your group savings. Instant approvals based on your group\'s financial history.',
-            ),
-             const SizedBox(height: 16),
-            _buildProductCard(
-              icon: Icons.phone_android,
-              color: Colors.orange,
-              title: 'USSD Offline Access',
-              description: 'No smartphone? No internet? No problem. Access all your Chama features securely via *XXX# on any mobile device.',
+            const SizedBox(height: 4),
+            ...products.map(
+              (product) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildProductCard(product),
+              ),
             ),
           ],
         ),
@@ -58,9 +74,9 @@ class ProductsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProductCard({required IconData icon, required Color color, required String title, required String description}) {
+  Widget _buildProductCard(_Product product) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1e293b),
         borderRadius: BorderRadius.circular(20),
@@ -70,20 +86,33 @@ class ProductsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-             padding: const EdgeInsets.all(12),
-             decoration: BoxDecoration(
-               color: color.withValues(alpha: 0.1),
-               borderRadius: BorderRadius.circular(12),
-             ),
-             child: Icon(icon, color: color, size: 28),
-           ),
-           const SizedBox(height: 16),
-           Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-           const SizedBox(height: 8),
-           Text(description, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: product.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(product.icon, color: product.color, size: 28),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            product.title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 8),
         ],
-      )
+      ),
     );
   }
 }
 
+class _Product {
+  final IconData icon;
+  final Color color;
+  final String title;
+
+  const _Product({
+    required this.icon,
+    required this.color,
+    required this.title,
+  });
+}

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import { sendResendEmail } from "../_shared/resend.ts";
 import { sendFirebasePush } from "../_shared/firebase.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -22,33 +22,6 @@ const getBearerToken = (header: string | null) => {
   if (!header?.startsWith("Bearer ")) return null;
   return header.slice("Bearer ".length).trim();
 };
-
-async function sendEmail(to: string, subject: string, html: string, body?: string) {
-  const host = Deno.env.get("SMTP_HOST");
-  const port = parseInt(Deno.env.get("SMTP_PORT") || "465");
-  const user = Deno.env.get("SMTP_USER");
-  const pass = Deno.env.get("SMTP_PASS");
-  const from = Deno.env.get("SMTP_FROM");
-  if (!host || !user || !pass || !from) return;
-
-  const client = new SmtpClient();
-  try {
-    await client.connectTLS({ hostname: host, port, username: user, password: pass });
-    await client.send({
-      from,
-      to,
-      subject,
-      content: body || "Please view this email in an HTML-compatible client",
-      html,
-    });
-  } finally {
-    try {
-      await client.close();
-    } catch {
-      // ignore local SMTP teardown errors
-    }
-  }
-}
 
 async function resolveCaller(supabase: any, token: string) {
   const { data, error } = await supabase.auth.getUser(token);
@@ -177,7 +150,12 @@ Deno.serve(async (req) => {
 
     if (recipient.email) {
       try {
-        await sendEmail(recipient.email, emailSubject, emailHtml, message);
+        await sendResendEmail({
+          to: recipient.email,
+          subject: emailSubject,
+          html: emailHtml,
+          text: message,
+        });
       } catch (e) {
         console.error("Email notification failed:", e);
       }

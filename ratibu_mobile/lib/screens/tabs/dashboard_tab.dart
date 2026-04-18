@@ -233,6 +233,22 @@ class DashboardTab extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _QuickActionCard(
+                            icon: LucideIcons.package,
+                            title: 'Products',
+                            subtitle: 'Explore loans, KCB, bills',
+                            onTap: () => context.push('/products'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
