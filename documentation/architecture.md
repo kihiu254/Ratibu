@@ -12,6 +12,10 @@ The web and mobile apps both depend on the same Supabase project and share core
 entities such as users, chamas, transactions, meetings, payment requests,
 referrals, and KYC documents.
 
+## Related Specs
+
+- [Ratibu Marketplace, Wallet, and Credit Architecture Spec](./ratibu_marketplace_architecture_spec.md)
+
 ## Application Layers
 
 ### Web Application
