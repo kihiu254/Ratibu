@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Seo from '../components/Seo'
@@ -11,6 +12,7 @@ const points = [
 
 const Consent = () => {
   const navigate = useNavigate()
+  const [understood, setUnderstood] = useState(false)
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -53,6 +55,16 @@ const Consent = () => {
               <p>If you do not agree, do not continue and contact support before creating or using an account.</p>
             </div>
 
+            <label className="mt-6 flex items-start gap-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 p-4 text-sm md:text-base text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={understood}
+                onChange={(e) => setUnderstood(e.target.checked)}
+                className="mt-1"
+              />
+              <span>I have read the consent summary and understand I must accept the full terms before using Ratibu.</span>
+            </label>
+
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
@@ -64,6 +76,7 @@ const Consent = () => {
               <button
                 type="button"
                 onClick={() => navigate('/register')}
+                disabled={!understood}
                 className="px-5 py-3 rounded-xl bg-[#00C853] text-white font-semibold hover:bg-[#00C853]/90 transition-colors"
               >
                 Continue to Register
@@ -71,6 +84,7 @@ const Consent = () => {
               <button
                 type="button"
                 onClick={() => navigate('/login')}
+                disabled={!understood}
                 className="px-5 py-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold hover:opacity-90 transition-opacity"
               >
                 Continue to Login

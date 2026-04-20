@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class ConsentScreen extends StatelessWidget {
+class ConsentScreen extends StatefulWidget {
   const ConsentScreen({super.key});
+
+  @override
+  State<ConsentScreen> createState() => _ConsentScreenState();
+}
+
+class _ConsentScreenState extends State<ConsentScreen> {
+  bool _understood = false;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +77,18 @@ class ConsentScreen extends StatelessWidget {
                   'By continuing, you confirm that you have read the full legal page and understand how Ratibu works. You also confirm that you understand payment and loan activity may be reviewed for risk and compliance. If you do not agree, do not continue and contact support before creating or using an account.',
                   style: TextStyle(color: Colors.white70, height: 1.6),
                 ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: const Color(0xFF00C853),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _understood,
+                  onChanged: (next) => setState(() => _understood = next ?? false),
+                  title: const Text(
+                    'I have read the consent summary and understand I must accept the full terms before using Ratibu.',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 12,
@@ -80,11 +99,11 @@ class ConsentScreen extends StatelessWidget {
                       child: const Text('Read full legal page'),
                     ),
                     ElevatedButton(
-                      onPressed: () => context.go('/register'),
+                      onPressed: _understood ? () => context.go('/register') : null,
                       child: const Text('Continue to Register'),
                     ),
                     ElevatedButton(
-                      onPressed: () => context.go('/login'),
+                      onPressed: _understood ? () => context.go('/login') : null,
                       child: const Text('Continue to Login'),
                     ),
                   ],
