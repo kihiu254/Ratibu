@@ -171,7 +171,7 @@ const AccessDevices = () => {
                         </p>
                         <div className="flex gap-4">
                            <div className="px-6 py-3 bg-white/50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 text-center flex-1 transition-colors duration-300">
-                              <p className="text-primary font-black text-lg">*384#</p>
+                              <p className="text-primary font-black text-lg">*702*47#</p>
                               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">USSD Access</p>
                            </div>
                            <div className="px-6 py-3 bg-white/50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 text-center flex-1 transition-colors duration-300">

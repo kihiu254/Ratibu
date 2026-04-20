@@ -39,7 +39,7 @@ class _KplcBillPaymentScreenState extends ConsumerState<KplcBillPaymentScreen> {
   List<Map<String, String>> _favorites = [];
   final List<Map<String, String>> _defaultMeters = const [
     {'label': 'House 24-three Steers', 'value': '0175115472516'},
-    {'label': 'Office Main Line', 'value': '254112081866'},
+    {'label': 'Office Main Line', 'value': '254716242252'},
   ];
 
   @override

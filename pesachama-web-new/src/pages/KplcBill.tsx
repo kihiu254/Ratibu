@@ -259,7 +259,7 @@ export default function KplcBill() {
 
   const quickMeters = favorites.length > 0 ? favorites : [
     { label: 'House 24-three Steers', value: '0175115472516' },
-    { label: 'Office Main Line', value: '254112081866' },
+    { label: 'Office Main Line', value: '254716242252' },
   ]
 
   function addFavoriteMeter() {

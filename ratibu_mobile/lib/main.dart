@@ -38,6 +38,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:ratibu_mobile/providers/auth_provider.dart';
 import 'package:ratibu_mobile/screens/kyc_form_screen.dart';
 import 'package:ratibu_mobile/screens/products_screen.dart';
+import 'package:ratibu_mobile/screens/marketplace_screen.dart';
 import 'package:ratibu_mobile/screens/opportunities_screen.dart';
 import 'package:ratibu_mobile/screens/features_screen.dart';
 import 'package:ratibu_mobile/screens/pricing_screen.dart';
@@ -284,6 +285,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/products',
         builder: (context, state) => const ProductsScreen(),
+      ),
+      GoRoute(
+        path: '/marketplace',
+        builder: (context, state) => const MarketplaceScreen(),
       ),
       GoRoute(
         path: '/kcb-mpesa',

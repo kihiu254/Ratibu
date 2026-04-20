@@ -556,13 +556,13 @@ async function fetchActiveChamas(supabase: any, userId: string): Promise<ActiveC
   const lookups = [
     {
       userColumn: "user_id",
-      relation: "chamas(id, name)",
+      relation: "role, chamas(id, name)",
       statusColumn: "status",
       statusValue: "active",
     },
     {
       userColumn: "profile_id",
-      relation: "groups(id, name)",
+      relation: "role, groups(id, name)",
       statusColumn: null as string | null,
       statusValue: null,
     },
@@ -913,6 +913,7 @@ async function fetchChamaNames(supabase: any, userId: string) {
     const { data, error } = await query.limit(3);
     if (!error) {
       return data as Array<{
+        role?: string | null;
         chamas?: { id?: string; name?: string } | Array<{ id?: string; name?: string }>;
         groups?: { id?: string; name?: string } | Array<{ id?: string; name?: string }>;
       }>;
@@ -1018,7 +1019,7 @@ const renderPinRetryPrompt = (name: string, attemptsRemaining: number) =>
   `CON Ratibu\n${getTimeGreeting()} ${name}\nWrong PIN. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
-  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n10 Products\n00 Exit`;
+  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n10 Products\n11 Marketplace\n00 Exit`;
 
 const renderChamasMenu = () =>
   `CON Ratibu\nChamas\n1 My Chamas\n2 Discover & Join\n3 Start\n0 Back\n00 Home`;
@@ -1046,6 +1047,9 @@ const renderCreateChamaMenu = () =>
 
 const renderProductsMenu = () =>
   `CON Ratibu\nProducts\n1 Savings\n2 KCB M-PESA\n3 KPLC Bill\n4 Loans\n5 Reversals\n0 Back\n00 Home`;
+
+const renderMarketplaceMenu = () =>
+  `CON Ratibu\nMarketplace\n1 Overview\n2 Send Money\n3 Role Eligibility\n4 Chama Roles\n0 Back\n00 Home`;
 
 type UssdLoanRecord = {
   amount?: number | string | null;
@@ -1784,6 +1788,89 @@ Deno.serve(async (req: Request) => {
             response = renderChoicePromptWithActions("Ratibu\nReversals\nAsk an admin to submit this in the app.", menu, displayName);
           } else {
             response = renderMainMenu(displayName);
+          }
+        } else if (menu[0] === "11") {
+          if (menu.length === 1) {
+            response = renderMarketplaceMenu();
+          } else if (menu[1] === "1") {
+            if (!profile?.id) {
+              response = "END Can't confirm account.";
+            } else {
+              const overview = await supabase.rpc("get_marketplace_overview", { p_user_id: profile.id });
+              const data = overview.data as {
+                ok?: boolean;
+                user?: { credit_score?: number; credit_tier?: string; wallet_balance?: number };
+                eligible_roles?: { vendor?: boolean; agent?: boolean; rider?: boolean };
+              } | null;
+
+              if (overview.error || !data?.ok) {
+                response = renderChoicePromptWithActions(
+                  "Ratibu\nMarketplace overview is unavailable right now.",
+                  menu,
+                  displayName,
+                );
+              } else {
+                const eligible = data.eligible_roles || {};
+                response = renderChoicePromptWithActions(
+                  `Ratibu\nMarketplace\nScore ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nWallet KES ${Number(data.user?.wallet_balance ?? 0).toLocaleString()}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}`,
+                  menu,
+                  displayName,
+                );
+              }
+            }
+          } else if (menu[1] === "2") {
+            if (menu.length === 2) {
+              response = `CON Ratibu\nMarketplace\nEnter recipient phone.`;
+            } else if (menu.length === 3) {
+              response = `CON Ratibu\nMarketplace\n${menu[2]}\nEnter amount.`;
+            } else {
+              const recipientPhone = menu[2];
+              const amount = Number(menu[3]);
+              if (!profile?.id) {
+                response = "END Can't confirm account.";
+              } else if (!recipientPhone || !Number.isFinite(amount) || amount <= 0) {
+                response = "END Enter a valid phone number and amount.";
+              } else {
+                const transfer = await supabase.rpc("internal_wallet_transfer", {
+                  p_sender_user_id: profile.id,
+                  p_receiver_phone: recipientPhone,
+                  p_amount: amount,
+                  p_note: "USSD Ratibu wallet transfer",
+                });
+
+                const result = transfer.data as { ok?: boolean; message?: string } | null;
+                response = renderChoicePromptWithActions(
+                  result?.ok
+                    ? `Ratibu\n${result.message || "Transfer completed."}\nAnything else?`
+                    : `Ratibu\nTransfer failed. ${result?.message || "Please try again."}\nAnything else?`,
+                  menu,
+                  displayName,
+                );
+              }
+            }
+          } else if (menu[1] === "3") {
+            response = renderChoicePromptWithActions(
+              "Ratibu\nMarketplace roles\nVendor 600+\nRider 650+\nAgent 700+\nUse the app or website to apply.",
+              menu,
+              displayName,
+            );
+          } else if (menu[1] === "4") {
+            const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
+            const chamaRoles = chamaMemberships.length
+              ? chamaMemberships.slice(0, 3).map((row) => {
+                const relation = row.chamas ?? row.groups;
+                const name = Array.isArray(relation) ? relation[0]?.name : relation?.name;
+                return `${name || "Chama"}: ${row.role || "member"}`;
+              }).join("\n")
+              : "No chama roles yet";
+
+            response = renderChoicePromptWithActions(
+              `Ratibu\nChama roles\nAdmin, Treasurer, Secretary, Member\n${chamaRoles}`,
+              menu,
+              displayName,
+            );
+          } else {
+            response = renderMarketplaceMenu();
           }
         } else {
           response = renderMainMenu(displayName);

@@ -49,7 +49,7 @@ const Footer = () => {
                         <div className="glass rounded-2xl p-5 border border-slate-200 dark:border-white/5 space-y-3 bg-white/50 dark:bg-white/5 backdrop-blur-md">
                             <p className="text-[10px] text-accent font-black uppercase tracking-widest">Global Support</p>
                             <a href="mailto:ratibumail@gmail.com" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">ratibumail@gmail.com</a>
-                            <a href="tel:+254112081866" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">+254 112 081 866</a>
+                            <a href="tel:+254716242252" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">0716 242 252</a>
                             
                             <div className="pt-4 border-t border-slate-200 dark:border-white/10 mt-4">
                                 <p className="text-[10px] text-accent font-black uppercase tracking-widest">Developer Contact</p>

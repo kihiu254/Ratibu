@@ -1,4 +1,4 @@
-import { Smartphone, CircleDollarSign, Globe, Landmark, Bolt, HandCoins, ArrowLeftRight, ShieldCheck } from 'lucide-react';
+import { Smartphone, CircleDollarSign, Globe, Landmark, Bolt, HandCoins, ArrowLeftRight, ShieldCheck, Store } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Seo from '../components/Seo';
 
@@ -18,6 +18,11 @@ const Products = () => {
             title: "Loans & Credit",
             icon: <HandCoins className="w-10 h-10 text-white" />,
             color: "from-orange-500 to-amber-400"
+        },
+        {
+            title: "Marketplace",
+            icon: <Store className="w-10 h-10 text-white" />,
+            color: "from-emerald-500 to-green-400"
         },
         {
             title: "USSD Offline Access",

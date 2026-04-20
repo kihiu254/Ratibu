@@ -30,6 +30,7 @@ import Profile from '../pages/Profile'
 import Register from '../pages/Register'
 import ResetPassword from '../pages/ResetPassword'
 import Rewards from '../pages/Rewards'
+import Marketplace from '../pages/Marketplace'
 import PersonalSavings from '../pages/PersonalSavings'
 import Accounts from '../pages/Accounts'
 import Statement from '../pages/Statement'
@@ -105,6 +106,7 @@ export function AppRoutes() {
           <Route path="/kplc-bill" element={<KplcBill />} />
           <Route path="/statement" element={<Statement />} />
           <Route path="/personal-savings" element={<PersonalSavings />} />
+          <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/rewards" element={<Rewards />} />
           <Route path="/meetings" element={<Meetings />} />
           <Route path="/penalties" element={<Penalties />} />

@@ -54,15 +54,16 @@ const menuGroups: MenuGroup[] = [
       { name: 'Create Chama', icon: Plus, path: '/create-chama' },
     ],
   },
-  {
-    label: 'Finance',
-    items: [
-      { name: 'Personal Savings', icon: PiggyBank, path: '/personal-savings' },
-      { name: 'Products', icon: Package, path: '/products' },
-      { name: 'KCB M-PESA', icon: BadgeDollarSign, path: '/kcb-mpesa' },
-      { name: 'KPLC Bills', icon: Wallet, path: '/kplc-bill' },
-      { name: 'Rewards', icon: Trophy, path: '/rewards' },
-      { name: 'Penalties', icon: Gavel, path: '/penalties' },
+      {
+        label: 'Finance',
+        items: [
+          { name: 'Personal Savings', icon: PiggyBank, path: '/personal-savings' },
+          { name: 'Marketplace', icon: BadgeDollarSign, path: '/marketplace' },
+          { name: 'Products', icon: Package, path: '/products' },
+          { name: 'KCB M-PESA', icon: BadgeDollarSign, path: '/kcb-mpesa' },
+          { name: 'KPLC Bills', icon: Wallet, path: '/kplc-bill' },
+          { name: 'Rewards', icon: Trophy, path: '/rewards' },
+          { name: 'Penalties', icon: Gavel, path: '/penalties' },
     ],
   },
   {
