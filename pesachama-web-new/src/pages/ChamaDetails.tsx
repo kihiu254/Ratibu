@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from '../utils/toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { openMeetingLink } from '../lib/meetingLink'
 import { notifyAudience, notifyUser } from '../lib/notify'
 import { mpesaService } from '../services/mpesaService'
 import TransactionApprovalModal from '../components/TransactionApprovalModal'
@@ -1114,9 +1115,7 @@ export default function ChamaDetails() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const roomName = meeting.video_link?.split('/').pop()?.trim()
-                                                if (!roomName) return
-                                                navigate(`/meetings?room=${encodeURIComponent(roomName)}&title=${encodeURIComponent(meeting.title)}`)
+                                                openMeetingLink(meeting.video_link ?? '')
                                             }}
                                             className="text-xs font-bold text-[#00C853] flex items-center gap-1 hover:underline"
                                         >

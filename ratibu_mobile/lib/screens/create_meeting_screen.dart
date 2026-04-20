@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../providers/chama_provider.dart';
+import '../utils/meeting_link_helper.dart';
 import '../utils/notification_helper.dart';
 
 class CreateMeetingScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _venueController = TextEditingController();
+  final _meetingLinkController = TextEditingController();
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -30,18 +32,9 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _venueController.dispose();
+    _meetingLinkController.dispose();
     super.dispose();
   }
-
-  /// Generates a deterministic Jitsi room name from chamaId + date
-  String _generateJitsiRoom() {
-    final date = _selectedDate ?? DateTime.now();
-    final slug = 'ratibu-${widget.chamaId.substring(0, 8)}-'
-        '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
-    return slug;
-  }
-
-  String get _jitsiUrl => 'https://meet.jit.si/${_generateJitsiRoom()}';
 
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
@@ -122,17 +115,16 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
         _selectedTime!.minute,
       );
 
-      // Auto-generate Jitsi room URL for virtual meetings
-      final videoLink = _isVirtual ? _jitsiUrl : null;
+      final videoLink = _isVirtual
+          ? normalizeMeetingLink(_meetingLinkController.text)
+          : null;
 
       await ref.read(chamaServiceProvider).createMeeting(
             chamaId: widget.chamaId,
             title: _titleController.text.trim(),
             description: _descriptionController.text.trim(),
             date: meetingDateTime,
-            venue: _isVirtual
-                ? 'Online (Ratibu Meet)'
-                : _venueController.text.trim(),
+            venue: _isVirtual ? 'Online (Google Meet)' : _venueController.text.trim(),
             videoLink: videoLink,
           );
 
@@ -250,13 +242,13 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
                   ),
                 ),
                 child: SwitchListTile(
-                  title: const Text('Virtual Meeting',
+                  title: const Text('Google Meet Meeting',
                       style: TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w600)),
                   subtitle: Text(
                     _isVirtual
-                        ? 'Powered by Ratibu Meet. Opens in your browser or meeting app.'
-                        : 'Toggle to enable a virtual meeting link',
+                        ? 'Paste the Google Meet link for this meeting.'
+                        : 'Toggle to add a Google Meet link',
                     style: TextStyle(
                       color:
                           _isVirtual ? const Color(0xFF00C853) : Colors.white38,
@@ -264,49 +256,25 @@ class _CreateMeetingScreenState extends ConsumerState<CreateMeetingScreen> {
                     ),
                   ),
                   value: _isVirtual,
-                  activeColor: const Color(0xFF00C853),
+                  activeThumbColor: const Color(0xFF00C853),
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   onChanged: (val) => setState(() => _isVirtual = val),
                 ),
               ),
 
-              // Jitsi room preview
-              if (_isVirtual && _selectedDate != null) ...[
+              if (_isVirtual) ...[
                 const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00C853).withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: const Color(0xFF00C853).withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.videocam,
-                          color: Color(0xFF00C853), size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Room auto-generated',
-                                style: TextStyle(
-                                    color: Color(0xFF00C853),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            Text(
-                              _jitsiUrl,
-                              style: const TextStyle(
-                                  color: Colors.white54, fontSize: 11),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                TextFormField(
+                  controller: _meetingLinkController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dec('Google Meet Link', Icons.videocam),
+                  validator: (v) {
+                    if (!_isVirtual) return null;
+                    return (v == null || v.trim().isEmpty)
+                        ? 'Paste the Google Meet link'
+                        : null;
+                  },
                 ),
               ],
 

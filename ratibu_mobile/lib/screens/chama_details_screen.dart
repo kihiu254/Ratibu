@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/chama_provider.dart';
-import '../utils/jitsi_meeting_helper.dart';
+import '../utils/meeting_link_helper.dart';
 
 class ChamaDetailsScreen extends ConsumerWidget {
   final String chamaId;
@@ -563,18 +563,10 @@ class _MeetingsTab extends ConsumerWidget {
                               final link = meeting['video_link']?.toString() ?? '';
                               if (link.isEmpty) return;
 
-                              final uri = Uri.tryParse(link);
-                              final roomName = uri?.pathSegments.isNotEmpty == true
-                                  ? uri!.pathSegments.last
-                                  : link;
-                              final user = Supabase.instance.client.auth.currentUser;
-
-                              await joinRatibuMeeting(
-                                context: context,
-                                roomName: roomName,
-                                title: meeting['title']?.toString() ?? 'Meeting',
-                                displayName: user?.email,
-                                email: user?.email,
+                              await openMeetingLink(
+                                context,
+                                link,
+                                fallbackMessage: 'Failed to open Google Meet link',
                               );
                             },
                             child: const Text(

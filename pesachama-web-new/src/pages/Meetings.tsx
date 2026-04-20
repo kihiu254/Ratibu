@@ -1,24 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Calendar, MapPin, Video, Plus, X } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { notifyAudience } from '../lib/notify'
 import { toast } from '../utils/toast'
 import { format } from 'date-fns'
-
-interface JitsiApi {
-  addEventListener: (event: string, handler: () => void) => void
-  dispose: () => void
-}
-
-declare global {
-  interface Window {
-    JitsiMeetExternalAPI?: new (
-      domain: string,
-      options: Record<string, unknown>
-    ) => JitsiApi
-  }
-}
+import { normalizeMeetingLink, openMeetingLink } from '../lib/meetingLink'
 
 interface Meeting {
   id: string
@@ -70,91 +57,7 @@ function getMeetingErrorMessage(error: unknown) {
   return message || 'Failed to create meeting'
 }
 
-// ── Jitsi in-page room ────────────────────────────────────────────────────────
-function JitsiRoom({ roomName, displayName, email, title, onClose }: {
-  roomName: string
-  displayName: string
-  email: string
-  title: string
-  onClose: () => void
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const apiRef = useRef<JitsiApi | null>(null)
-
-  useEffect(() => {
-    function initJitsi() {
-      if (!containerRef.current || !window.JitsiMeetExternalAPI) return
-
-      apiRef.current = new window.JitsiMeetExternalAPI('meet.jit.si', {
-        roomName,
-        parentNode: containerRef.current,
-        width: '100%',
-        height: '100%',
-        configOverrides: {
-          startWithAudioMuted: false,
-          startWithVideoMuted: false,
-          subject: title,
-          disableDeepLinking: true,
-          disableThirdPartyRequests: true,
-        },
-        interfaceConfigOverrides: {
-          SHOW_JITSI_WATERMARK: false,
-          SHOW_WATERMARK_FOR_GUESTS: false,
-          TOOLBAR_BUTTONS: [
-            'microphone', 'camera', 'closedcaptions', 'desktop',
-            'fullscreen', 'settings', 'hangup', 'chat',
-            'raisehand', 'tileview', 'select-background',
-          ],
-        },
-        userInfo: { displayName, email },
-      })
-
-      apiRef.current.addEventListener('readyToClose', onClose)
-    }
-
-    // Load Jitsi script if not already loaded
-    if (window.JitsiMeetExternalAPI) {
-      initJitsi()
-    } else {
-      const script = document.createElement('script')
-      script.src = 'https://meet.jit.si/external_api.js'
-      script.async = true
-      script.onload = initJitsi
-      document.head.appendChild(script)
-    }
-
-    return () => {
-      apiRef.current?.dispose()
-    }
-  }, [displayName, email, onClose, roomName, title])
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#00C853]/20 flex items-center justify-center">
-            <Video className="w-4 h-4 text-[#00C853]" />
-          </div>
-          <div>
-            <p className="text-white font-bold text-sm">{title}</p>
-            <p className="text-slate-400 text-xs">Ratibu Meet · Powered by Jitsi</p>
-          </div>
-        </div>
-        <button
-          onClick={onClose}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-semibold"
-        >
-          <X className="w-4 h-4" /> Leave
-        </button>
-      </div>
-      {/* Jitsi container */}
-      <div ref={containerRef} className="flex-1 w-full" />
-    </div>
-  )
-}
-
-// ── Create meeting modal ──────────────────────────────────────────────────────
+// €€ Create meeting modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CreateMeetingModal({ chamas, onClose, onCreated }: {
   chamas: Chama[]
   onClose: () => void
@@ -167,14 +70,8 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
   const [time, setTime] = useState('10:00')
   const [isVirtual, setIsVirtual] = useState(false)
   const [venue, setVenue] = useState('')
+  const [meetingLink, setMeetingLink] = useState('')
   const [loading, setLoading] = useState(false)
-
-  // Auto-generate Jitsi room URL from chamaId + date
-  function generateJitsiUrl() {
-    if (!chamaId || !date) return ''
-    const slug = `ratibu-${chamaId.substring(0, 8)}-${date.replace(/-/g, '')}`
-    return `https://meet.jit.si/${slug}`
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -187,7 +84,7 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
     setLoading(true)
     try {
       const datetime = new Date(`${date}T${time}:00`).toISOString()
-      const videoLink = isVirtual ? generateJitsiUrl() : null
+      const videoLink = isVirtual ? normalizeMeetingLink(meetingLink) : null
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('You must be signed in to create a meeting')
 
@@ -197,7 +94,7 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
         title: title.trim(),
         description: description.trim() || null,
         date: datetime,
-        venue: isVirtual ? 'Online (Ratibu Meet)' : venue.trim(),
+        venue: isVirtual ? 'Online (Google Meet)' : venue.trim(),
         video_link: videoLink,
       })
       if (error) throw error
@@ -222,7 +119,6 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
   }
 
   const inputCls = 'w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm outline-none focus:border-[#00C853] transition-colors'
-  const jitsiUrl = generateJitsiUrl()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -271,7 +167,7 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
           <button
             type="button"
             onClick={() => setIsVirtual(!isVirtual)}
-            aria-label={isVirtual ? 'Disable virtual meeting' : 'Enable virtual meeting'}
+            aria-label={isVirtual ? 'Disable Google Meet Meeting' : 'Enable Google Meet Meeting'}
             className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all ${
               isVirtual
                 ? 'border-[#00C853]/40 bg-[#00C853]/5'
@@ -282,20 +178,24 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
               <div className={`w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform ${isVirtual ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Virtual Meeting</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Google Meet Meeting</p>
               <p className={`text-xs ${isVirtual ? 'text-[#00C853]' : 'text-slate-400'}`}>
-                {isVirtual ? 'Powered by Ratibu Meet — no external app needed' : 'Enable for in-app video call'}
+                {isVirtual ? 'Paste the Google Meet link for this meeting.' : 'Enable to attach a Google Meet link'}
               </p>
             </div>
           </button>
 
-          {/* Jitsi room preview */}
-          {isVirtual && jitsiUrl && (
+          {isVirtual && (
             <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#00C853]/5 border border-[#00C853]/20">
               <Video className="w-4 h-4 text-[#00C853] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs font-bold text-[#00C853]">Room auto-generated</p>
-                <p className="text-xs text-slate-500 truncate">{jitsiUrl}</p>
+                <p className="text-xs font-bold text-[#00C853]">Google Meet link required</p>
+                <input
+                  value={meetingLink}
+                  onChange={e => setMeetingLink(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:border-[#00C853]"
+                  placeholder="https://meet.google.com/..."
+                />
               </div>
             </div>
           )}
@@ -325,7 +225,7 @@ function CreateMeetingModal({ chamas, onClose, onCreated }: {
   )
 }
 
-// ── Meeting card ──────────────────────────────────────────────────────────────
+// â”€â”€ Meeting card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function MeetingCard({ meeting: m, onJoin }: { meeting: Meeting; onJoin?: () => void }) {
   const isVirtual = !!m.video_link
   const date = new Date(m.date)
@@ -375,45 +275,20 @@ function MeetingCard({ meeting: m, onJoin }: { meeting: Meeting; onJoin?: () => 
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function Meetings() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [chamas, setChamas] = useState<Chama[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [activeRoom, setActiveRoom] = useState<{ roomName: string; title: string } | null>(null)
-  const [userInfo, setUserInfo] = useState({ displayName: 'Member', email: '' })
-  const [searchParams] = useSearchParams()
 
   useEffect(() => { void load() }, [])
-
-  useEffect(() => {
-    const roomName = searchParams.get('room')
-    if (!roomName) return
-
-    setActiveRoom({
-      roomName,
-      title: searchParams.get('title') ?? 'Meeting',
-    })
-  }, [searchParams])
 
   async function load() {
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      // Get display name
-      const { data: profile } = await supabase
-        .from('users')
-        .select('first_name, last_name')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      const displayName = profile?.first_name
-        ? `${profile.first_name} ${profile.last_name || ''}`.trim()
-        : user.email ?? 'Member'
-      setUserInfo({ displayName, email: user.email ?? '' })
 
       const { data: memberRows } = await supabase
         .from('chama_members')
@@ -445,8 +320,7 @@ export default function Meetings() {
 
   function joinMeeting(m: Meeting) {
     if (!m.video_link) return
-    const roomName = m.video_link.split('/').pop() ?? m.id
-    setActiveRoom({ roomName, title: m.title })
+    openMeetingLink(m.video_link)
   }
 
   const now = new Date()
@@ -455,17 +329,6 @@ export default function Meetings() {
 
   return (
     <>
-      {/* Jitsi full-screen room */}
-      {activeRoom && (
-        <JitsiRoom
-          roomName={activeRoom.roomName}
-          title={activeRoom.title}
-          displayName={userInfo.displayName}
-          email={userInfo.email}
-          onClose={() => setActiveRoom(null)}
-        />
-      )}
-
       <div className="max-w-4xl mx-auto space-y-8 pb-20">
         {showCreate && chamas.length > 0 && (
           <CreateMeetingModal
@@ -540,3 +403,6 @@ export default function Meetings() {
     </>
   )
 }
+
+
+

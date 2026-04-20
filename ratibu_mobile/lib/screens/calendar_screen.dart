@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../utils/jitsi_meeting_helper.dart';
+import '../utils/meeting_link_helper.dart';
 
 class CalendarScreen extends StatefulWidget {
   final String? chamaId;
@@ -139,16 +139,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final link = meeting['video_link']?.toString() ?? '';
     if (link.isEmpty) return;
 
-    final uri = Uri.tryParse(link);
-    final roomName = uri?.pathSegments.isNotEmpty == true ? uri!.pathSegments.last : link;
-    final user = Supabase.instance.client.auth.currentUser;
-
-    await joinRatibuMeeting(
-      context: context,
-      roomName: roomName,
-      title: meeting['title']?.toString() ?? 'Meeting',
-      displayName: user?.email,
-      email: user?.email,
+    await openMeetingLink(
+      context,
+      link,
+      fallbackMessage: 'Failed to open Google Meet link',
     );
   }
 

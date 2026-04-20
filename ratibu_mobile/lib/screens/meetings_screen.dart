@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/chama_provider.dart';
-import '../utils/jitsi_meeting_helper.dart';
+import '../utils/meeting_link_helper.dart';
 
 class MeetingsScreen extends ConsumerStatefulWidget {
   const MeetingsScreen({super.key});
@@ -68,19 +68,11 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
     }
   }
 
-  Future<void> _joinMeetingRoom(String videoLink, String title) async {
-    final uri = Uri.tryParse(videoLink);
-    final roomName = uri?.pathSegments.isNotEmpty == true
-        ? uri!.pathSegments.last
-        : videoLink;
-    final user = Supabase.instance.client.auth.currentUser;
-
-    await joinRatibuMeeting(
-      context: context,
-      roomName: roomName,
-      title: title,
-      displayName: user?.email,
-      email: user?.email,
+  Future<void> _joinMeetingRoom(String videoLink) async {
+    await openMeetingLink(
+      context,
+      videoLink,
+      fallbackMessage: 'Failed to open Google Meet link',
     );
   }
 
@@ -250,8 +242,7 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
                                         .toString()
                                         .isNotEmpty
                                     ? () => _joinMeetingRoom(
-                                        m['video_link'].toString(),
-                                        m['title'] ?? 'Meeting')
+                                        m['video_link'].toString())
                                     : null,
                               )),
                           const SizedBox(height: 20),
@@ -268,8 +259,7 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
                                         .toString()
                                         .isNotEmpty
                                     ? () => _joinMeetingRoom(
-                                        m['video_link'].toString(),
-                                        m['title'] ?? 'Meeting')
+                                        m['video_link'].toString())
                                     : null,
                               )),
                         ],
