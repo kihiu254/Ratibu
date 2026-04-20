@@ -357,12 +357,12 @@ function MeetingCard({ meeting: m, onJoin }: { meeting: Meeting; onJoin?: () => 
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {isVirtual && !isPast && onJoin && (
+          {isVirtual && onJoin && (
             <button
               onClick={onJoin}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#00C853] text-white text-sm font-bold hover:bg-green-600 transition-colors shadow-sm shadow-green-500/20"
             >
-              <Video className="w-3.5 h-3.5" /> Join
+              <Video className="w-3.5 h-3.5" /> {isPast ? 'Rejoin' : 'Join'}
             </button>
           )}
           <Link to={`/chama/${m.chama_id}`}
@@ -524,7 +524,13 @@ export default function Meetings() {
               <section>
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Past</h2>
                 <div className="space-y-4">
-                  {past.map(m => <MeetingCard key={m.id} meeting={m} />)}
+                  {past.map(m => (
+                    <MeetingCard
+                      key={m.id}
+                      meeting={m}
+                      onJoin={m.video_link ? () => joinMeeting(m) : undefined}
+                    />
+                  ))}
                 </div>
               </section>
             )}

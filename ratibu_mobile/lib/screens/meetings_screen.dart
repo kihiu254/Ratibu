@@ -250,7 +250,7 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
                                         .toString()
                                         .isNotEmpty
                                     ? () => _joinMeetingRoom(
-                                        m['video_link'] as String,
+                                        m['video_link'].toString(),
                                         m['title'] ?? 'Meeting')
                                     : null,
                               )),
@@ -264,6 +264,13 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
                                 isPast: true,
                                 onOpen: () =>
                                     context.push('/chama/${m['chama_id']}'),
+                                onJoin: (m['video_link'] ?? '')
+                                        .toString()
+                                        .isNotEmpty
+                                    ? () => _joinMeetingRoom(
+                                        m['video_link'].toString(),
+                                        m['title'] ?? 'Meeting')
+                                    : null,
                               )),
                         ],
                       ],
@@ -376,8 +383,8 @@ class _MeetingCard extends StatelessWidget {
                   ElevatedButton.icon(
                     onPressed: onJoin,
                     icon: const Icon(Icons.videocam, size: 14),
-                    label: const Text('Join',
-                        style: TextStyle(
+                    label: Text(isPast ? 'Rejoin' : 'Join',
+                        style: const TextStyle(
                             fontSize: 12, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00C853),
