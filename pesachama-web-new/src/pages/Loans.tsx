@@ -14,7 +14,8 @@ interface LoanRow {
   disbursement_date: string | null
   due_date: string | null
   created_at: string
-  chamas?: { name?: string | null } | null
+  chama_id?: string | null
+  chama_name?: string | null
 }
 
 interface LoanRequestRow {
@@ -86,12 +87,29 @@ export default function Loans() {
 
       const { data, error } = await supabase
         .from('loans')
-        .select('id, amount, interest_rate, duration_months, status, disbursement_date, due_date, created_at, chamas(name)')
+        .select('id, amount, interest_rate, duration_months, status, disbursement_date, due_date, created_at, chama_id')
         .eq('borrower_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setRows((data ?? []) as LoanRow[])
+      const loanRows = (data ?? []) as LoanRow[]
+      const chamaIds = Array.from(new Set(loanRows.map((row) => row.chama_id).filter(Boolean))) as string[]
+
+      let chamaNameById = new Map<string, string>()
+      if (chamaIds.length > 0) {
+        const chamaRes = await supabase
+          .from('chamas')
+          .select('id, name')
+          .in('id', chamaIds)
+
+        if (chamaRes.error) throw chamaRes.error
+        chamaNameById = new Map((chamaRes.data ?? []).map((row) => [row.id as string, row.name as string]))
+      }
+
+      setRows(loanRows.map((row) => ({
+        ...row,
+        chama_name: row.chama_id ? chamaNameById.get(row.chama_id) ?? null : null,
+      })))
 
       const requestRes = await supabase
         .from('loan_requests')
@@ -299,7 +317,7 @@ export default function Loans() {
               const amount = Number(loan.amount || 0)
               const interest = loan.interest_rate == null ? '0%' : `${Number(loan.interest_rate).toFixed(Number(loan.interest_rate) % 1 === 0 ? 0 : 1)}%`
               const duration = loan.duration_months == null ? 'n/a' : `${loan.duration_months} months`
-              const chamaName = loan.chamas?.name?.trim() || 'Personal Loan'
+              const chamaName = loan.chama_name?.trim() || 'Personal Loan'
               return (
                 <motion.article
                   key={loan.id}

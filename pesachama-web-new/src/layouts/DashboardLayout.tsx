@@ -103,6 +103,9 @@ export default function DashboardLayout() {
         if (onboardingRoutes.includes(location.pathname)) navigate('/dashboard')
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
       console.error('Error loading user data!', error)
     } finally {
       setLoading(false)
