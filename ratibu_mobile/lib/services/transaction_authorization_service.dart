@@ -54,6 +54,12 @@ class TransactionAuthorizationService {
     if (_isNetworkError(error)) {
       return 'Unable to reach Ratibu servers. Check your internet connection and try again.';
     }
+    final message = error.toString().toLowerCase();
+    if (message.contains('digest(text, unknown)') ||
+        message.contains('function digest') ||
+        message.contains('manage_transaction_pin')) {
+      return 'Transaction PIN service is being repaired. Please try again in a moment.';
+    }
     return error.toString();
   }
 
@@ -69,6 +75,13 @@ class TransactionAuthorizationService {
       } catch (e) {
         lastError = e;
         final message = e.toString().toLowerCase();
+        if (message.contains('digest(text, unknown)') ||
+            message.contains('function digest') ||
+            message.contains('manage_transaction_pin')) {
+          throw const TransactionPinException(
+            'Transaction PIN service is being repaired. Please try again in a moment.',
+          );
+        }
         if (i == 2 ||
             !(e is SocketException ||
                 message.contains('connection reset by peer') ||

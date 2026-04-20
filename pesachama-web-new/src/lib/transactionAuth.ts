@@ -18,6 +18,13 @@ async function invokeTransactionAuth(body: Record<string, unknown>) {
       lastError = error
       const message = String(error).toLowerCase()
       if (
+        message.includes('digest(text, unknown)') ||
+        message.includes('function digest') ||
+        message.includes('manage_transaction_pin')
+      ) {
+        throw new Error('Transaction PIN service is being repaired. Please try again in a moment.')
+      }
+      if (
         i === 2 ||
         !(message.includes('connection reset by peer') || message.includes('clientexception') || message.includes('socketexception'))
       ) {
