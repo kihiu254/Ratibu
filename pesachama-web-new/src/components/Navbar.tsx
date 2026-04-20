@@ -96,7 +96,7 @@ export default function Navbar() {
         {/* Desktop Links (Only shown on landing pages) */}
         {!isFlowPage && (
           <nav className="hidden md:flex items-center gap-1">
-            {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
+            {["Features", "Products", "Pricing", "Opportunities", "Contact", "Chamas"].map((item) => (
               <Link
                 key={item}
                 to={`/${item.toLowerCase()}`}
@@ -188,7 +188,7 @@ export default function Navbar() {
           id="mobile-navigation-menu"
           className="md:hidden mt-3 p-4 sm:p-6 glass rounded-2xl border border-white/5 shadow-2xl animate-slide-up flex flex-col gap-4 max-h-[calc(100vh-8rem)] overflow-y-auto"
         >
-          {["Features", "Products", "Pricing", "Opportunities", "Chamas"].map((item) => (
+          {["Features", "Products", "Pricing", "Opportunities", "Contact", "Chamas"].map((item) => (
             <Link
               key={item}
               to={`/${item.toLowerCase()}`}

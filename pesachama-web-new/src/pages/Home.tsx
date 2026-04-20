@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import { RatibuHeroLogo } from '../components/RatibuHeroLogo';
 import Seo from '../components/Seo';
 import { supabase } from '../lib/supabase';
+import { ArrowRight, CreditCard, HandCoins, Megaphone, Users } from 'lucide-react';
 
 const Hero = () => {
     const navigate = useNavigate();
@@ -197,6 +198,96 @@ const AccessDevices = () => {
     );
 }
 
+const serviceLinks = [
+    { label: 'Features', href: '/features' },
+    { label: 'Products', href: '/products' },
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'Opportunities', href: '/opportunities' },
+    { label: 'Contact', href: '/contact' },
+]
+
+const whatRatibuDoes = [
+    {
+        title: 'Chama management',
+        description: 'Create and manage savings groups, member activity, meetings, and contributions in one system.',
+        href: '/features',
+        icon: Users,
+    },
+    {
+        title: 'Loans and statements',
+        description: 'Track loans, balances, repayments, and transaction statements without spreadsheet chaos.',
+        href: '/products',
+        icon: HandCoins,
+    },
+    {
+        title: 'Payments and bills',
+        description: 'Handle KCB M-PESA flows, utility payments, and mobile money transactions with confidence.',
+        href: '/products',
+        icon: CreditCard,
+    },
+    {
+        title: 'Partnerships and growth',
+        description: 'Explore agent, developer, and institutional partnership opportunities built for scale.',
+        href: '/opportunities',
+        icon: Megaphone,
+    },
+]
+
+const WhatRatibuDoes = () => (
+    <section className="py-24 bg-white dark:bg-slate-950 transition-colors duration-300">
+        <div className="container mx-auto px-6">
+            <div className="max-w-6xl mx-auto">
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+                    <div className="max-w-2xl">
+                        <p className="text-xs font-black uppercase tracking-[0.4em] text-[#00C853] mb-4">What Ratibu does</p>
+                        <h2 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+                            A simple home for chamas, savings groups, loans, and payments.
+                        </h2>
+                        <p className="mt-5 text-base md:text-lg text-slate-600 dark:text-slate-400 leading-8">
+                            Ratibu brings together the everyday tools groups need to save, lend, collect contributions, and keep records in one trusted platform.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        {serviceLinks.map((link) => (
+                            <a
+                                key={link.label}
+                                href={link.href}
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-300 hover:border-[#00C853]/40 hover:text-[#00C853] transition-colors"
+                            >
+                                {link.label}
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </a>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+                    {whatRatibuDoes.map((item, index) => {
+                        const Icon = item.icon
+                        return (
+                            <motion.a
+                                key={item.title}
+                                href={item.href}
+                                initial={{ opacity: 0, y: 18 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: index * 0.08 }}
+                                className="group rounded-[1.75rem] border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-6 hover:-translate-y-1 hover:border-[#00C853]/30 transition-all"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#00C853]/10 text-[#00C853]">
+                                    <Icon className="h-6 w-6" />
+                                </div>
+                                <h3 className="mt-5 text-xl font-black text-slate-900 dark:text-white">{item.title}</h3>
+                                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-400">{item.description}</p>
+                            </motion.a>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    </section>
+)
+
 const faqs = [
     {
         question: 'What is Ratibu Chama?',
@@ -255,7 +346,7 @@ export default function Home() {
         <main className="bg-slate-50 dark:bg-midnight min-h-screen font-sans transition-colors duration-300">
             <Seo
               title="Ratibu Chama | Digital Banking for Chamas, Savings & Loans"
-              description="Ratibu Chama is a digital banking platform for chamas, savings groups, SACCOs, loans, USSD banking, KCB M-PESA, KPLC bills, transaction statements, and KYC in Kenya and beyond."
+              description="Ratibu Chama helps chamas, savings groups, and SMEs manage contributions, loans, USSD banking, KCB M-PESA, and KPLC bill payments in one place."
               canonicalPath="/"
               keywords={[
                 'Ratibu',
@@ -263,13 +354,10 @@ export default function Home() {
                 'loan',
                 'savings group',
                 'digital banking for chamas',
-                'chama management platform',
-                'savings groups Kenya',
+                'group savings platform',
                 'USSD banking',
                 'KCB M-PESA',
                 'KPLC bill payment',
-                'group savings software',
-                'fintech for communities',
               ]}
               jsonLd={[
                 {
@@ -301,6 +389,7 @@ export default function Home() {
               ]}
             />
             <Hero />
+            <WhatRatibuDoes />
             <SolutionPillars />
             <AccessDevices />
             <FAQSection />
