@@ -93,6 +93,46 @@ completes:
      for updates to the specific transaction.
    - Show a success animation when the status changes to `completed`.
 
+## 6. Daraja Rails Used in Ratibu
+
+Ratibu now separates the rails by use case:
+
+- **STK Push**: customer-initiated deposits and bill payments
+- **B2C**: payouts and withdrawals to a phone number
+- **C2B**: customer-to-business collections with registered validation and confirmation URLs
+- **B2B Express Checkout**: merchant-initiated push-to-till payment flow
+
+### New Edge Functions
+
+- `c2b-register-url`
+  - Registers the C2B validation and confirmation URLs against a Daraja shortcode.
+- `c2b-validation`
+  - Receives validation callbacks and accepts or rejects a payment.
+- `c2b-confirmation`
+  - Receives confirmation callbacks and records completed collections.
+- `b2b-express-checkout`
+  - Initiates the merchant push-to-till flow from the app/backend.
+
+### Callback URLs
+
+- `status-callback`
+  - Used for B2B express checkout callbacks and other generic transaction status updates.
+- `b2c-callback`
+  - Used for B2C payout callbacks.
+- `mpesa-callback`
+  - Used for STK push callbacks.
+
+### Required Secrets
+
+- `MPESA_CONSUMER_KEY`
+- `MPESA_CONSUMER_SECRET`
+- `MPESA_BUSINESS_SHORTCODE`
+- `MPESA_B2C_SHORTCODE`
+- `MPESA_INITIATOR_NAME`
+- `MPESA_SECURITY_CREDENTIAL`
+- `MPESA_ENV`
+- `MPESA_C2B_SHORTCODE` if you want C2B to validate against a specific shortcode
+
 ---
 
 ## Troubleshooting

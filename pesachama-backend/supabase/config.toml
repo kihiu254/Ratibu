@@ -441,6 +441,41 @@ entrypoint = "./functions/mpesa-callback/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/mpesa-callback/*.html" ]
 
+[functions.status-callback]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/status-callback/index.ts"
+
+[functions.b2c-callback]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/b2c-callback/index.ts"
+
+[functions.payout-b2c]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/payout-b2c/index.ts"
+
+[functions.c2b-register-url]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/c2b-register-url/index.ts"
+
+[functions.c2b-validation]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/c2b-validation/index.ts"
+
+[functions.c2b-confirmation]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/c2b-confirmation/index.ts"
+
+[functions.b2b-express-checkout]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/b2b-express-checkout/index.ts"
+
 [functions.send-swap-email]
 enabled = true
 verify_jwt = false
