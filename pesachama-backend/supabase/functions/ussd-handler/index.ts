@@ -1019,10 +1019,10 @@ const renderPinRetryPrompt = (name: string, attemptsRemaining: number) =>
   `CON Ratibu\n${getTimeGreeting()} ${name}\nWrong PIN. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
-  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Create Chama\n10 Products\n11 Marketplace\n00 Exit`;
+  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Marketplace\n10 Products\n00 Exit`;
 
 const renderChamasMenu = () =>
-  `CON Ratibu\nChamas\n1 My Chamas\n2 Discover & Join\n3 Start\n0 Back\n00 Home`;
+  `CON Ratibu\nChamas\n1 My Chamas\n2 Join Chama\n3 Create Chama\n4 Requests\n5 Roles\n0 Back\n00 Home`;
 
 const renderAccountsMenu = () =>
   `CON Ratibu\nAccounts\n1 Chama Deposit\n2 Chama Withdrawal\n3 Savings Deposit\n4 Savings Withdrawal\n5 Mshwari\n0 Back\n00 Home`;
@@ -1046,7 +1046,7 @@ const renderCreateChamaMenu = () =>
   `CON Ratibu\nCreate Chama\n1 Start\n2 Explore\n0 Back\n00 Home`;
 
 const renderProductsMenu = () =>
-  `CON Ratibu\nProducts\n1 Savings\n2 KCB M-PESA\n3 KPLC Bill\n4 Loans\n5 Reversals\n0 Back\n00 Home`;
+  `CON Ratibu\nProducts\n1 Send Money\n2 Vendor Payments\n3 Agent Products\n4 Delivery\n5 E-commerce\n6 Credit Score\n7 Apply Product\n0 Back\n00 Home`;
 
 const renderMarketplaceMenu = () =>
   `CON Ratibu\nMarketplace\n1 Overview\n2 Send Money\n3 Role Eligibility\n4 Chama Roles\n0 Back\n00 Home`;
@@ -1320,49 +1320,53 @@ Deno.serve(async (req: Request) => {
               .filter(Boolean)
               .slice(0, 3)
               .join(", ") || "No chamas";
-            response = renderChoicePromptWithActions(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`, menu, displayName);
-          } else if (menu[1] === "2") {
-            const publicChamas = await fetchPublicChamas(supabase);
-            if (publicChamas.length === 0) {
-              response = renderChoicePromptWithActions("Ratibu\nDiscover Chamas\nNo public chamas yet.", menu, displayName);
-            } else {
-              const discoverTokens = menu.slice(2);
-              const isSecondPage = discoverTokens[0] === "9";
-              const page = isSecondPage ? 1 : 0;
-
-              if (discoverTokens.length === 0 || (isSecondPage && discoverTokens.length === 1)) {
-                response = renderDiscoverPrompt(publicChamas, page);
+              response = renderChoicePromptWithActions(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`, menu, displayName);
+            } else if (menu[1] === "2") {
+              const publicChamas = await fetchPublicChamas(supabase);
+              if (publicChamas.length === 0) {
+                response = renderChoicePromptWithActions("Ratibu\nJoin Chama\nNo public chamas yet.", menu, displayName);
               } else {
-                const selectionToken = isSecondPage ? discoverTokens[1] : discoverTokens[0];
-                if (selectionToken === "0") {
-                  response = renderChamasMenu();
-                } else if (selectionToken === "00") {
-                  response = renderMainMenu(displayName);
-                } else if (selectionToken === "9" && page === 0) {
-                  response = renderDiscoverPrompt(publicChamas, 1);
-                } else {
-                  const selectedIndex = Number(selectionToken);
-                  const start = page * 8;
-                  const selectedChama = publicChamas[start + selectedIndex - 1];
+                const discoverTokens = menu.slice(2);
+                const isSecondPage = discoverTokens[0] === "9";
+                const page = isSecondPage ? 1 : 0;
 
-                  if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || !selectedChama) {
-                    response = renderDiscoverPrompt(publicChamas, page);
-                  } else if (!profile?.id) {
-                    response = "END Can't confirm account.";
+                if (discoverTokens.length === 0 || (isSecondPage && discoverTokens.length === 1)) {
+                  response = renderDiscoverPrompt(publicChamas, page);
+                } else {
+                  const selectionToken = isSecondPage ? discoverTokens[1] : discoverTokens[0];
+                  if (selectionToken === "0") {
+                    response = renderChamasMenu();
+                  } else if (selectionToken === "00") {
+                    response = renderMainMenu(displayName);
+                  } else if (selectionToken === "9" && page === 0) {
+                    response = renderDiscoverPrompt(publicChamas, 1);
                   } else {
-                    const joinResult = await joinPublicChama(supabase, profile.id, selectedChama.id);
-                    response = joinResult.ok
-                      ? `END Joined ${selectedChama.name}. Open Chamas to manage it.`
-                      : `END ${joinResult.message || "Join failed."}`;
+                    const selectedIndex = Number(selectionToken);
+                    const start = page * 8;
+                    const selectedChama = publicChamas[start + selectedIndex - 1];
+
+                    if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || !selectedChama) {
+                      response = renderDiscoverPrompt(publicChamas, page);
+                    } else if (!profile?.id) {
+                      response = "END Can't confirm account.";
+                    } else {
+                      const joinResult = await joinPublicChama(supabase, profile.id, selectedChama.id);
+                      response = joinResult.ok
+                        ? `END Joined ${selectedChama.name}. Open Chamas to manage it.`
+                        : `END ${joinResult.message || "Join failed."}`;
+                    }
                   }
                 }
               }
+            } else if (menu[1] === "3") {
+              response = renderChoicePromptWithActions("Ratibu\nCreate Chama\nStart in the app.", menu, displayName);
+            } else if (menu[1] === "4") {
+              response = renderChoicePromptWithActions("Ratibu\nChama Requests\nView your join requests in the app.", menu, displayName);
+            } else if (menu[1] === "5") {
+              response = renderChoicePromptWithActions("Ratibu\nChama Roles\nAdmin, Treasurer, Secretary, Member.", menu, displayName);
+            } else {
+              response = renderMainMenu(displayName);
             }
-          } else if (menu[1] === "3") {
-            response = renderChoicePromptWithActions("Ratibu\nCreate Chama\nStart in the app.", menu, displayName);
-          } else {
-            response = renderMainMenu(displayName);
-          }
         } else if (menu[0] === "3") {
           if (menu.length === 1) {
             response = renderAccountsMenu();
@@ -1759,38 +1763,6 @@ Deno.serve(async (req: Request) => {
           }
         } else if (menu[0] === "9") {
           if (menu.length === 1) {
-            response = renderCreateChamaMenu();
-          } else if (menu[1] === "1") {
-            response = renderChoicePromptWithActions("Ratibu\nCreate Chama\nComplete in the app.", menu, displayName);
-          } else if (menu[1] === "2") {
-            response = renderChoicePromptWithActions("Ratibu\nExplore Chamas\nBrowse chamas in the app.", menu, displayName);
-          } else {
-            response = renderMainMenu(displayName);
-          }
-        } else if (menu[0] === "10") {
-          if (menu.length === 1) {
-            response = renderProductsMenu();
-          } else if (menu[1] === "1") {
-            response = renderChoicePromptWithActions("Ratibu\nSavings\nManage savings in the app.", menu, displayName);
-          } else if (menu[1] === "2") {
-            response = renderChoicePromptWithActions("Ratibu\nKCB M-PESA\nOpen KCB M-PESA in the app.", menu, displayName);
-          } else if (menu[1] === "3") {
-            response = renderChoicePromptWithActions("Ratibu\nKPLC Bill\nPay electricity tokens in the app.", menu, displayName);
-          } else if (menu[1] === "4") {
-            const { data: loanData } = await supabase
-              .from("loans")
-              .select("amount, interest_rate, duration_months, status, due_date, created_at, chamas(name)")
-              .eq("borrower_id", profile.id)
-              .order("created_at", { ascending: false })
-              .limit(3);
-            response = renderLoansMenu(Array.isArray(loanData) ? loanData as UssdLoanRecord[] : []);
-          } else if (menu[1] === "5") {
-            response = renderChoicePromptWithActions("Ratibu\nReversals\nAsk an admin to submit this in the app.", menu, displayName);
-          } else {
-            response = renderMainMenu(displayName);
-          }
-        } else if (menu[0] === "11") {
-          if (menu.length === 1) {
             response = renderMarketplaceMenu();
           } else if (menu[1] === "1") {
             if (!profile?.id) {
@@ -1871,6 +1843,47 @@ Deno.serve(async (req: Request) => {
             );
           } else {
             response = renderMarketplaceMenu();
+          }
+        } else if (menu[0] === "10") {
+          if (menu.length === 1) {
+            response = renderProductsMenu();
+          } else if (menu[1] === "1") {
+            response = renderChoicePromptWithActions("Ratibu\nSend Money\nUse Marketplace > Send Money for wallet transfers.", menu, displayName);
+          } else if (menu[1] === "2") {
+            response = renderChoicePromptWithActions("Ratibu\nVendor Payments\nVendors get till numbers in the app or website.", menu, displayName);
+          } else if (menu[1] === "3") {
+            response = renderChoicePromptWithActions("Ratibu\nAgent Products\nAgents apply and receive agent numbers in the app.", menu, displayName);
+          } else if (menu[1] === "4") {
+            response = renderChoicePromptWithActions("Ratibu\nDelivery\nRiders are assigned delivery jobs in the app.", menu, displayName);
+          } else if (menu[1] === "5") {
+            response = renderChoicePromptWithActions("Ratibu\nE-commerce\nBrowse vendor products in the app or website.", menu, displayName);
+          } else if (menu[1] === "6") {
+            if (!profile?.id) {
+              response = "END Can't confirm account.";
+            } else {
+              const overview = await supabase.rpc("get_credit_score_breakdown", { p_user_id: profile.id });
+              const data = overview.data as {
+                ok?: boolean;
+                user?: { credit_score?: number; credit_tier?: string };
+                eligible_roles?: { vendor?: boolean; agent?: boolean; rider?: boolean };
+                summary?: string;
+              } | null;
+
+              if (overview.error || !data?.ok) {
+                response = renderChoicePromptWithActions("Ratibu\nCredit score is unavailable right now.", menu, displayName);
+              } else {
+                const eligible = data.eligible_roles || {};
+                response = renderChoicePromptWithActions(
+                  `Ratibu\nCredit Score\nScore ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}`,
+                  menu,
+                  displayName,
+                );
+              }
+            }
+          } else if (menu[1] === "7") {
+            response = renderChoicePromptWithActions("Ratibu\nApply Product\nUse the app or website to apply for vendor, rider, or agent roles.", menu, displayName);
+          } else {
+            response = renderProductsMenu();
           }
         } else {
           response = renderMainMenu(displayName);
