@@ -1222,6 +1222,10 @@ function isFollowUpChoiceResponse(responseText: string) {
   return /\n1 Main menu\n2 Exit(?:\n|$)/.test(responseText);
 }
 
+function isInfoBackHomeResponse(responseText: string) {
+  return /\n0 Back\n00 Home(?:\n|$)/.test(responseText);
+}
+
 function getNavigationToken(menu: string[]) {
   const token = menu.at(-1);
   return token === "0" || token === "00" ? token : null;
@@ -1259,6 +1263,41 @@ function renderPendingSwapRequestsMenu(requests: ChamaSwapRequestSummary[]) {
   });
 
   return `CON Ratibu\nChama Requests\n${lines.join("\n")}\n0 Back\n00 Home`;
+}
+
+function resolveInfoNavigation(
+  menu: string[],
+  lastToken: string,
+  parentResponse: string,
+  displayName: string,
+) {
+  if (!isInfoBackHomeResponse(parentResponse)) {
+    return null;
+  }
+
+  if (lastToken === "00") {
+    return renderMainMenu(displayName);
+  }
+
+  if (lastToken !== "0") {
+    return null;
+  }
+
+  const section = menu[0] ?? "";
+
+  if (section === "2") {
+    return renderChamasMenu();
+  }
+
+  if (section === "9") {
+    return renderMarketplaceMenu();
+  }
+
+  if (section === "10") {
+    return renderProductsMenu();
+  }
+
+  return renderMainMenu(displayName);
 }
 
 Deno.serve(async (req: Request) => {
@@ -1370,6 +1409,15 @@ Deno.serve(async (req: Request) => {
 
         await storeUssdResponse(supabase, sessionId, requestKey, phoneNumber, response);
         return new Response(response, {
+          headers: { ...corsHeaders, "Content-Type": "text/plain" },
+        });
+      }
+
+      const parentMenu = parentText.split("*").filter(Boolean);
+      const infoNavigationResponse = resolveInfoNavigation(parentMenu, lastToken, parentResponse ?? "", displayName);
+      if (infoNavigationResponse) {
+        await storeUssdResponse(supabase, sessionId, requestKey, phoneNumber, infoNavigationResponse);
+        return new Response(infoNavigationResponse, {
           headers: { ...corsHeaders, "Content-Type": "text/plain" },
         });
       }
