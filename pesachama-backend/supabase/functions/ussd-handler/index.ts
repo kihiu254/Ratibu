@@ -1812,7 +1812,7 @@ Deno.serve(async (req: Request) => {
               } else {
                 const eligible = data.eligible_roles || {};
                 response = renderChoicePromptWithActions(
-                  `Ratibu\nMarketplace\nScore ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nWallet KES ${Number(data.user?.wallet_balance ?? 0).toLocaleString()}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}`,
+                  `Ratibu\nMarketplace\nScore ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nWallet KES ${Number(data.user?.wallet_balance ?? 0).toLocaleString()}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}\nChama admin +20, treasurer +15, secretary +10`,
                   menu,
                   displayName,
                 );
@@ -1850,7 +1850,7 @@ Deno.serve(async (req: Request) => {
             }
           } else if (menu[1] === "3") {
             response = renderChoicePromptWithActions(
-              "Ratibu\nMarketplace roles\nVendor 600+\nRider 650+\nAgent 700+\nUse the app or website to apply.",
+              "Ratibu\nMarketplace roles\nVendor 600+\nRider 650+\nAgent 700+\nChama roles can also raise your score.",
               menu,
               displayName,
             );

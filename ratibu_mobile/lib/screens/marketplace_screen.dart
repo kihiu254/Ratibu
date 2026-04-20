@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/marketplace_models.dart';
+import '../services/credit_score_service.dart';
+
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({super.key});
 
@@ -10,7 +13,7 @@ class MarketplaceScreen extends StatefulWidget {
 }
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
-  final _supabase = Supabase.instance.client;
+  final _service = CreditScoreService();
   final _businessController = TextEditingController();
   final _displayController = TextEditingController();
   final _categoryController = TextEditingController();
@@ -18,7 +21,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   String _role = 'vendor';
   bool _loading = true;
   bool _submitting = false;
-  Map<String, dynamic>? _overview;
+  MarketplaceOverview? _overview;
+  CreditScoreBreakdown? _breakdown;
 
   @override
   void initState() {
@@ -38,40 +42,40 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-      final data = await _supabase.rpc('get_marketplace_overview', params: {'p_user_id': user.id}) as dynamic;
+      final overview = await _service.fetchMarketplaceOverview();
+      final breakdown = await _service.fetchCreditScoreBreakdown();
       if (!mounted) return;
       setState(() {
-        _overview = data is Map<String, dynamic> ? data : Map<String, dynamic>.from(data as Map);
+        _overview = overview;
+        _breakdown = breakdown;
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load marketplace: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load marketplace: $e')),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _requestRole() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
     setState(() => _submitting = true);
     try {
-      final data = await _supabase.rpc('request_marketplace_role', params: {
-        'p_user_id': user.id,
-        'p_role': _role,
-        'p_business_name': _businessController.text.trim().isEmpty ? null : _businessController.text.trim(),
-        'p_display_name': _displayController.text.trim().isEmpty ? null : _displayController.text.trim(),
-        'p_service_category': _categoryController.text.trim().isEmpty ? null : _categoryController.text.trim(),
-        'p_notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-      }) as dynamic;
-      final result = data is Map<String, dynamic> ? data : Map<String, dynamic>.from(data as Map);
+      final result = await _service.requestMarketplaceRole(
+        role: _role,
+        businessName: _businessController.text.trim().isEmpty ? null : _businessController.text.trim(),
+        displayName: _displayController.text.trim().isEmpty ? null : _displayController.text.trim(),
+        serviceCategory: _categoryController.text.trim().isEmpty ? null : _categoryController.text.trim(),
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      );
       if (result['ok'] != true) {
         throw Exception(result['message'] ?? 'Application failed');
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Application submitted')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Application submitted')),
+      );
       _businessController.clear();
       _displayController.clear();
       _categoryController.clear();
@@ -87,7 +91,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = _supabase.auth.currentUser;
+    final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) {
       return Scaffold(
         backgroundColor: const Color(0xFF0f172a),
@@ -122,11 +126,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       );
     }
 
-    final user = _overview?['user'] as Map<String, dynamic>?;
-    final eligible = _overview?['eligible_roles'] as Map<String, dynamic>? ?? {};
-    final chamaRoles = (_overview?['chama_roles'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final applications = (_overview?['applications'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final profiles = (_overview?['profiles'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final overview = _overview;
+    final breakdown = _breakdown;
 
     return Scaffold(
       appBar: AppBar(
@@ -139,29 +140,33 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  _buildScoreCard(user),
+                  _buildScoreCard(overview?.user),
                   const SizedBox(height: 16),
-                  _buildEligibility(eligible),
+                  _buildEligibility(overview?.eligibleRoles),
                   const SizedBox(height: 16),
-                  _buildChamaRoles(chamaRoles),
+                  _buildChamaRoles(overview?.chamaRoles ?? const <ChamaRoleSummary>[]),
+                  if (breakdown != null) ...[
+                    const SizedBox(height: 16),
+                    _buildScoreBreakdown(breakdown),
+                  ],
                   const SizedBox(height: 16),
                   _buildRoleForm(),
                   const SizedBox(height: 16),
                   _buildWalletLink(),
                   const SizedBox(height: 16),
-                  _buildProfiles(profiles),
+                  _buildProfiles(overview?.profiles ?? const <MarketplaceProfileRecord>[]),
                   const SizedBox(height: 16),
-                  _buildApplications(applications),
+                  _buildApplications(overview?.applications ?? const <MarketplaceApplicationRecord>[]),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildScoreCard(Map<String, dynamic>? user) {
-    final score = user?['credit_score'] ?? 500;
-    final tier = user?['credit_tier'] ?? 'starter';
-    final wallet = user?['wallet_balance'] ?? 0;
+  Widget _buildScoreCard(MarketplaceUserSnapshot? user) {
+    final score = user?.creditScore ?? 500;
+    final tier = user?.creditTier ?? 'starter';
+    final wallet = user?.walletBalance ?? 0;
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
@@ -174,14 +179,23 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             Text('$score', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900)),
             Text('Tier: $tier'),
             const SizedBox(height: 16),
-            Text('Wallet balance: KES ${NumberFormatHelper.format(wallet)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Wallet balance: KES ${NumberFormatHelper.format(wallet)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEligibility(Map<String, dynamic> eligible) {
+  Widget _buildEligibility(MarketplaceRoleEligibility? eligible) {
+    final roles = eligible ??
+        const MarketplaceRoleEligibility(
+          vendor: false,
+          rider: false,
+          agent: false,
+        );
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
@@ -191,9 +205,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           children: [
             const Text('Role Eligibility', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
-            _roleLine('Vendor', eligible['vendor'] == true),
-            _roleLine('Agent', eligible['agent'] == true),
-            _roleLine('Rider', eligible['rider'] == true),
+            _roleLine('Vendor', roles.vendor),
+            _roleLine('Agent', roles.agent),
+            _roleLine('Rider', roles.rider),
           ],
         ),
       ),
@@ -211,7 +225,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     );
   }
 
-  Widget _buildChamaRoles(List<Map<String, dynamic>> rows) {
+  Widget _buildChamaRoles(List<ChamaRoleSummary> rows) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
@@ -224,13 +238,64 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             if (rows.isEmpty)
               const Text('Your chama leadership roles will appear here.')
             else
-              ...rows.map((row) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(row['chama_name']?.toString() ?? 'Chama'),
-                    subtitle: Text(row['role']?.toString() ?? ''),
-                  )),
+              ...rows.map(
+                (row) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(row.chamaName),
+                  subtitle: Text('${row.role} role • +${row.scoreWeight} score weight'),
+                ),
+              ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildScoreBreakdown(CreditScoreBreakdown breakdown) {
+    final components = breakdown.components;
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Score Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text(breakdown.summary),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _scorePill('Base ${components['base_score'] ?? 500}'),
+                _scorePill('Rewards +${components['points_component'] ?? 0}'),
+                _scorePill('Refs +${components['referral_component'] ?? 0}'),
+                _scorePill('Savings +${components['contribution_component'] ?? 0}'),
+                _scorePill('Penalty ${components['penalty_component'] ?? 0}'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Chama leadership roles can improve your score: admin +20, treasurer +15, secretary +10.',
+              style: TextStyle(color: Colors.black54),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scorePill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0f172a),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -256,14 +321,28 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               decoration: const InputDecoration(labelText: 'Role'),
             ),
             const SizedBox(height: 12),
-            TextField(controller: _businessController, decoration: const InputDecoration(labelText: 'Business name')),
-            TextField(controller: _displayController, decoration: const InputDecoration(labelText: 'Display name')),
-            TextField(controller: _categoryController, decoration: const InputDecoration(labelText: 'Service category')),
-            TextField(controller: _notesController, decoration: const InputDecoration(labelText: 'Notes')),
+            TextField(
+              controller: _businessController,
+              decoration: const InputDecoration(labelText: 'Business name'),
+            ),
+            TextField(
+              controller: _displayController,
+              decoration: const InputDecoration(labelText: 'Display name'),
+            ),
+            TextField(
+              controller: _categoryController,
+              decoration: const InputDecoration(labelText: 'Service category'),
+            ),
+            TextField(
+              controller: _notesController,
+              decoration: const InputDecoration(labelText: 'Notes'),
+            ),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _submitting ? null : _requestRole,
-              child: _submitting ? const CircularProgressIndicator() : const Text('Submit Application'),
+              child: _submitting
+                  ? const CircularProgressIndicator()
+                  : const Text('Submit Application'),
             ),
           ],
         ),
@@ -293,7 +372,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     );
   }
 
-  Widget _buildProfiles(List<Map<String, dynamic>> rows) {
+  Widget _buildProfiles(List<MarketplaceProfileRecord> rows) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
@@ -306,22 +385,25 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             if (rows.isEmpty)
               const Text('Approved vendor, agent, and rider profiles will appear here.')
             else
-              ...rows.map((row) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(row['display_name']?.toString() ?? row['business_name']?.toString() ?? row['role']?.toString() ?? ''),
-                    subtitle: Text([
-                      if (row['till_number'] != null) 'Till ${row['till_number']}',
-                      if (row['agent_number'] != null) 'Agent ${row['agent_number']}',
-                      if (row['rider_code'] != null) 'Rider ${row['rider_code']}',
-                    ].join(' · ')),
-                  )),
+              ...rows.map(
+                (row) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(row.displayName ?? row.businessName ?? row.role),
+                  subtitle: Text([
+                    if (row.tillNumber != null) 'Till ${row.tillNumber}',
+                    if (row.agentNumber != null) 'Agent ${row.agentNumber}',
+                    if (row.riderCode != null) 'Rider ${row.riderCode}',
+                    if (row.deliveryZone != null) 'Zone ${row.deliveryZone}',
+                  ].join(' · ')),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildApplications(List<Map<String, dynamic>> rows) {
+  Widget _buildApplications(List<MarketplaceApplicationRecord> rows) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
@@ -334,12 +416,14 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             if (rows.isEmpty)
               const Text('No marketplace applications yet.')
             else
-              ...rows.map((row) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(row['role']?.toString() ?? ''),
-                    subtitle: Text(row['business_name']?.toString() ?? row['display_name']?.toString() ?? ''),
-                    trailing: Text(row['status']?.toString() ?? ''),
-                  )),
+              ...rows.map(
+                (row) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(row.role),
+                  subtitle: Text(row.businessName ?? row.displayName ?? ''),
+                  trailing: Text(row.status),
+                ),
+              ),
           ],
         ),
       ),
