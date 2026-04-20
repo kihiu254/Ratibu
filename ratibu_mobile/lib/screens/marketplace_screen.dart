@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MarketplaceScreen extends StatefulWidget {
@@ -127,6 +128,41 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0f172a),
+        appBar: AppBar(
+          title: const Text('Marketplace'),
+          backgroundColor: const Color(0xFF0f172a),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, color: Colors.white70, size: 52),
+                const SizedBox(height: 16),
+                const Text(
+                  'Log in to check your credit score and access marketplace actions.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: () => context.go('/login'),
+                  child: const Text('Go to Login'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final user = _overview?['user'] as Map<String, dynamic>?;
     final eligible = _overview?['eligible_roles'] as Map<String, dynamic>? ?? {};
     final chamaRoles = (_overview?['chama_roles'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -251,7 +287,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             const Text('Apply for a Role', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _role,
+              initialValue: _role,
               items: const [
                 DropdownMenuItem(value: 'vendor', child: Text('Vendor')),
                 DropdownMenuItem(value: 'agent', child: Text('Agent')),

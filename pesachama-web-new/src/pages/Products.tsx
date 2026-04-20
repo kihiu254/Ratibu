@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowLeftRight, BadgeDollarSign, RadioTower, ShieldCheck, ShoppingBag, Store, Truck } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Seo from '../components/Seo'
+import { supabase } from '../lib/supabase'
 
 const products = [
   {
@@ -55,6 +56,17 @@ const roleRules = [
 ]
 
 const Products = () => {
+  const navigate = useNavigate()
+
+  async function handleCheckCreditScore() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) {
+      navigate('/marketplace')
+      return
+    }
+    navigate('/login?redirectTo=/marketplace')
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
       <Seo
@@ -77,13 +89,14 @@ const Products = () => {
               Available products live here, not inside the dashboard. Ratibu users can send money, pay vendors, access agent services, request delivery, and shop from approved sellers.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                to="/marketplace"
+              <button
+                type="button"
+                onClick={() => void handleCheckCreditScore()}
                 className="inline-flex items-center gap-2 rounded-2xl bg-[#00C853] px-5 py-3 font-black text-white shadow-lg shadow-[#00C853]/20"
               >
                 <ShieldCheck className="h-4 w-4" />
                 Check credit score
-              </Link>
+              </button>
               <span className="inline-flex items-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300">
                 Roles are controlled by rewards and penalty score checks.
               </span>
