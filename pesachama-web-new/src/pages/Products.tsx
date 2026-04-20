@@ -46,12 +46,28 @@ const products = [
     href: '/dashboard',
   },
   {
-    title: 'Secure Wallet Rail',
-    description: 'All transfers, settlements, and payments are backed by Ratibu wallet and bank/mobile rails.',
-    icon: BadgeDollarSign,
+    title: 'Credit Score',
+    description: 'See your score, tier, and whether vendor, rider, or agent access is unlocked.',
+    icon: ShieldCheck,
     color: 'from-teal-500 to-emerald-400',
-    tag: 'Low-cost payments',
-    href: '/kcb-mpesa',
+    tag: 'Score access',
+    href: '/marketplace',
+  },
+  {
+    title: 'Apply Product',
+    description: 'Apply for vendor, rider, or agent access once your score is high enough.',
+    icon: BadgeDollarSign,
+    color: 'from-indigo-500 to-sky-400',
+    tag: 'Role application',
+    href: '/marketplace',
+  },
+  {
+    title: 'Application Status',
+    description: 'Track the status of your vendor, rider, or agent applications.',
+    icon: ShieldCheck,
+    color: 'from-emerald-500 to-teal-400',
+    tag: 'Application tracking',
+    href: '/marketplace',
   },
 ]
 

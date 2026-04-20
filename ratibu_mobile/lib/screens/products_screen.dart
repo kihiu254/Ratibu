@@ -51,9 +51,25 @@ class ProductsScreen extends StatelessWidget {
       _Product(
         icon: Icons.verified_user,
         color: Color(0xFF14B8A6),
-        title: 'Credit Score Access',
-        description: 'Vendor, rider, and agent roles are unlocked by credit score and score history.',
-        tag: 'Rewards + penalties',
+        title: 'Credit Score',
+        description: 'See your score, tier, and whether vendor, rider, or agent access is unlocked.',
+        tag: 'Score access',
+        route: '/marketplace',
+      ),
+      _Product(
+        icon: Icons.badge,
+        color: Color(0xFF6366F1),
+        title: 'Apply Product',
+        description: 'Apply for vendor, rider, or agent access once your score is high enough.',
+        tag: 'Role application',
+        route: '/marketplace',
+      ),
+      _Product(
+        icon: Icons.fact_check,
+        color: Color(0xFF10B981),
+        title: 'Application Status',
+        description: 'Track the status of vendor, rider, or agent applications.',
+        tag: 'Application tracking',
         route: '/marketplace',
       ),
     ];
@@ -86,7 +102,7 @@ class ProductsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Ratibu users can send money, pay vendors, access agent services, request delivery, and shop from approved sellers. Role access is controlled by rewards and penalty scores.',
+            'Ratibu users can send money, pay vendors, access agent services, request delivery, shop from approved sellers, and track product applications. Role access is controlled by rewards and penalty scores.',
             style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.6),
           ),
           const SizedBox(height: 18),
