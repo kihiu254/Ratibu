@@ -169,6 +169,35 @@ class DashboardTab extends ConsumerWidget {
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0f172a), Color(0xFF1e293b)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF1e293b)),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF00C853),
+                  child: Icon(LucideIcons.package, color: Colors.white),
+                ),
+                title: const Text(
+                  'Products',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                subtitle: const Text(
+                  'Open Send Money, Vendor Payments, Agent Products, Delivery, E-commerce, and Application Status.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                trailing: const Icon(LucideIcons.arrowRight, color: Color(0xFF00C853)),
+                onTap: () => context.push('/products'),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
                 color: const Color(0xFF0f172a),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFF1e293b)),
@@ -242,7 +271,7 @@ class DashboardTab extends ConsumerWidget {
                           child: _QuickActionCard(
                             icon: LucideIcons.package,
                             title: 'Products',
-                            subtitle: 'Explore loans, KCB, bills',
+                            subtitle: 'Open product catalog',
                             onTap: () => context.push('/products'),
                           ),
                         ),
