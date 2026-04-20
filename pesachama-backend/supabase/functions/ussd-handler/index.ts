@@ -1881,7 +1881,54 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "7") {
-            response = renderChoicePromptWithActions("Ratibu\nApply Product\nUse the app or website to apply for vendor, rider, or agent roles.", menu, displayName);
+            if (menu.length === 2) {
+              response = `CON Ratibu\nApply Product\n1 Vendor\n2 Rider\n3 Agent\n0 Back\n00 Home`;
+            } else if (menu.length === 3) {
+              const roleToken = menu[2];
+              const roleLabel = roleToken === "1" ? "Vendor" : roleToken === "2" ? "Rider" : roleToken === "3" ? "Agent" : "";
+              if (!roleLabel) {
+                response = renderProductsMenu();
+              } else {
+                response = `CON Ratibu\nApply ${roleLabel}\nEnter business or display name.`;
+              }
+            } else {
+              const roleToken = menu[2];
+              const role = roleToken === "1" ? "vendor" : roleToken === "2" ? "rider" : roleToken === "3" ? "agent" : "";
+              const roleLabel = roleToken === "1" ? "Vendor" : roleToken === "2" ? "Rider" : roleToken === "3" ? "Agent" : "";
+              const businessName = menu[3]?.trim();
+
+              if (!role || !roleLabel) {
+                response = renderProductsMenu();
+              } else if (!businessName) {
+                response = `CON Ratibu\nApply ${roleLabel}\nEnter business or display name.`;
+              } else if (!profile?.id) {
+                response = "END Can't confirm account.";
+              } else {
+                const roleResult = await supabase.rpc("request_marketplace_role", {
+                  p_user_id: profile.id,
+                  p_role: role,
+                  p_business_name: businessName,
+                  p_display_name: businessName,
+                  p_service_category: roleLabel,
+                  p_notes: "USSD application",
+                });
+
+                const data = roleResult.data as { ok?: boolean; message?: string; required_score?: number; current_score?: number } | null;
+                if (roleResult.error || !data?.ok) {
+                  response = renderChoicePromptWithActions(
+                    `Ratibu\n${data?.message || roleResult.error?.message || "Application failed."}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
+                } else {
+                  response = renderChoicePromptWithActions(
+                    `Ratibu\n${data.message || `${roleLabel} application submitted.`}\nAnything else?`,
+                    menu,
+                    displayName,
+                  );
+                }
+              }
+            }
           } else {
             response = renderProductsMenu();
           }
