@@ -544,6 +544,16 @@ type ChamaAllocationSummary = {
   swap_target_day?: number | null;
   swap_status?: string | null;
 };
+type ChamaSwapRequestSummary = {
+  id: string;
+  month?: string | null;
+  requester_day?: number | null;
+  target_day?: number | null;
+  status?: string | null;
+  chama_name?: string | null;
+  requester_name?: string | null;
+  target_name?: string | null;
+};
 type PublicChama = {
   id: string;
   name: string;
@@ -669,6 +679,42 @@ async function fetchChamaAllocationSummary(
     swap_target_day: swap?.target_day ?? null,
     swap_status: swap?.status ?? null,
   };
+}
+
+async function fetchPendingSwapRequests(supabase: any, userId: string): Promise<ChamaSwapRequestSummary[]> {
+  const { data, error } = await supabase
+    .from("allocation_swap_requests")
+    .select("id, month, requester_day, target_day, status, chamas(name), requester:users!allocation_swap_requests_requester_id_fkey(first_name, last_name), target:users!allocation_swap_requests_target_user_id_fkey(first_name, last_name)")
+    .or(`requester_id.eq.${userId},target_user_id.eq.${userId}`)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (error || !data) return [];
+
+  return (data as Array<{
+    id: string;
+    month?: string | null;
+    requester_day?: number | null;
+    target_day?: number | null;
+    status?: string | null;
+    chamas?: { name?: string | null } | { name?: string | null }[] | null;
+    requester?: { first_name?: string | null; last_name?: string | null } | null;
+    target?: { first_name?: string | null; last_name?: string | null } | null;
+  }>).map((row) => {
+    const chama = Array.isArray(row.chamas) ? row.chamas[0] : row.chamas;
+    const requesterName = [row.requester?.first_name, row.requester?.last_name].filter(Boolean).join(" ").trim();
+    const targetName = [row.target?.first_name, row.target?.last_name].filter(Boolean).join(" ").trim();
+    return {
+      id: row.id,
+      month: row.month ?? null,
+      requester_day: row.requester_day ?? null,
+      target_day: row.target_day ?? null,
+      status: row.status ?? null,
+      chama_name: chama?.name ?? null,
+      requester_name: requesterName || null,
+      target_name: targetName || null,
+    };
+  });
 }
 
 async function fetchActiveSavingsTargets(supabase: any, userId: string): Promise<ActiveSavingsTarget[]> {
@@ -1114,7 +1160,7 @@ const renderCreateChamaMenu = () =>
   `CON Ratibu\nCreate Chama\n1 Start\n2 Explore\n0 Back\n00 Home`;
 
 const renderProductsMenu = () =>
-  `CON Ratibu\nProducts\n1 Send Money\n2 Vendor Payments\n3 Agent Products\n4 Delivery\n5 E-commerce\n6 Credit Score\n7 Apply Product\n0 Back\n00 Home`;
+  `CON Ratibu\nProducts\n1 Send Money\n2 Vendor Payments\n3 Agent Products\n4 Delivery\n5 E-commerce\n6 Credit Score\n7 Apply Product\n8 Application Status\n0 Back\n00 Home`;
 
 const renderMarketplaceMenu = () =>
   `CON Ratibu\nMarketplace\n1 Overview\n2 Send Money\n3 Role Eligibility\n4 Chama Roles\n0 Back\n00 Home`;
@@ -1176,6 +1222,11 @@ function isFollowUpChoiceResponse(responseText: string) {
   return /\n1 Main menu\n2 Exit(?:\n|$)/.test(responseText);
 }
 
+function getNavigationToken(menu: string[]) {
+  const token = menu.at(-1);
+  return token === "0" || token === "00" ? token : null;
+}
+
 function renderSelectionPrompt(title: string, items: Array<{ name: string }>) {
   const lines = items.slice(0, 9).map((item, index) => `${index + 1} ${item.name}`);
   return `CON Ratibu\n${title}\n${lines.join("\n")}\n0 Back\n00 Home`;
@@ -1188,6 +1239,26 @@ function renderDiscoverPrompt(chamas: PublicChama[], page: number) {
   const lines = current.map((chama, index) => `${index + 1} ${chama.name}`);
   const more = chamas.length > start + pageSize ? "\n9 More" : "";
   return `CON Ratibu\nDiscover Chamas\n${lines.join("\n")}${more}\n0 Back\n00 Home`;
+}
+
+function renderPendingSwapRequestsMenu(requests: ChamaSwapRequestSummary[]) {
+  if (requests.length === 0) {
+    return `CON Ratibu\nChama Requests\nNo pending swap requests yet.\n0 Back\n00 Home`;
+  }
+
+  const lines = requests.slice(0, 5).map((request, index) => {
+    const monthLabel = request.month
+      ? new Date(`${request.month}`).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      : "Current month";
+    const requester = request.requester_name || "Member";
+    const target = request.target_name || "Member";
+    const dayPair = request.requester_day && request.target_day
+      ? `${request.requester_day}->${request.target_day}`
+      : `${request.requester_day ?? "-"}->${request.target_day ?? "-"}`;
+    return `${index + 1} ${request.chama_name || "Chama"} ${monthLabel} ${dayPair} ${request.status || "pending"} ${requester} ${target}`;
+  });
+
+  return `CON Ratibu\nChama Requests\n${lines.join("\n")}\n0 Back\n00 Home`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -1387,9 +1458,25 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "1") {
             const activeChamas = profile?.id ? await fetchActiveChamas(supabase, profile.id) : [];
             if (activeChamas.length === 0) {
-              response = renderChamaInfoMenu("My Chamas", "You are not in any chamas yet.");
+              const navigation = getNavigationToken(menu);
+              if (menu.length > 2 && navigation === "0") {
+                response = renderChamasMenu();
+              } else if (menu.length > 2 && navigation === "00") {
+                response = renderMainMenu(displayName);
+              } else {
+                response = renderChamaInfoMenu("My Chamas", "You are not in any chamas yet.");
+              }
             } else if (menu.length === 2) {
               response = renderSelectionPrompt("My Chamas", activeChamas);
+            } else if (menu.length === 3) {
+              const navigation = getNavigationToken(menu);
+              if (navigation === "0") {
+                response = renderChamasMenu();
+              } else if (navigation === "00") {
+                response = renderMainMenu(displayName);
+              } else {
+                response = renderSelectionPrompt("My Chamas", activeChamas);
+              }
             } else {
               const selectedToken = menu[2];
               if (selectedToken === "0") {
@@ -1414,57 +1501,71 @@ Deno.serve(async (req: Request) => {
                       if (menu.length === 4) {
                         response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
                       } else {
-                        const amount = Number(menu[4]);
-                        if (!Number.isFinite(amount) || amount <= 0) {
-                          response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
-                        } else if (!profile?.id) {
-                          response = "END Can't confirm account.";
+                        const amountToken = menu[4];
+                        if (amountToken === "0") {
+                          response = renderChamaActionsMenu(chama.name);
+                        } else if (amountToken === "00") {
+                          response = renderMainMenu(displayName);
                         } else {
-                          const phone = profile.phone || phoneNumber;
-                          const result = await invokeInternalFunction("trigger-stk-push", {
-                            amount,
-                            phoneNumber: phone,
-                            userId: profile.id,
-                            chamaId: chama.id,
-                            requestId: requestKey,
-                            origin: "ussd",
-                          });
+                          const amount = Number(amountToken);
+                          if (!Number.isFinite(amount) || amount <= 0) {
+                            response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
+                          } else if (!profile?.id) {
+                            response = "END Can't confirm account.";
+                          } else {
+                            const phone = profile.phone || phoneNumber;
+                            const result = await invokeInternalFunction("trigger-stk-push", {
+                              amount,
+                              phoneNumber: phone,
+                              userId: profile.id,
+                              chamaId: chama.id,
+                              requestId: requestKey,
+                              origin: "ussd",
+                            });
 
-                          response = result.ok
-                            ? renderChoicePromptWithActions(
-                              "Ratibu\nDeposit sent. Check your phone.\nAnything else?",
-                              menu,
-                              displayName,
-                            )
-                            : renderChoicePromptWithActions(
-                              `Ratibu\nDeposit failed. ${extractFunctionError(result)}\nAnything else?`,
-                              menu,
-                              displayName,
-                            );
+                            response = result.ok
+                              ? renderChoicePromptWithActions(
+                                "Ratibu\nDeposit sent. Check your phone.\nAnything else?",
+                                menu,
+                                displayName,
+                              )
+                              : renderChoicePromptWithActions(
+                                `Ratibu\nDeposit failed. ${extractFunctionError(result)}\nAnything else?`,
+                                menu,
+                                displayName,
+                              );
+                          }
                         }
                       }
                     } else if (action === "2") {
                       if (menu.length === 4) {
                         response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
                       } else {
-                        const amount = Number(menu[4]);
-                        if (!Number.isFinite(amount) || amount <= 0) {
-                          response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
-                        } else if (!profile?.id) {
-                          response = "END Can't confirm account.";
+                        const amountToken = menu[4];
+                        if (amountToken === "0") {
+                          response = renderChamaActionsMenu(chama.name);
+                        } else if (amountToken === "00") {
+                          response = renderMainMenu(displayName);
                         } else {
-                          const result = await requestChamaWithdrawal(supabase, profile.id, chama, amount);
-                          response = result.ok
-                            ? renderChoicePromptWithActions(
-                              "Ratibu\nRequest sent. You'll be notified.\nAnything else?",
-                              menu,
-                              displayName,
-                            )
-                            : renderChoicePromptWithActions(
-                              `Ratibu\nWithdrawal failed. ${result.message}\nAnything else?`,
-                              menu,
-                              displayName,
-                            );
+                          const amount = Number(amountToken);
+                          if (!Number.isFinite(amount) || amount <= 0) {
+                            response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
+                          } else if (!profile?.id) {
+                            response = "END Can't confirm account.";
+                          } else {
+                            const result = await requestChamaWithdrawal(supabase, profile.id, chama, amount);
+                            response = result.ok
+                              ? renderChoicePromptWithActions(
+                                "Ratibu\nWithdrawal request sent.\nAnything else?",
+                                menu,
+                                displayName,
+                              )
+                              : renderChoicePromptWithActions(
+                                `Ratibu\nWithdrawal failed. ${result.message}\nAnything else?`,
+                                menu,
+                                displayName,
+                              );
+                          }
                         }
                       }
                     } else if (action === "3") {
@@ -1493,7 +1594,14 @@ Deno.serve(async (req: Request) => {
           } else if (menu[1] === "2") {
             const publicChamas = profile?.id ? await fetchPublicChamas(supabase) : [];
             if (publicChamas.length === 0) {
-              response = renderChamaInfoMenu("Join Chama", "No public chamas yet.");
+              const navigation = getNavigationToken(menu);
+              if (menu.length > 2 && navigation === "0") {
+                response = renderChamasMenu();
+              } else if (menu.length > 2 && navigation === "00") {
+                response = renderMainMenu(displayName);
+              } else {
+                response = renderChamaInfoMenu("Join Chama", "No public chamas yet.");
+              }
             } else {
               const discoverTokens = menu.slice(2);
               const isSecondPage = discoverTokens[0] === "9";
@@ -1528,19 +1636,41 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "3") {
-            response = renderChamaInfoMenu("Create Chama", "Start in the app.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderChamasMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu("Create Chama", "Start in the app.");
+            }
           } else if (menu[1] === "4") {
-            response = renderChamaInfoMenu("Chama Requests", "View your join requests in the app.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderChamasMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              const swapRequests = profile?.id ? await fetchPendingSwapRequests(supabase, profile.id) : [];
+              response = renderPendingSwapRequestsMenu(swapRequests);
+            }
           } else if (menu[1] === "5") {
-            const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
-            const lines = chamaMemberships.length
-              ? chamaMemberships.slice(0, 3).map((row) => {
-                const relation = row.chamas ?? row.groups;
-                const name = Array.isArray(relation) ? relation[0]?.name : relation?.name;
-                return `${name || "Chama"}: ${row.role || "member"}`;
-              }).join("\n")
-              : "No chama roles yet";
-            response = renderChamaInfoMenu("Chama Roles", `Admin, Treasurer, Secretary, Member\n${lines}`);
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderChamasMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
+              const lines = chamaMemberships.length
+                ? chamaMemberships.slice(0, 3).map((row) => {
+                  const relation = row.chamas ?? row.groups;
+                  const name = Array.isArray(relation) ? relation[0]?.name : relation?.name;
+                  return `${name || "Chama"}: ${row.role || "member"}`;
+                }).join("\n")
+                : "No chama roles yet";
+              response = renderChamaInfoMenu("Chama Roles", `Admin, Treasurer, Secretary, Member\n${lines}`);
+            }
           } else {
             response = renderMainMenu(displayName);
           }
@@ -1942,7 +2072,12 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderMarketplaceMenu();
           } else if (menu[1] === "1") {
-            if (!profile?.id) {
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderMarketplaceMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else if (!profile?.id) {
               response = "END Can't confirm account.";
             } else {
               const overview = await supabase.rpc("get_marketplace_overview", { p_user_id: profile.id });
@@ -1963,8 +2098,13 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "2") {
+            const navigation = getNavigationToken(menu);
             if (menu.length === 2) {
               response = `CON Ratibu\nMarketplace\nEnter recipient phone.\n0 Back\n00 Home`;
+            } else if (navigation === "0") {
+              response = renderMarketplaceMenu();
+            } else if (navigation === "00") {
+              response = renderMainMenu(displayName);
             } else if (menu.length === 3) {
               if (menu[2] === "0") {
                 response = renderMarketplaceMenu();
@@ -1999,21 +2139,35 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "3") {
-            response = renderChamaInfoMenu(
-              "Role Eligibility",
-              "Vendor 600+\nRider 650+\nAgent 700+\nChama roles can also raise your score.",
-            );
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderMarketplaceMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu(
+                "Role Eligibility",
+                "Vendor 600+\nRider 650+\nAgent 700+\nChama roles can also raise your score.",
+              );
+            }
           } else if (menu[1] === "4") {
-            const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
-            const chamaRoles = chamaMemberships.length
-              ? chamaMemberships.slice(0, 3).map((row) => {
-                const relation = row.chamas ?? row.groups;
-                const name = Array.isArray(relation) ? relation[0]?.name : relation?.name;
-                return `${name || "Chama"}: ${row.role || "member"}`;
-              }).join("\n")
-              : "No chama roles yet";
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderMarketplaceMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
+              const chamaRoles = chamaMemberships.length
+                ? chamaMemberships.slice(0, 3).map((row) => {
+                  const relation = row.chamas ?? row.groups;
+                  const name = Array.isArray(relation) ? relation[0]?.name : relation?.name;
+                  return `${name || "Chama"}: ${row.role || "member"}`;
+                }).join("\n")
+                : "No chama roles yet";
 
-            response = renderChamaInfoMenu("Chama Roles", `Admin, Treasurer, Secretary, Member\n${chamaRoles}`);
+              response = renderChamaInfoMenu("Chama Roles", `Admin, Treasurer, Secretary, Member\n${chamaRoles}`);
+            }
           } else {
             response = renderMarketplaceMenu();
           }
@@ -2021,17 +2175,57 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderProductsMenu();
           } else if (menu[1] === "1") {
-            response = renderChamaInfoMenu("Send Money", "Use Marketplace > Send Money for wallet transfers.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu("Send Money", "Use Marketplace > Send Money for wallet transfers.");
+            }
           } else if (menu[1] === "2") {
-            response = renderChamaInfoMenu("Vendor Payments", "Vendors get till numbers in the app or website.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu("Vendor Payments", "Vendors get till numbers in the app or website.");
+            }
           } else if (menu[1] === "3") {
-            response = renderChamaInfoMenu("Agent Products", "Agents apply and receive agent numbers in the app.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu("Agent Products", "Agents apply and receive agent numbers in the app.");
+            }
           } else if (menu[1] === "4") {
-            response = renderChamaInfoMenu("Delivery", "Riders are assigned delivery jobs in the app.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu("Delivery", "Riders are assigned delivery jobs in the app.");
+            }
           } else if (menu[1] === "5") {
-            response = renderChamaInfoMenu("E-commerce", "Browse vendor products in the app or website.");
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else {
+              response = renderChamaInfoMenu("E-commerce", "Browse vendor products in the app or website.");
+            }
           } else if (menu[1] === "6") {
-            if (!profile?.id) {
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else if (!profile?.id) {
               response = "END Can't confirm account.";
             } else {
               const overview = await supabase.rpc("get_credit_score_breakdown", { p_user_id: profile.id });
@@ -2058,10 +2252,14 @@ Deno.serve(async (req: Request) => {
             } else if (menu.length === 3) {
               const roleToken = menu[2];
               const roleLabel = roleToken === "1" ? "Vendor" : roleToken === "2" ? "Rider" : roleToken === "3" ? "Agent" : "";
-              if (!roleLabel) {
+              if (roleToken === "0") {
+                response = renderProductsMenu();
+              } else if (roleToken === "00") {
+                response = renderMainMenu(displayName);
+              } else if (!roleLabel) {
                 response = renderProductsMenu();
               } else {
-                response = `CON Ratibu\nApply ${roleLabel}\nEnter business or display name.`;
+                response = `CON Ratibu\nApply ${roleLabel}\nEnter business or display name.\n0 Back\n00 Home`;
               }
             } else {
               const roleToken = menu[2];
@@ -2071,8 +2269,12 @@ Deno.serve(async (req: Request) => {
 
               if (!role || !roleLabel) {
                 response = renderProductsMenu();
+              } else if (businessName === "0") {
+                response = `CON Ratibu\nApply Product\n1 Vendor\n2 Rider\n3 Agent\n0 Back\n00 Home`;
+              } else if (businessName === "00") {
+                response = renderMainMenu(displayName);
               } else if (!businessName) {
-                response = `CON Ratibu\nApply ${roleLabel}\nEnter business or display name.`;
+                response = `CON Ratibu\nApply ${roleLabel}\nEnter business or display name.\n0 Back\n00 Home`;
               } else if (!profile?.id) {
                 response = "END Can't confirm account.";
               } else {
@@ -2101,6 +2303,47 @@ Deno.serve(async (req: Request) => {
                 }
               }
             }
+          } else if (menu[1] === "8") {
+            const navigation = getNavigationToken(menu);
+            if (menu.length > 2 && navigation === "0") {
+              response = renderProductsMenu();
+            } else if (menu.length > 2 && navigation === "00") {
+              response = renderMainMenu(displayName);
+            } else if (!profile?.id) {
+              response = "END Can't confirm account.";
+            } else {
+              const overview = await supabase.rpc("get_marketplace_overview", { p_user_id: profile.id });
+              const data = overview.data as {
+                ok?: boolean;
+                applications?: Array<{
+                  role?: string | null;
+                  status?: string | null;
+                  business_name?: string | null;
+                  display_name?: string | null;
+                  required_score?: number | null;
+                  score_snapshot?: number | null;
+                  created_at?: string | null;
+                }>;
+              } | null;
+
+              if (overview.error || !data?.ok) {
+                response = renderChamaInfoMenu("Application Status", "Status is unavailable right now.");
+              } else {
+                const applications = Array.isArray(data.applications) ? data.applications.slice(0, 3) : [];
+                if (applications.length === 0) {
+                  response = renderChamaInfoMenu("Application Status", "No applications yet.");
+                } else {
+                  const lines = applications.map((app, index) => {
+                    const role = String(app.role || "role").toUpperCase();
+                    const status = String(app.status || "pending").toUpperCase();
+                    const score = app.score_snapshot ?? 0;
+                    const required = app.required_score ?? 0;
+                    return `${index + 1} ${role} ${status} ${score}/${required}`;
+                  }).join("\n");
+                  response = renderChamaInfoMenu("Application Status", lines);
+                }
+              }
+            }
           } else {
             response = renderProductsMenu();
           }
@@ -2122,3 +2365,4 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
