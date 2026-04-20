@@ -33,8 +33,18 @@ const Features = () => {
         <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
             <Seo
               title="Ratibu Chama Features"
-              description="Explore Ratibu Chama features for USSD banking, digital savings, group contributions, automation, reporting, notifications, and secure chama management."
+              description="Explore Ratibu Chama features for USSD banking, digital savings, group contributions, automation, reporting, notifications, KYC, and secure chama management."
               canonicalPath="/features"
+              keywords={[
+                'Ratibu features',
+                'USSD banking features',
+                'chama automation',
+                'digital savings tools',
+                'group contribution management',
+                'member scoring',
+                'financial reporting',
+                'secure chama platform',
+              ]}
             />
             <Navbar />
             

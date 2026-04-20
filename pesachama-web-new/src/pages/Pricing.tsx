@@ -71,8 +71,16 @@ const Pricing = () => {
         <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
             <Seo
               title="Ratibu Chama Pricing"
-              description="Compare Ratibu Chama pricing plans for small groups, growing SACCOs, and enterprise fintech integrations."
+              description="Compare Ratibu Chama pricing plans for small groups, growing SACCOs, chamas, and enterprise fintech integrations."
               canonicalPath="/pricing"
+              keywords={[
+                'Ratibu pricing',
+                'chama pricing',
+                'SACCO pricing',
+                'group savings plans',
+                'enterprise fintech',
+                'digital banking pricing',
+              ]}
             />
             <Navbar />
             

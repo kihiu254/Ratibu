@@ -46,8 +46,17 @@ const Opportunities = () => {
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
             <Seo
               title="Ratibu Chama Opportunities"
-              description="Partner with Ratibu Chama through agent partnerships, developer APIs, institutional investment, and innovation grants."
+              description="Partner with Ratibu Chama through agent partnerships, developer APIs, institutional investment, innovation grants, and community banking growth."
               canonicalPath="/opportunities"
+              keywords={[
+                'Ratibu partnerships',
+                'agent partnerships',
+                'developer APIs',
+                'institutional investment',
+                'innovation grants',
+                'community banking',
+                'African fintech partnerships',
+              ]}
             />
             <Navbar />
             

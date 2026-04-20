@@ -199,8 +199,18 @@ export default function Home() {
         <main className="bg-slate-50 dark:bg-midnight min-h-screen font-sans transition-colors duration-300">
             <Seo
               title="Ratibu Chama | Digital Banking for Chamas, Savings & Loans"
-              description="Ratibu Chama is the official digital banking platform for chamas, savings groups, loans, USSD banking, KCB M-PESA, KPLC bills, and transaction statements in Kenya."
+              description="Ratibu Chama is a digital banking platform for chamas, savings groups, SACCOs, loans, USSD banking, KCB M-PESA, KPLC bills, transaction statements, and KYC in Kenya and beyond."
               canonicalPath="/"
+              keywords={[
+                'digital banking for chamas',
+                'chama management platform',
+                'savings groups Kenya',
+                'USSD banking',
+                'KCB M-PESA',
+                'KPLC bill payment',
+                'group savings software',
+                'fintech for communities',
+              ]}
               jsonLd={[
                 {
                   '@context': 'https://schema.org',

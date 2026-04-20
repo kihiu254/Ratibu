@@ -11,6 +11,7 @@ const products = [
     icon: ArrowLeftRight,
     color: 'from-sky-500 to-cyan-400',
     tag: 'Wallet transfer',
+    href: '/marketplace',
   },
   {
     title: 'Vendor Payments',
@@ -18,6 +19,7 @@ const products = [
     icon: Store,
     color: 'from-emerald-500 to-green-400',
     tag: 'Till numbers',
+    href: '/marketplace',
   },
   {
     title: 'Agent Products',
@@ -25,6 +27,7 @@ const products = [
     icon: RadioTower,
     color: 'from-orange-500 to-amber-400',
     tag: 'Agent numbers',
+    href: '/marketplace',
   },
   {
     title: 'Delivery',
@@ -32,6 +35,7 @@ const products = [
     icon: Truck,
     color: 'from-violet-500 to-fuchsia-400',
     tag: 'Rider work',
+    href: '/marketplace',
   },
   {
     title: 'E-commerce',
@@ -39,6 +43,7 @@ const products = [
     icon: ShoppingBag,
     color: 'from-blue-600 to-indigo-400',
     tag: 'Product catalog',
+    href: '/dashboard',
   },
   {
     title: 'Secure Wallet Rail',
@@ -46,6 +51,7 @@ const products = [
     icon: BadgeDollarSign,
     color: 'from-teal-500 to-emerald-400',
     tag: 'Low-cost payments',
+    href: '/kcb-mpesa',
   },
 ]
 
@@ -67,13 +73,29 @@ const Products = () => {
     navigate('/login?redirectTo=/marketplace')
   }
 
+  async function openProductRoute(path: string) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const target = session?.user ? path : `/login?redirectTo=${encodeURIComponent(path)}`
+    navigate(target)
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-midnight text-slate-900 dark:text-slate-100 font-sans selection:bg-[#00C853]/30 transition-colors duration-300">
       <Seo
         title="Ratibu Products"
-        description="Ratibu products for wallet transfers, vendors, agents, riders, delivery, and e-commerce."
+        description="Ratibu products for wallet transfers, vendors, agents, riders, delivery, e-commerce, and secure mobile money rails."
         canonicalPath="/products"
-        keywords={['Ratibu products', 'send money Kenya', 'vendor till number', 'agent number', 'rider delivery']}
+        keywords={[
+          'Ratibu products',
+          'send money Kenya',
+          'vendor till number',
+          'agent number',
+          'rider delivery',
+          'wallet transfers',
+          'merchant payments',
+          'mobile money rails',
+          'approved vendor marketplace',
+        ]}
       />
       <Navbar />
 
@@ -120,9 +142,11 @@ const Products = () => {
             {products.map((product) => {
               const Icon = product.icon
               return (
-                <article
+                <button
+                  type="button"
                   key={product.title}
-                  className="group rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] transition-transform duration-300 hover:-translate-y-1"
+                  onClick={() => void openProductRoute(product.href)}
+                  className="group text-left rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] transition-transform duration-300 hover:-translate-y-1 hover:border-[#00C853]/40 focus:outline-none focus:ring-2 focus:ring-[#00C853]/50"
                 >
                   <div className={`inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${product.color} shadow-lg`}>
                     <Icon className="h-8 w-8 text-white" />
@@ -132,7 +156,7 @@ const Products = () => {
                   </div>
                   <h3 className="mt-4 text-2xl font-black text-slate-900 dark:text-white">{product.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-slate-500 dark:text-slate-400">{product.description}</p>
-                </article>
+                </button>
               )
             })}
           </div>

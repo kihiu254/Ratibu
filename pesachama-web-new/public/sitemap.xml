@@ -1,21 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://www.ratibuchama.com/</loc>
-  </url>
-  <url>
-    <loc>https://www.ratibuchama.com/features</loc>
-  </url>
-  <url>
-    <loc>https://www.ratibuchama.com/products</loc>
-  </url>
-  <url>
-    <loc>https://www.ratibuchama.com/pricing</loc>
-  </url>
-  <url>
-    <loc>https://www.ratibuchama.com/opportunities</loc>
-  </url>
-  <url>
-    <loc>https://www.ratibuchama.com/contact</loc>
-  </url>
+  <url><loc>https://www.ratibuchama.com/</loc></url>
+  <url><loc>https://www.ratibuchama.com/features</loc></url>
+  <url><loc>https://www.ratibuchama.com/products</loc></url>
+  <url><loc>https://www.ratibuchama.com/product</loc></url>
+  <url><loc>https://www.ratibuchama.com/pricing</loc></url>
+  <url><loc>https://www.ratibuchama.com/opportunities</loc></url>
+  <url><loc>https://www.ratibuchama.com/resources</loc></url>
+  <url><loc>https://www.ratibuchama.com/contact</loc></url>
+  <url><loc>https://www.ratibuchama.com/legal</loc></url>
 </urlset>
