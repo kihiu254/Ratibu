@@ -57,13 +57,6 @@ const productCards = [
     icon: Wallet,
   },
   {
-    title: 'Marketplace',
-    description: 'Check your credit score, apply for vendor, agent, or rider roles, and send money to members.',
-    href: '/marketplace',
-    cta: 'Open Marketplace',
-    icon: BadgeDollarSign,
-  },
-  {
     title: 'KPLC Bills',
     description: 'Pay for prepaid tokens or postpaid electricity bills from one place.',
     href: '/kplc-bill',

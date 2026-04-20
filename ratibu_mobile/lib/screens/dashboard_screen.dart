@@ -95,8 +95,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             _drawerItem(
                 context, Icons.gavel, 'Penalties', '/penalties', Colors.orange),
             const Divider(color: Colors.white10),
-            _drawerItem(context, Icons.storefront, 'Marketplace',
-                '/marketplace', Colors.greenAccent),
             _drawerItem(context, Icons.inventory_2, 'Products', '/products',
                 Colors.blue),
             _drawerItem(context, Icons.rocket_launch, 'Opportunities',
@@ -443,10 +441,6 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       icon: Icons.emoji_events,
                       label: 'Rewards',
                       onTap: () => context.push('/rewards')),
-                  _ActionButton(
-                      icon: Icons.storefront,
-                      label: 'Marketplace',
-                      onTap: () => context.push('/marketplace')),
                   _ActionButton(
                       icon: Icons.gavel,
                       label: 'Penalties',
