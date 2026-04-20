@@ -197,7 +197,60 @@ const AccessDevices = () => {
     );
 }
 
+const faqs = [
+    {
+        question: 'What is Ratibu Chama?',
+        answer: 'Ratibu Chama is a digital banking platform for chamas, savings groups, SACCOs, loans, USSD banking, KCB M-PESA, KPLC bill payments, and transaction statements.',
+    },
+    {
+        question: 'Can I use Ratibu for a chama or savings group?',
+        answer: 'Yes. Ratibu is built for chamas and savings groups that want to manage contributions, meetings, loans, and member activity in one place.',
+    },
+    {
+        question: 'Does Ratibu support loan management?',
+        answer: 'Yes. Ratibu helps groups track loan balances, repayments, statements, and related transaction history.',
+    },
+    {
+        question: 'How do people access Ratibu?',
+        answer: 'Users can access Ratibu through the mobile app and USSD for low-data and offline-friendly participation.',
+    },
+]
+
+const FAQSection = () => (
+    <section className="py-24 bg-slate-50 dark:bg-midnight transition-colors duration-300">
+        <div className="container mx-auto px-6">
+            <div className="max-w-4xl mx-auto">
+                <p className="text-xs font-black uppercase tracking-[0.4em] text-[#00C853] mb-4">People Also Ask</p>
+                <h2 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Common questions about Ratibu, chama banking, and loans.
+                </h2>
+                <div className="mt-10 space-y-4">
+                    {faqs.map((faq) => (
+                        <div key={faq.question} className="rounded-[1.75rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-6">
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white">{faq.question}</h3>
+                            <p className="mt-3 text-sm md:text-base leading-7 text-slate-600 dark:text-slate-400">{faq.answer}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    </section>
+)
+
 export default function Home() {
+    const faqJsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((faq) => ({
+            '@type': 'Question',
+            name: faq.question,
+            acceptedAnswer: {
+                '@type': 'Answer',
+                text: faq.answer,
+            },
+        })),
+    }
+
     return (
         <main className="bg-slate-50 dark:bg-midnight min-h-screen font-sans transition-colors duration-300">
             <Seo
@@ -231,12 +284,26 @@ export default function Home() {
                   '@type': 'WebSite',
                   name: 'Ratibu Chama',
                   url: 'https://www.ratibuchama.com',
+                  potentialAction: {
+                    '@type': 'SearchAction',
+                    target: 'https://www.ratibuchama.com/explore?query={search_term_string}',
+                    'query-input': 'required name=search_term_string',
+                  },
                 },
+                {
+                  '@context': 'https://schema.org',
+                  '@type': 'WebPage',
+                  name: 'Ratibu Chama Home',
+                  url: 'https://www.ratibuchama.com/',
+                  description: 'Digital banking for chamas, savings groups, loans, USSD banking, KCB M-PESA, and KPLC bills in Kenya.',
+                },
+                faqJsonLd,
               ]}
             />
             <Hero />
             <SolutionPillars />
             <AccessDevices />
+            <FAQSection />
         </main>
     );
 }
