@@ -55,7 +55,7 @@ const Hero = () => {
                            </span>
                         </h1>
                         <p className="text-xl md:text-2xl text-slate-900 dark:text-slate-200 max-w-3xl mx-auto leading-relaxed font-bold drop-shadow-sm transition-colors duration-300">
-                            The simple and integrated technological platform for SMEs and Chamas. Bridging the gap for the bottom of the economic pyramid.
+                            Ratibu Chama helps chamas, savings groups, and SMEs manage loans, contributions, USSD banking, KCB M-PESA, and KPLC bill payments in one place.
                         </p>
                     </motion.div>
 
@@ -89,6 +89,9 @@ const Hero = () => {
                     >
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-700 dark:text-slate-400 mb-6">
                             Empowering these major sectors
+                        </p>
+                        <p className="mb-6 text-sm md:text-base text-slate-700 dark:text-slate-300 max-w-4xl mx-auto leading-7">
+                            If you searched for Ratibu, chama, loan management, savings groups, or digital banking in Kenya, this platform is designed to help your group save together, borrow responsibly, and make payments securely.
                         </p>
                         <div className="flex flex-wrap justify-center gap-2 md:gap-3 max-w-6xl mx-auto">
                            {["Bodabodas", "House-helps", "Sales-people", "Grocery Owners", "Waiters", "Health Workers", "Caretakers", "Drivers", "Fundis", "Conductors", "Others"].map((segment) => (
@@ -202,6 +205,10 @@ export default function Home() {
               description="Ratibu Chama is a digital banking platform for chamas, savings groups, SACCOs, loans, USSD banking, KCB M-PESA, KPLC bills, transaction statements, and KYC in Kenya and beyond."
               canonicalPath="/"
               keywords={[
+                'Ratibu',
+                'chama',
+                'loan',
+                'savings group',
                 'digital banking for chamas',
                 'chama management platform',
                 'savings groups Kenya',
