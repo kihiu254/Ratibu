@@ -78,6 +78,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             _drawerItem(context, Icons.account_balance_wallet, 'Accounts',
                 '/accounts', Colors.teal),
+            _drawerItem(context, Icons.account_balance_wallet_outlined, 'Wallet',
+                '/wallet', Colors.greenAccent),
             _drawerItem(context, Icons.savings, 'Personal Savings',
                 '/personal-savings', Colors.greenAccent),
             _drawerItem(context, Icons.payments, 'Loans & Credit',
@@ -421,6 +423,10 @@ class _ActivitiesTabState extends ConsumerState<ActivitiesTab> {
                       icon: Icons.account_balance_wallet,
                       label: 'Accounts',
                       onTap: () => context.push('/accounts')),
+                  _ActionButton(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Wallet',
+                      onTap: () => context.push('/wallet')),
                   _ActionButton(
                       icon: Icons.savings,
                       label: 'Savings',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProductsScreen extends StatelessWidget {
   const ProductsScreen({super.key});
@@ -13,6 +14,7 @@ class ProductsScreen extends StatelessWidget {
         title: 'Send Money',
         description: 'Transfer money to other Ratibu members at a very low cost.',
         tag: 'Wallet transfer',
+        route: '/wallet',
       ),
       _Product(
         icon: Icons.store,
@@ -20,6 +22,7 @@ class ProductsScreen extends StatelessWidget {
         title: 'Vendor Payments',
         description: 'Pay vendors using their till number for products and services.',
         tag: 'Till numbers',
+        route: '/marketplace',
       ),
       _Product(
         icon: Icons.radio,
@@ -27,6 +30,7 @@ class ProductsScreen extends StatelessWidget {
         title: 'Agent Products',
         description: 'Agents receive an agent number for onboarding, collections, and support.',
         tag: 'Agent numbers',
+        route: '/marketplace',
       ),
       _Product(
         icon: Icons.delivery_dining,
@@ -34,6 +38,7 @@ class ProductsScreen extends StatelessWidget {
         title: 'Delivery',
         description: 'Riders receive delivery jobs and get paid after completion.',
         tag: 'Rider work',
+        route: '/marketplace',
       ),
       _Product(
         icon: Icons.shopping_bag,
@@ -41,6 +46,7 @@ class ProductsScreen extends StatelessWidget {
         title: 'E-commerce',
         description: 'Browse products from approved vendors and complete checkout in Ratibu.',
         tag: 'Product catalog',
+        route: '/dashboard',
       ),
       _Product(
         icon: Icons.verified_user,
@@ -48,6 +54,7 @@ class ProductsScreen extends StatelessWidget {
         title: 'Credit Score Access',
         description: 'Vendor, rider, and agent roles are unlocked by credit score and score history.',
         tag: 'Rewards + penalties',
+        route: '/marketplace',
       ),
     ];
 
@@ -84,7 +91,15 @@ class ProductsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
-            onPressed: () => context.push('/marketplace'),
+            onPressed: () async {
+              final session = Supabase.instance.client.auth.currentSession;
+              if (!context.mounted) return;
+              if (session?.user != null) {
+                context.push('/marketplace');
+              } else {
+                context.go('/login?redirectTo=/marketplace');
+              }
+            },
             icon: const Icon(Icons.shield),
             label: const Text('Check credit score'),
           ),
@@ -104,7 +119,10 @@ class ProductsScreen extends StatelessWidget {
           ...products.map(
             (product) => Padding(
               padding: const EdgeInsets.only(bottom: 14),
-              child: _ProductCard(product: product),
+              child: _ProductCard(
+                product: product,
+                onTap: () => context.push(product.route),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -116,58 +134,66 @@ class ProductsScreen extends StatelessWidget {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product});
+  const _ProductCard({required this.product, required this.onTap});
 
   final _Product product;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1e293b),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1e293b),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: product.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(product.icon, color: product.color, size: 28),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: product.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(product.icon, color: product.color, size: 28),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.title,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          product.tag,
+                          style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.title,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product.tag,
-                      style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 14),
+              Text(
+                product.description,
+                style: const TextStyle(color: Colors.white70, height: 1.5),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            product.description,
-            style: const TextStyle(color: Colors.white70, height: 1.5),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -234,6 +260,7 @@ class _Product {
   final String title;
   final String description;
   final String tag;
+  final String route;
 
   const _Product({
     required this.icon,
@@ -241,6 +268,7 @@ class _Product {
     required this.title,
     required this.description,
     required this.tag,
+    required this.route,
   });
 }
 
