@@ -432,8 +432,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Please accept the Terms and Privacy Policy once to finish signing in.',
+                          'Please review the consent summary and accept the Terms and Privacy Policy once to finish signing in.',
                           style: TextStyle(color: Colors.white70),
+                        ),
+                        TextButton(
+                          onPressed: () => context.go('/consent'),
+                          child: const Text('Open consent summary'),
                         ),
                         CheckboxListTile(
                           value: _acceptedTerms,
@@ -441,7 +445,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           activeColor: const Color(0xFF00C853),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text('I accept the Terms and Conditions',
+                          title: const Text('I have read and accept the Terms and Conditions',
                               style: TextStyle(color: Colors.white)),
                         ),
                         CheckboxListTile(
@@ -450,7 +454,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           activeColor: const Color(0xFF00C853),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text('I accept the Privacy Policy',
+                          title: const Text('I have read and accept the Privacy Policy',
                               style: TextStyle(color: Colors.white)),
                         ),
                         const SizedBox(height: 8),

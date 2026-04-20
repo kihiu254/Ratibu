@@ -12,6 +12,7 @@ import Dashboard from '../pages/Dashboard'
 import ExploreChamas from '../pages/ExploreChamas'
 import Features from '../pages/Features'
 import Home from '../pages/Home'
+import Consent from '../pages/Consent'
 import Legal from '../pages/Legal'
 import Login from '../pages/Login'
 import MembershipKYC from '../pages/MembershipKYC'
@@ -85,6 +86,7 @@ export function AppRoutes() {
           <Route path="/products" element={<Products />} />
           <Route path="/opportunities" element={<Opportunities />} />
           <Route path="/resources/*" element={<Opportunities />} />
+          <Route path="/consent" element={<Consent />} />
           <Route path="/legal/*" element={<Legal />} />
           <Route path="/features" element={<Features />} />
           <Route path="/pricing" element={<Pricing />} />

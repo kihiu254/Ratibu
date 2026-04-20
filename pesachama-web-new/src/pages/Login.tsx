@@ -261,7 +261,11 @@ export default function Login() {
             ) : (
               <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4">
                 <p className="text-sm text-slate-300">
-                  One-time legal acceptance is required to continue.
+                  Review the{' '}
+                  <Link to="/consent" className="text-[#00C853] hover:underline">
+                    consent summary
+                  </Link>{' '}
+                  before continuing.
                 </p>
                 <label className="flex items-start gap-3 text-sm text-slate-200">
                   <input
@@ -271,7 +275,7 @@ export default function Login() {
                     onChange={(e) => setAcceptedTerms(e.target.checked)}
                     className="mt-1"
                   />
-                  <span>I accept the Terms and Conditions.</span>
+                  <span>I have read and accept the Terms and Conditions.</span>
                 </label>
                 <label className="flex items-start gap-3 text-sm text-slate-200">
                   <input
@@ -281,7 +285,7 @@ export default function Login() {
                     onChange={(e) => setAcceptedPrivacy(e.target.checked)}
                     className="mt-1"
                   />
-                  <span>I accept the Privacy Policy.</span>
+                  <span>I have read and accept the Privacy Policy.</span>
                 </label>
                 <button
                   type="button"

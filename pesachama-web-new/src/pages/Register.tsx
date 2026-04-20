@@ -33,7 +33,7 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!acceptedTerms || !acceptedPrivacy) {
-      setError('Please accept the Terms and Privacy Policy to continue.')
+      setError('Please review the consent summary and accept the Terms and Privacy Policy to continue.')
       return
     }
     setLoading(true)
@@ -234,7 +234,11 @@ export default function Register() {
 
             <div className="space-y-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/40 dark:bg-white/5 p-4">
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                One-time legal acceptance is required to create an account.
+                Review the{' '}
+                <Link to="/consent" className="text-[#00C853] hover:underline">
+                  consent summary
+                </Link>{' '}
+                before creating an account.
               </p>
               <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
                 <input
@@ -244,7 +248,7 @@ export default function Register() {
                   onChange={(e) => setAcceptedTerms(e.target.checked)}
                   className="mt-1"
                 />
-                <span>I accept the Terms and Conditions.</span>
+                <span>I have read and accept the Terms and Conditions.</span>
               </label>
               <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
                 <input
@@ -254,7 +258,7 @@ export default function Register() {
                   onChange={(e) => setAcceptedPrivacy(e.target.checked)}
                   className="mt-1"
                 />
-                <span>I accept the Privacy Policy.</span>
+                <span>I have read and accept the Privacy Policy.</span>
               </label>
             </div>
 

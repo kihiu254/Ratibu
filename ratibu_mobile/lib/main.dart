@@ -44,6 +44,7 @@ import 'package:ratibu_mobile/screens/opportunities_screen.dart';
 import 'package:ratibu_mobile/screens/features_screen.dart';
 import 'package:ratibu_mobile/screens/pricing_screen.dart';
 import 'package:ratibu_mobile/screens/legal_screen.dart';
+import 'package:ratibu_mobile/screens/consent_screen.dart';
 import 'package:ratibu_mobile/screens/personal_savings_screen.dart';
 import 'package:ratibu_mobile/screens/loans_screen.dart';
 import 'package:ratibu_mobile/screens/accounts_screen.dart';
@@ -144,6 +145,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/consent',
+        builder: (context, state) => const ConsentScreen(),
       ),
       GoRoute(
         path: '/processing',

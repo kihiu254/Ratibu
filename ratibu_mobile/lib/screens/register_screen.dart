@@ -42,7 +42,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (!_acceptedTerms || !_acceptedPrivacy) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please accept the Terms and Privacy Policy to continue.'),
+            content: Text('Please review the consent summary and accept the Terms and Privacy Policy to continue.'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -221,6 +221,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () => context.go('/consent'),
+                          child: const Text('Open consent summary'),
+                        ),
+                      ),
                       CheckboxListTile(
                         value: _acceptedTerms,
                         onChanged: (value) =>
@@ -229,7 +236,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         controlAffinity: ListTileControlAffinity.leading,
                         activeColor: const Color(0xFF00C853),
                         title: const Text(
-                          'I accept the Terms and Conditions',
+                          'I have read and accept the Terms and Conditions',
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
@@ -241,7 +248,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         controlAffinity: ListTileControlAffinity.leading,
                         activeColor: const Color(0xFF00C853),
                         title: const Text(
-                          'I accept the Privacy Policy',
+                          'I have read and accept the Privacy Policy',
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
