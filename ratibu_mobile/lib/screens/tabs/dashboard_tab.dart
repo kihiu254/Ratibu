@@ -264,9 +264,9 @@ class DashboardTab extends ConsumerWidget {
                         Expanded(
                           child: _QuickActionCard(
                             icon: LucideIcons.landmark,
-                            title: 'KCB M-PESA',
-                            subtitle: 'Loans and savings',
-                            onTap: () => context.push('/kcb-mpesa'),
+                            title: 'My Wallet',
+                            subtitle: 'Send money and view transfers',
+                            onTap: () => context.push('/wallet'),
                           ),
                         ),
                         const SizedBox(width: 12),

@@ -58,6 +58,14 @@ interface LoanRow {
   chama_name: string | null
 }
 
+interface LoanRequestRow {
+  id: string
+  amount: number
+  purpose: string
+  status: string
+  created_at: string
+}
+
 interface RoleApplicationRow {
   id: string
   role_type: string
@@ -85,10 +93,41 @@ interface UssdLogRow {
   created_at: string
 }
 
+type LoanTypeKey = 'chama' | 'business' | 'personal'
+
+const loanTypeMeta: Record<LoanTypeKey, {
+  label: string
+  hint: string
+  matchers: RegExp[]
+}> = {
+  chama: {
+    label: 'Chama Booster',
+    hint: '3x chama savings',
+    matchers: [/chama booster/i, /chama loan/i, /chama/i],
+  },
+  business: {
+    label: 'Business Loan',
+    hint: '3.5x vendor savings',
+    matchers: [/business loan/i, /vendor loan/i, /business/i],
+  },
+  personal: {
+    label: 'Personal Loan',
+    hint: '3x member savings',
+    matchers: [/personal loan/i, /personal/i],
+  },
+}
+
 function fmtDate(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return parsed.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function classifyLoanType(value: string) {
+  const text = value.trim()
+  if (loanTypeMeta.chama.matchers.some((pattern) => pattern.test(text))) return 'chama'
+  if (loanTypeMeta.business.matchers.some((pattern) => pattern.test(text))) return 'business'
+  return 'personal'
 }
 
 function StatCard({
@@ -186,6 +225,7 @@ export default function Admin() {
   const [recentUsers, setRecentUsers] = useState<UserProfile[]>([])
   const [recentChamas, setRecentChamas] = useState<Chama[]>([])
   const [recentLoans, setRecentLoans] = useState<LoanRow[]>([])
+  const [recentLoanRequests, setRecentLoanRequests] = useState<LoanRequestRow[]>([])
   const [recentRoleApps, setRecentRoleApps] = useState<RoleApplicationRow[]>([])
   const [recentTransfers, setRecentTransfers] = useState<WalletTransferRow[]>([])
   const [recentUssd, setRecentUssd] = useState<UssdLogRow[]>([])
@@ -202,6 +242,7 @@ export default function Admin() {
         transactionsRes,
         loansCountRes,
         loanRequestsCountRes,
+        recentLoanRequestsRes,
         pendingRolesRes,
         marketplaceProfilesRes,
         walletTransfersRes,
@@ -219,6 +260,7 @@ export default function Admin() {
         supabase.from('transactions').select('amount'),
         supabase.from('loans').select('*', { count: 'exact', head: true }),
         supabase.from('loan_requests').select('*', { count: 'exact', head: true }),
+        supabase.from('loan_requests').select('id, amount, purpose, status, created_at').order('created_at', { ascending: false }),
         supabase.from('marketplace_role_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('marketplace_profiles').select('*', { count: 'exact', head: true }),
         supabase.from('wallet_transfers').select('*', { count: 'exact', head: true }),
@@ -257,6 +299,7 @@ export default function Admin() {
         created_at: row.created_at,
         chama_name: row.chama?.name ?? null,
       })))
+      setRecentLoanRequests((recentLoanRequestsRes.data ?? []) as LoanRequestRow[])
       setRecentRoleApps((recentRoleAppsRes.data ?? []) as RoleApplicationRow[])
       setRecentTransfers((recentTransfersRes.data ?? []) as WalletTransferRow[])
       setRecentUssd((recentUssdRes.data ?? []) as UssdLogRow[])
@@ -285,6 +328,21 @@ export default function Admin() {
     { label: 'Wallet Transfers', value: stats.walletTransfers.toLocaleString(), icon: Wallet, color: 'text-emerald-400' },
     { label: 'USSD Requests', value: stats.ussdRequests.toLocaleString(), icon: MessageSquareText, color: 'text-pink-400' },
   ]
+
+  const loanBreakdown = (['chama', 'business', 'personal'] as LoanTypeKey[]).map((type) => {
+    const meta = loanTypeMeta[type]
+    const requests = recentLoanRequests.filter((row) => classifyLoanType(row.purpose) === type)
+    const totalAmount = requests.reduce((sum, row) => sum + Number(row.amount ?? 0), 0)
+    const pending = requests.filter((row) => (row.status ?? 'pending').toLowerCase() === 'pending').length
+    return {
+      type,
+      label: meta.label,
+      hint: meta.hint,
+      count: requests.length,
+      totalAmount,
+      pending,
+    }
+  })
 
   return (
     <div className="space-y-8">
@@ -405,6 +463,27 @@ export default function Admin() {
         </div>
       </div>
 
+      <section className="space-y-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#00C853]">Loans</p>
+          <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-white">Loan breakdown by product type</h2>
+          <p className="text-sm text-slate-500">Counts, totals, and pending requests for Chama Booster, Business Loan, and Personal Loan.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {loanBreakdown.map((item) => (
+            <div key={item.type} className="rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+              <div className="inline-flex rounded-full bg-[#00C853]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#00C853]">
+                {item.label}
+              </div>
+              <h3 className="mt-4 text-xl font-black text-slate-900 dark:text-white">{item.count.toLocaleString()} requests</h3>
+              <p className="mt-2 text-sm text-slate-500">Total amount: KES {item.totalAmount.toLocaleString()}</p>
+              <p className="mt-1 text-sm text-slate-500">Pending requests: {item.pending.toLocaleString()}</p>
+              <p className="mt-3 text-xs uppercase tracking-[0.25em] text-slate-400">{item.hint}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <SectionList
           title="Recent Loan Applications"
@@ -417,7 +496,7 @@ export default function Admin() {
             <>
               <div>
                 <p className="font-bold text-slate-900 dark:text-white">KES {loan.amount.toLocaleString()}</p>
-                <p className="text-xs text-slate-500">{loan.chama_name || 'Personal Loan'} · {loan.status}</p>
+                <p className="text-xs text-slate-500">{loan.chama_name || 'Personal Loan'} | {loan.status}</p>
               </div>
               <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-1">
                 <Clock3 className="w-3 h-3" />
@@ -438,9 +517,9 @@ export default function Admin() {
             <>
               <div>
                 <p className="font-bold text-slate-900 dark:text-white">
-                  {app.role_type.toUpperCase()} · {app.business_name || app.display_name || 'Application'}
+                  {app.role_type.toUpperCase()} | {app.business_name || app.display_name || 'Application'}
                 </p>
-                <p className="text-xs text-slate-500">Score {app.score_snapshot}/{app.required_score} · {app.status}</p>
+                <p className="text-xs text-slate-500">Score {app.score_snapshot}/{app.required_score} | {app.status}</p>
               </div>
               <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-1">
                 <Clock3 className="w-3 h-3" />
@@ -462,8 +541,8 @@ export default function Admin() {
           renderRow={(transfer: WalletTransferRow) => (
             <>
               <div>
-                <p className="font-bold text-slate-900 dark:text-white">KES {Number(transfer.amount).toLocaleString()} · {transfer.channel}</p>
-                <p className="text-xs text-slate-500">{transfer.note || 'Wallet transfer'} · {transfer.status}</p>
+                <p className="font-bold text-slate-900 dark:text-white">KES {Number(transfer.amount).toLocaleString()} | {transfer.channel}</p>
+                <p className="text-xs text-slate-500">{transfer.note || 'Wallet transfer'} | {transfer.status}</p>
               </div>
               <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-1">
                 <Clock3 className="w-3 h-3" />
@@ -541,7 +620,7 @@ export default function Admin() {
                 </div>
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{chama.name}</p>
-                  <p className="text-xs text-slate-500">KES {Number(chama.balance || 0).toLocaleString()} · {chama.category || 'Group'}</p>
+                  <p className="text-xs text-slate-500">KES {Number(chama.balance || 0).toLocaleString()} | {chama.category || 'Group'}</p>
                 </div>
               </div>
               <span className="text-[10px] uppercase tracking-widest text-slate-500 flex items-center gap-1">
@@ -555,3 +634,4 @@ export default function Admin() {
     </div>
   )
 }
+

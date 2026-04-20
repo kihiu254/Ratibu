@@ -43,6 +43,7 @@ const menuGroups: MenuGroup[] = [
     label: 'Overview',
     items: [
       { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+      { name: 'My Wallet', icon: Wallet, path: '/wallet' },
       { name: 'Accounts', icon: Wallet, path: '/accounts' },
     ],
   },

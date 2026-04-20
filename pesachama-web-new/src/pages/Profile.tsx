@@ -18,6 +18,7 @@ import {
   AlertCircle,
   ShieldCheck,
   ChevronRight,
+  Wallet,
   Gift,
   Gavel,
   Plus,
@@ -593,6 +594,26 @@ export default function Profile() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Profile Settings</h1>
+      </div>
+
+      <div className="mb-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="h-14 w-14 rounded-2xl bg-[#00C853]/10 flex items-center justify-center text-[#00C853]">
+            <Wallet className="h-7 w-7" />
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.35em] text-[#00C853]">My Wallet</p>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Send money and review transfer history</h2>
+            <p className="text-sm text-slate-500">Open your wallet for Ratibu member-to-member transfers and balance checks.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/wallet')}
+          className="inline-flex items-center justify-center rounded-2xl bg-[#00C853] px-5 py-3 font-bold text-white"
+        >
+          Open Wallet
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
