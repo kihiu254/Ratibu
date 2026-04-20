@@ -1133,7 +1133,7 @@ const renderPinRetryPrompt = (name: string, attemptsRemaining: number) =>
   `CON Ratibu\n${getTimeGreeting()} ${name}\nWrong PIN. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.\nEnter your PIN`;
 
 const renderMainMenu = (name: string) =>
-  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Marketplace\n10 Products\n00 Exit`;
+  `CON Ratibu\n${getTimeGreeting()} ${name}\n1 Dashboard\n2 Chamas\n3 Accounts\n4 Savings\n5 Meetings\n6 Swaps\n7 Profile\n8 Rewards\n9 Marketplace\n10 Products\n11 Loans\n00 Exit`;
 
 const renderChamasMenu = () =>
   `CON Ratibu\nChamas\n1 My Chamas\n2 Join Chama\n3 Create Chama\n4 Requests\n5 Roles\n0 Back\n00 Home`;
@@ -1187,18 +1187,21 @@ function formatLoanMoney(value: number | string | null | undefined) {
 }
 
 function renderLoansMenu(loans: UssdLoanRecord[]) {
-  if (loans.length === 0) {
-    return `CON Ratibu\nLoans\nNo loan records yet.\n1 KCB M-PESA\n0 Back\n00 Home`;
-  }
+  const products = [
+    "1 Chama Booster 3x chama savings",
+    "2 Business Loan 3.5x vendor savings",
+    "3 Personal Loan 3x member savings",
+  ];
 
-  const lines = loans.slice(0, 3).map((loan, index) => {
-    const name = loan.chamas?.name?.trim() || "Personal Loan";
-    const status = (loan.status ?? "pending").toUpperCase();
-    return `${index + 1} ${name} ${formatLoanMoney(loan.amount)} ${status}`;
-  });
+  const records = loans.length > 0
+    ? `\n\nMy loans\n${loans.slice(0, 3).map((loan, index) => {
+      const name = loan.chamas?.name?.trim() || "Personal Loan";
+      const status = (loan.status ?? "pending").toUpperCase();
+      return `${index + 1} ${name} ${formatLoanMoney(loan.amount)} ${status}`;
+    }).join("\n")}${loans.length > 3 ? "\n9 More in app" : ""}`
+    : "";
 
-  const more = loans.length > 3 ? "\n9 More in app" : "";
-  return `CON Ratibu\nLoans\n${lines.join("\n")}${more}\n1 KCB M-PESA\n0 Back\n00 Home`;
+  return `CON Ratibu\nLoans\n${products.join("\n")}\n4 Request in app${records}\n0 Back\n00 Home`;
 }
 
 const renderChoicePrompt = (message: string) =>
@@ -1295,6 +1298,10 @@ function resolveInfoNavigation(
 
   if (section === "10") {
     return renderProductsMenu();
+  }
+
+  if (section === "11") {
+    return renderLoansMenu([]);
   }
 
   return renderMainMenu(displayName);
@@ -2394,6 +2401,29 @@ Deno.serve(async (req: Request) => {
             }
           } else {
             response = renderProductsMenu();
+          }
+        } else if (menu[0] === "11") {
+          if (menu.length === 1) {
+            response = renderLoansMenu([]);
+          } else if (menu[1] === "1") {
+            response = renderChamaInfoMenu(
+              "Chama Booster",
+              "Registered chamas only.\nAmount = 3x chama savings.",
+            );
+          } else if (menu[1] === "2") {
+            response = renderChamaInfoMenu(
+              "Business Loan",
+              "For Ratibu vendors who are members of a chama.\nAmount = 3.5x vendor savings.",
+            );
+          } else if (menu[1] === "3") {
+            response = renderChamaInfoMenu(
+              "Personal Loan",
+              "For members with strong financial discipline in their groups.\nAmount = 3x member savings.",
+            );
+          } else if (menu[1] === "4") {
+            response = renderChamaInfoMenu("Loans", "Apply and track loan requests in the app.");
+          } else {
+            response = renderMainMenu(displayName);
           }
         } else {
           response = renderMainMenu(displayName);

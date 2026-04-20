@@ -64,6 +64,27 @@ function statusClass(status: string | null) {
   }
 }
 
+const loanProducts = [
+  {
+    title: 'Chama Booster',
+    description: 'For registered chamas only.',
+    formula: 'Loan amount = 3x chama savings',
+    badge: 'Chama only',
+  },
+  {
+    title: 'Business Loan',
+    description: 'For Ratibu vendors who are members of a chama.',
+    formula: 'Loan amount = 3.5x vendor savings',
+    badge: 'Vendor + chama',
+  },
+  {
+    title: 'Personal Loan',
+    description: 'For members with strong financial discipline in their groups.',
+    formula: 'Loan amount = 3x member savings',
+    badge: 'Member discipline',
+  },
+] as const
+
 export default function Loans() {
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<LoanRow[]>([])
@@ -169,6 +190,11 @@ export default function Loans() {
     }
   }
 
+  function openLoanRequest(purpose: string) {
+    setRequestPurpose(purpose)
+    setRequestOpen(true)
+  }
+
   const stats = useMemo(() => {
     const totalBorrowed = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0)
     const activeBalance = rows.reduce((sum, row) => {
@@ -209,7 +235,7 @@ export default function Loans() {
               </Link>
               <button
                 type="button"
-                onClick={() => setRequestOpen(true)}
+                onClick={() => openLoanRequest('Working capital')}
                 className="rounded-2xl border border-[#00C853]/30 bg-[#00C853]/10 px-5 py-3 font-bold text-white inline-flex items-center gap-2"
               >
                 Request Loan <Plus className="w-4 h-4" />
@@ -227,6 +253,47 @@ export default function Loans() {
         <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
           <p className="text-sm uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">Active Balance</p>
           <h2 className="mt-2 text-3xl font-black text-slate-900 dark:text-white">KES {stats.activeBalance.toLocaleString()}</h2>
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#00C853]">Loan products</p>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Three loan types for Ratibu users.</h2>
+          </div>
+          <Link to="/products" className="text-sm font-bold text-[#00C853] inline-flex items-center gap-2">
+            View products <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {loanProducts.map((product, index) => (
+              <motion.article
+                key={product.title}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6"
+              >
+              <div className="inline-flex rounded-full bg-[#00C853]/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.25em] text-[#00C853]">
+                {product.badge}
+              </div>
+              <h3 className="mt-4 text-2xl font-black text-slate-900 dark:text-white">{product.title}</h3>
+              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 leading-7">{product.description}</p>
+              <div className="mt-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Amount formula</p>
+                <p className="mt-2 text-base font-bold text-slate-900 dark:text-white">{product.formula}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openLoanRequest(product.title)}
+                className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#00C853] px-4 py-2 text-sm font-bold text-white"
+              >
+                Request this loan
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </motion.article>
+          ))}
         </div>
       </section>
 

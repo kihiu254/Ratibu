@@ -70,6 +70,9 @@ const Hero = () => {
                         <Button variant="outline" large onClick={() => void goToProtectedFeature('/kcb-mpesa')}>
                            KCB M-PESA
                         </Button>
+                        <Button variant="outline" large onClick={() => void goToProtectedFeature('/loans')}>
+                           Loans
+                        </Button>
                         <Button variant="outline" large onClick={() => void goToProtectedFeature('/kplc-bill')}>
                            Pay KPLC
                         </Button>
@@ -201,6 +204,7 @@ const AccessDevices = () => {
 const serviceLinks = [
     { label: 'Features', href: '/features' },
     { label: 'Products', href: '/products' },
+    { label: 'Loans', href: '/loans' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Opportunities', href: '/opportunities' },
     { label: 'Contact', href: '/contact' },
@@ -215,8 +219,8 @@ const whatRatibuDoes = [
     },
     {
         title: 'Loans and statements',
-        description: 'Track loans, balances, repayments, and transaction statements without spreadsheet chaos.',
-        href: '/products',
+        description: 'See Chama Booster, Business Loan, and Personal Loan options with transparent formulas. ',
+        href: '/loans',
         icon: HandCoins,
     },
     {

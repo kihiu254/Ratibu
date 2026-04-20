@@ -3,6 +3,27 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+const loanProducts = [
+  (
+    title: 'Chama Booster',
+    description: 'For registered chamas only.',
+    formula: 'Loan amount = 3x chama savings',
+    badge: 'Chama only',
+  ),
+  (
+    title: 'Business Loan',
+    description: 'For Ratibu vendors who are members of a chama.',
+    formula: 'Loan amount = 3.5x vendor savings',
+    badge: 'Vendor + chama',
+  ),
+  (
+    title: 'Personal Loan',
+    description: 'For members with strong financial discipline in their groups.',
+    formula: 'Loan amount = 3x member savings',
+    badge: 'Member discipline',
+  ),
+];
+
 class LoansScreen extends StatefulWidget {
   const LoansScreen({super.key});
 
@@ -114,9 +135,9 @@ class _LoansScreenState extends State<LoansScreen> {
     return DateFormat('dd MMM yyyy').format(parsed.toLocal());
   }
 
-  Future<void> _openLoanRequestDialog() async {
+  Future<void> _openLoanRequestDialog({String presetPurpose = 'Working capital'}) async {
     final amountController = TextEditingController();
-    final purposeController = TextEditingController(text: 'Working capital');
+    final purposeController = TextEditingController(text: presetPurpose);
     final termController = TextEditingController(text: '3');
     final notesController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
@@ -289,25 +310,43 @@ class _LoansScreenState extends State<LoansScreen> {
                 ],
               ),
             ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _openLoanRequestDialog,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C853),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      icon: const Icon(Icons.add_circle_outline),
-                      label: const Text('Request Loan'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+            const SizedBox(height: 16),
+            const Text(
+              'Loan products',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            ...loanProducts.map((product) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _LoanProductCard(
+                  title: product.title,
+                  description: product.description,
+                  formula: product.formula,
+                  badge: product.badge,
+                  onRequest: () => _openLoanRequestDialog(presetPurpose: product.title),
+                ),
+              );
+            }),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openLoanRequestDialog(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00C853),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Request Loan'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 _NavChip(label: 'KCB M-PESA', onTap: () => context.push('/kcb-mpesa')),
                 _NavChip(label: 'Products', onTap: () => context.push('/products')),
@@ -487,6 +526,101 @@ class _NavChip extends StatelessWidget {
       backgroundColor: const Color(0xFF1e293b),
       labelStyle: const TextStyle(color: Colors.white),
       side: const BorderSide(color: Colors.white12),
+    );
+  }
+}
+
+class _LoanProductCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final String formula;
+  final String badge;
+  final VoidCallback onRequest;
+
+  const _LoanProductCard({
+    required this.title,
+    required this.description,
+    required this.formula,
+    required this.badge,
+    required this.onRequest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1e293b),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00C853).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              badge,
+              style: const TextStyle(
+                color: Color(0xFF00C853),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Amount formula',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formula,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onRequest,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFF00C853)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Request this loan'),
+          ),
+        ],
+      ),
     );
   }
 }
