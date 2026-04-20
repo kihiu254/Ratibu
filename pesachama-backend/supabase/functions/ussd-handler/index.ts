@@ -534,6 +534,16 @@ async function verifyTransactionPin(
 }
 
 type ActiveChama = { id: string; name: string };
+type ChamaAllocationSummary = {
+  chama_id?: string | null;
+  chama_name?: string | null;
+  allocation_month?: string | null;
+  allocation_day?: number | null;
+  swap_month?: string | null;
+  swap_requester_day?: number | null;
+  swap_target_day?: number | null;
+  swap_status?: string | null;
+};
 type PublicChama = {
   id: string;
   name: string;
@@ -601,6 +611,64 @@ async function fetchActiveChamas(supabase: any, userId: string): Promise<ActiveC
 async function fetchFirstActiveChama(supabase: any, userId: string): Promise<ActiveChama | null> {
   const chamas = await fetchActiveChamas(supabase, userId);
   return chamas[0] ?? null;
+}
+
+async function fetchChamaAllocationSummary(
+  supabase: any,
+  userId: string,
+  chamaId: string,
+): Promise<ChamaAllocationSummary | null> {
+  const currentMonth = new Date();
+  const monthStart = new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth(), 1));
+  const monthIso = monthStart.toISOString().slice(0, 10);
+
+  const [scheduleResult, swapResult] = await Promise.all([
+    supabase
+      .from("chama_allocation_schedule")
+      .select("chama_id, allocation_month, allocation_day, chamas(name)")
+      .eq("user_id", userId)
+      .eq("chama_id", chamaId)
+      .eq("allocation_month", monthIso)
+      .maybeSingle(),
+    supabase
+      .from("allocation_swap_requests")
+      .select("month, requester_day, target_day, status")
+      .eq("chama_id", chamaId)
+      .or(`requester_id.eq.${userId},target_user_id.eq.${userId}`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const schedule = scheduleResult.data as {
+    chama_id?: string | null;
+    allocation_month?: string | null;
+    allocation_day?: number | null;
+    chamas?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  } | null;
+  const swap = swapResult.data as {
+    month?: string | null;
+    requester_day?: number | null;
+    target_day?: number | null;
+    status?: string | null;
+  } | null;
+
+  if (!schedule && !swap) return null;
+
+  const chamaName = Array.isArray(schedule?.chamas)
+    ? schedule?.chamas?.[0]?.name ?? null
+    : schedule?.chamas?.name ?? null;
+
+  return {
+    chama_id: schedule?.chama_id ?? chamaId,
+    chama_name: chamaName,
+    allocation_month: schedule?.allocation_month ?? null,
+    allocation_day: schedule?.allocation_day ?? null,
+    swap_month: swap?.month ?? null,
+    swap_requester_day: swap?.requester_day ?? null,
+    swap_target_day: swap?.target_day ?? null,
+    swap_status: swap?.status ?? null,
+  };
 }
 
 async function fetchActiveSavingsTargets(supabase: any, userId: string): Promise<ActiveSavingsTarget[]> {
@@ -1051,6 +1119,12 @@ const renderProductsMenu = () =>
 const renderMarketplaceMenu = () =>
   `CON Ratibu\nMarketplace\n1 Overview\n2 Send Money\n3 Role Eligibility\n4 Chama Roles\n0 Back\n00 Home`;
 
+const renderChamaActionsMenu = (name: string) =>
+  `CON Ratibu\n${name}\n1 Deposit\n2 Withdraw\n3 Swap Date\n0 Back\n00 Home`;
+
+const renderChamaInfoMenu = (title: string, message: string) =>
+  `CON Ratibu\n${title}\n${message}\n0 Back\n00 Home`;
+
 type UssdLoanRecord = {
   amount?: number | string | null;
   interest_rate?: number | string | null;
@@ -1311,62 +1385,165 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderChamasMenu();
           } else if (menu[1] === "1") {
-            const memberRows = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
-            const chamaNames = memberRows
-              .map((row) => {
-                const relation = row.chamas ?? row.groups;
-                return Array.isArray(relation) ? relation[0]?.name : relation?.name;
-              })
-              .filter(Boolean)
-              .slice(0, 3)
-              .join(", ") || "No chamas";
-              response = renderChoicePromptWithActions(`Ratibu\nMy Chamas\n${chamaNames}\nTotal ${memberRows.length}`, menu, displayName);
-            } else if (menu[1] === "2") {
-              const publicChamas = await fetchPublicChamas(supabase);
-              if (publicChamas.length === 0) {
-                response = renderChoicePromptWithActions("Ratibu\nJoin Chama\nNo public chamas yet.", menu, displayName);
+            const activeChamas = profile?.id ? await fetchActiveChamas(supabase, profile.id) : [];
+            if (activeChamas.length === 0) {
+              response = renderChamaInfoMenu("My Chamas", "You are not in any chamas yet.");
+            } else if (menu.length === 2) {
+              response = renderSelectionPrompt("My Chamas", activeChamas);
+            } else {
+              const selectedToken = menu[2];
+              if (selectedToken === "0") {
+                response = renderChamasMenu();
+              } else if (selectedToken === "00") {
+                response = renderMainMenu(displayName);
               } else {
-                const discoverTokens = menu.slice(2);
-                const isSecondPage = discoverTokens[0] === "9";
-                const page = isSecondPage ? 1 : 0;
-
-                if (discoverTokens.length === 0 || (isSecondPage && discoverTokens.length === 1)) {
-                  response = renderDiscoverPrompt(publicChamas, page);
+                const selected = Number(selectedToken);
+                if (!Number.isInteger(selected) || selected < 1 || selected > activeChamas.length) {
+                  response = renderSelectionPrompt("My Chamas", activeChamas);
                 } else {
-                  const selectionToken = isSecondPage ? discoverTokens[1] : discoverTokens[0];
-                  if (selectionToken === "0") {
-                    response = renderChamasMenu();
-                  } else if (selectionToken === "00") {
-                    response = renderMainMenu(displayName);
-                  } else if (selectionToken === "9" && page === 0) {
-                    response = renderDiscoverPrompt(publicChamas, 1);
+                  const chama = activeChamas[selected - 1];
+                  if (menu.length === 3) {
+                    response = renderChamaActionsMenu(chama.name);
                   } else {
-                    const selectedIndex = Number(selectionToken);
-                    const start = page * 8;
-                    const selectedChama = publicChamas[start + selectedIndex - 1];
+                    const action = menu[3];
+                    if (action === "0") {
+                      response = renderSelectionPrompt("My Chamas", activeChamas);
+                    } else if (action === "00") {
+                      response = renderMainMenu(displayName);
+                    } else if (action === "1") {
+                      if (menu.length === 4) {
+                        response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
+                      } else {
+                        const amount = Number(menu[4]);
+                        if (!Number.isFinite(amount) || amount <= 0) {
+                          response = `CON Ratibu\nChama Deposit\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
+                        } else if (!profile?.id) {
+                          response = "END Can't confirm account.";
+                        } else {
+                          const phone = profile.phone || phoneNumber;
+                          const result = await invokeInternalFunction("trigger-stk-push", {
+                            amount,
+                            phoneNumber: phone,
+                            userId: profile.id,
+                            chamaId: chama.id,
+                            requestId: requestKey,
+                            origin: "ussd",
+                          });
 
-                    if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || !selectedChama) {
-                      response = renderDiscoverPrompt(publicChamas, page);
-                    } else if (!profile?.id) {
-                      response = "END Can't confirm account.";
+                          response = result.ok
+                            ? renderChoicePromptWithActions(
+                              "Ratibu\nDeposit sent. Check your phone.\nAnything else?",
+                              menu,
+                              displayName,
+                            )
+                            : renderChoicePromptWithActions(
+                              `Ratibu\nDeposit failed. ${extractFunctionError(result)}\nAnything else?`,
+                              menu,
+                              displayName,
+                            );
+                        }
+                      }
+                    } else if (action === "2") {
+                      if (menu.length === 4) {
+                        response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
+                      } else {
+                        const amount = Number(menu[4]);
+                        if (!Number.isFinite(amount) || amount <= 0) {
+                          response = `CON Ratibu\nChama Withdrawal\n${chama.name}\nEnter amount.\n0 Back\n00 Home`;
+                        } else if (!profile?.id) {
+                          response = "END Can't confirm account.";
+                        } else {
+                          const result = await requestChamaWithdrawal(supabase, profile.id, chama, amount);
+                          response = result.ok
+                            ? renderChoicePromptWithActions(
+                              "Ratibu\nRequest sent. You'll be notified.\nAnything else?",
+                              menu,
+                              displayName,
+                            )
+                            : renderChoicePromptWithActions(
+                              `Ratibu\nWithdrawal failed. ${result.message}\nAnything else?`,
+                              menu,
+                              displayName,
+                            );
+                        }
+                      }
+                    } else if (action === "3") {
+                      const summary = await fetchChamaAllocationSummary(supabase, profile.id, chama.id);
+                      if (!summary) {
+                        response = renderChamaInfoMenu(chama.name, "No swap date found yet.");
+                      } else {
+                        const monthLabel = summary.allocation_month
+                          ? new Date(`${summary.allocation_month}`).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                          : "Current month";
+                        const swapLine = summary.swap_month
+                          ? `Swap request: ${new Date(`${summary.swap_month}`).toLocaleDateString("en-US", { month: "short", year: "numeric" })} (${summary.swap_status ?? "pending"})`
+                          : "Swap request: none";
+                        response = renderChamaInfoMenu(
+                          chama.name,
+                          `Allocation date: Day ${summary.allocation_day ?? "-"}\nMonth: ${monthLabel}\n${swapLine}`,
+                        );
+                      }
                     } else {
-                      const joinResult = await joinPublicChama(supabase, profile.id, selectedChama.id);
-                      response = joinResult.ok
-                        ? `END Joined ${selectedChama.name}. Open Chamas to manage it.`
-                        : `END ${joinResult.message || "Join failed."}`;
+                      response = renderChamaActionsMenu(chama.name);
                     }
                   }
                 }
               }
-            } else if (menu[1] === "3") {
-              response = renderChoicePromptWithActions("Ratibu\nCreate Chama\nStart in the app.", menu, displayName);
-            } else if (menu[1] === "4") {
-              response = renderChoicePromptWithActions("Ratibu\nChama Requests\nView your join requests in the app.", menu, displayName);
-            } else if (menu[1] === "5") {
-              response = renderChoicePromptWithActions("Ratibu\nChama Roles\nAdmin, Treasurer, Secretary, Member.", menu, displayName);
-            } else {
-              response = renderMainMenu(displayName);
             }
+          } else if (menu[1] === "2") {
+            const publicChamas = profile?.id ? await fetchPublicChamas(supabase) : [];
+            if (publicChamas.length === 0) {
+              response = renderChamaInfoMenu("Join Chama", "No public chamas yet.");
+            } else {
+              const discoverTokens = menu.slice(2);
+              const isSecondPage = discoverTokens[0] === "9";
+              const page = isSecondPage ? 1 : 0;
+
+              if (discoverTokens.length === 0 || (isSecondPage && discoverTokens.length === 1)) {
+                response = renderDiscoverPrompt(publicChamas, page);
+              } else {
+                const selectionToken = isSecondPage ? discoverTokens[1] : discoverTokens[0];
+                if (selectionToken === "0") {
+                  response = renderChamasMenu();
+                } else if (selectionToken === "00") {
+                  response = renderMainMenu(displayName);
+                } else if (selectionToken === "9" && page === 0) {
+                  response = renderDiscoverPrompt(publicChamas, 1);
+                } else {
+                  const selectedIndex = Number(selectionToken);
+                  const start = page * 8;
+                  const selectedChama = publicChamas[start + selectedIndex - 1];
+
+                  if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || !selectedChama) {
+                    response = renderDiscoverPrompt(publicChamas, page);
+                  } else if (!profile?.id) {
+                    response = "END Can't confirm account.";
+                  } else {
+                    const joinResult = await joinPublicChama(supabase, profile.id, selectedChama.id);
+                    response = joinResult.ok
+                      ? `END Joined ${selectedChama.name}. Open Chamas to manage it.`
+                      : `END ${joinResult.message || "Join failed."}`;
+                  }
+                }
+              }
+            }
+          } else if (menu[1] === "3") {
+            response = renderChamaInfoMenu("Create Chama", "Start in the app.");
+          } else if (menu[1] === "4") {
+            response = renderChamaInfoMenu("Chama Requests", "View your join requests in the app.");
+          } else if (menu[1] === "5") {
+            const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
+            const lines = chamaMemberships.length
+              ? chamaMemberships.slice(0, 3).map((row) => {
+                const relation = row.chamas ?? row.groups;
+                const name = Array.isArray(relation) ? relation[0]?.name : relation?.name;
+                return `${name || "Chama"}: ${row.role || "member"}`;
+              }).join("\n")
+              : "No chama roles yet";
+            response = renderChamaInfoMenu("Chama Roles", `Admin, Treasurer, Secretary, Member\n${lines}`);
+          } else {
+            response = renderMainMenu(displayName);
+          }
         } else if (menu[0] === "3") {
           if (menu.length === 1) {
             response = renderAccountsMenu();
@@ -1776,25 +1953,26 @@ Deno.serve(async (req: Request) => {
               } | null;
 
               if (overview.error || !data?.ok) {
-                response = renderChoicePromptWithActions(
-                  "Ratibu\nMarketplace overview is unavailable right now.",
-                  menu,
-                  displayName,
-                );
+                response = renderChamaInfoMenu("Marketplace", "Overview is unavailable right now.");
               } else {
                 const eligible = data.eligible_roles || {};
-                response = renderChoicePromptWithActions(
-                  `Ratibu\nMarketplace\nScore ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nWallet KES ${Number(data.user?.wallet_balance ?? 0).toLocaleString()}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}\nChama admin +20, treasurer +15, secretary +10`,
-                  menu,
-                  displayName,
+                response = renderChamaInfoMenu(
+                  "Marketplace",
+                  `Score ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nWallet KES ${Number(data.user?.wallet_balance ?? 0).toLocaleString()}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}\nChama admin +20, treasurer +15, secretary +10`,
                 );
               }
             }
           } else if (menu[1] === "2") {
             if (menu.length === 2) {
-              response = `CON Ratibu\nMarketplace\nEnter recipient phone.`;
+              response = `CON Ratibu\nMarketplace\nEnter recipient phone.\n0 Back\n00 Home`;
             } else if (menu.length === 3) {
-              response = `CON Ratibu\nMarketplace\n${menu[2]}\nEnter amount.`;
+              if (menu[2] === "0") {
+                response = renderMarketplaceMenu();
+              } else if (menu[2] === "00") {
+                response = renderMainMenu(displayName);
+              } else {
+                response = `CON Ratibu\nMarketplace\n${menu[2]}\nEnter amount.\n0 Back\n00 Home`;
+              }
             } else {
               const recipientPhone = menu[2];
               const amount = Number(menu[3]);
@@ -1821,10 +1999,9 @@ Deno.serve(async (req: Request) => {
               }
             }
           } else if (menu[1] === "3") {
-            response = renderChoicePromptWithActions(
-              "Ratibu\nMarketplace roles\nVendor 600+\nRider 650+\nAgent 700+\nChama roles can also raise your score.",
-              menu,
-              displayName,
+            response = renderChamaInfoMenu(
+              "Role Eligibility",
+              "Vendor 600+\nRider 650+\nAgent 700+\nChama roles can also raise your score.",
             );
           } else if (menu[1] === "4") {
             const chamaMemberships = profile?.id ? await fetchChamaNames(supabase, profile.id) : [];
@@ -1836,11 +2013,7 @@ Deno.serve(async (req: Request) => {
               }).join("\n")
               : "No chama roles yet";
 
-            response = renderChoicePromptWithActions(
-              `Ratibu\nChama roles\nAdmin, Treasurer, Secretary, Member\n${chamaRoles}`,
-              menu,
-              displayName,
-            );
+            response = renderChamaInfoMenu("Chama Roles", `Admin, Treasurer, Secretary, Member\n${chamaRoles}`);
           } else {
             response = renderMarketplaceMenu();
           }
@@ -1848,15 +2021,15 @@ Deno.serve(async (req: Request) => {
           if (menu.length === 1) {
             response = renderProductsMenu();
           } else if (menu[1] === "1") {
-            response = renderChoicePromptWithActions("Ratibu\nSend Money\nUse Marketplace > Send Money for wallet transfers.", menu, displayName);
+            response = renderChamaInfoMenu("Send Money", "Use Marketplace > Send Money for wallet transfers.");
           } else if (menu[1] === "2") {
-            response = renderChoicePromptWithActions("Ratibu\nVendor Payments\nVendors get till numbers in the app or website.", menu, displayName);
+            response = renderChamaInfoMenu("Vendor Payments", "Vendors get till numbers in the app or website.");
           } else if (menu[1] === "3") {
-            response = renderChoicePromptWithActions("Ratibu\nAgent Products\nAgents apply and receive agent numbers in the app.", menu, displayName);
+            response = renderChamaInfoMenu("Agent Products", "Agents apply and receive agent numbers in the app.");
           } else if (menu[1] === "4") {
-            response = renderChoicePromptWithActions("Ratibu\nDelivery\nRiders are assigned delivery jobs in the app.", menu, displayName);
+            response = renderChamaInfoMenu("Delivery", "Riders are assigned delivery jobs in the app.");
           } else if (menu[1] === "5") {
-            response = renderChoicePromptWithActions("Ratibu\nE-commerce\nBrowse vendor products in the app or website.", menu, displayName);
+            response = renderChamaInfoMenu("E-commerce", "Browse vendor products in the app or website.");
           } else if (menu[1] === "6") {
             if (!profile?.id) {
               response = "END Can't confirm account.";
@@ -1870,13 +2043,12 @@ Deno.serve(async (req: Request) => {
               } | null;
 
               if (overview.error || !data?.ok) {
-                response = renderChoicePromptWithActions("Ratibu\nCredit score is unavailable right now.", menu, displayName);
+                response = renderChamaInfoMenu("Credit Score", "Score is unavailable right now.");
               } else {
                 const eligible = data.eligible_roles || {};
-                response = renderChoicePromptWithActions(
-                  `Ratibu\nCredit Score\nScore ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}`,
-                  menu,
-                  displayName,
+                response = renderChamaInfoMenu(
+                  "Credit Score",
+                  `Score ${data.user?.credit_score ?? 500}\nTier ${data.user?.credit_tier ?? "starter"}\nVendor ${eligible.vendor ? "Yes" : "No"}\nAgent ${eligible.agent ? "Yes" : "No"}\nRider ${eligible.rider ? "Yes" : "No"}`,
                 );
               }
             }
