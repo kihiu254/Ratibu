@@ -48,13 +48,8 @@ const Footer = () => {
                         <h3 className="text-slate-900 dark:text-white font-black uppercase tracking-[0.2em] text-xs mb-8 transition-colors">Contact</h3>
                         <div className="glass rounded-2xl p-5 border border-slate-200 dark:border-white/5 space-y-3 bg-white/50 dark:bg-white/5 backdrop-blur-md">
                             <p className="text-[10px] text-accent font-black uppercase tracking-widest">Global Support</p>
-                            <a href="mailto:ratibumail@gmail.com" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">ratibumail@gmail.com</a>
+                            <a href="mailto:customercare@ratibuchama.com" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">customercare@ratibuchama.com</a>
                             <a href="tel:+254716242252" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853]">0716 242 252</a>
-                            
-                            <div className="pt-4 border-t border-slate-200 dark:border-white/10 mt-4">
-                                <p className="text-[10px] text-accent font-black uppercase tracking-widest">Developer Contact</p>
-                                <a href="mailto:1kihiupaul@gmail.com" className="block text-slate-900 dark:text-white text-sm font-bold leading-tight transition-colors hover:text-[#00C853] mt-1">1kihiupaul@gmail.com</a>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -70,7 +65,6 @@ const Footer = () => {
                     </div>
                     <div className="flex gap-8 mt-6 md:mt-0">
                         <Link to="/legal/privacy" className="hover:text-[#00C853] transition-colors">Privacy</Link>
-                        <Link to="/legal/terms" className="hover:text-[#00C853] transition-colors">Terms</Link>
                         <Link to="/legal/cookies" className="hover:text-[#00C853] transition-colors">Cookies</Link>
                     </div>
                 </div>

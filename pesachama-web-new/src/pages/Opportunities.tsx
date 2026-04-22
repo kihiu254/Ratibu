@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Network, TrendingUp, Handshake, Lightbulb, ArrowRight, Wallet, Users, Sparkles } from 'lucide-react';
+import { Network, TrendingUp, Handshake, Lightbulb, ArrowRight, Wallet, Users, Sparkles, Mail, Phone } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
@@ -40,6 +40,21 @@ const Opportunities = () => {
         { label: "API Calls / Day", value: "1M+", icon: <Network /> },
         { label: "Capital Deployed", value: "$5M+", icon: <Wallet /> },
         { label: "Grants Awarded", value: "50+", icon: <Sparkles /> },
+    ];
+
+    const contactMethods = [
+        {
+            label: "Customer Care",
+            value: "customercare@ratibuchama.com",
+            href: "mailto:customercare@ratibuchama.com",
+            icon: <Mail className="w-5 h-5" />,
+        },
+        {
+            label: "Company Phone",
+            value: "0716 242 252",
+            href: "tel:+254716242252",
+            icon: <Phone className="w-5 h-5" />,
+        },
     ];
 
     return (
@@ -143,6 +158,35 @@ const Opportunities = () => {
                                     </div>
                                 </div>
                             </motion.div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Contact Strip */}
+            <section className="py-20 border-t border-slate-200 dark:border-white/5 bg-white/60 dark:bg-white/5 backdrop-blur-sm relative z-10">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {contactMethods.map((item, index) => (
+                            <motion.a
+                                key={item.label}
+                                href={item.href}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: index * 0.1 }}
+                                className="group flex items-center gap-4 rounded-[1.5rem] border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 px-6 py-5 hover:border-[#00C853]/40 hover:shadow-lg hover:shadow-[#00C853]/10 transition-all"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#00C853] text-white">
+                                    {item.icon}
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{item.label}</p>
+                                    <p className="mt-1 text-lg font-black text-slate-900 dark:text-white group-hover:text-[#00C853] transition-colors">
+                                        {item.value}
+                                    </p>
+                                </div>
+                            </motion.a>
                         ))}
                     </div>
                 </div>
